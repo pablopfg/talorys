@@ -9,16 +9,32 @@ const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "GET /
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/** API responses are data, never pages: nothing in them may load, run or be framed. */
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
 export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
   c.res.headers.set("cache-control", "no-store");
   c.res.headers.set("x-content-type-options", "nosniff");
   c.res.headers.set("referrer-policy", "same-origin");
+  c.res.headers.set("content-security-policy", API_CSP);
+  c.res.headers.set("x-frame-options", "DENY");
+  if (isHttps(c)) c.res.headers.set("strict-transport-security", "max-age=31536000");
 };
 
 function isDevelopment(c: Context<AppEnv>): boolean {
   return c.env.env.TALORYS_ENV === "development";
 }
+
+function isHttps(c: Context<AppEnv>): boolean {
+  return new URL(c.req.url).protocol === "https:";
+}
+
+/** Outside development, plain HTTP is refused before anything reads a cookie or a password. */
+export const requireHttps: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!isDevelopment(c) && !isHttps(c)) throw new AppError("FORBIDDEN", "HTTPS is required.");
+  return next();
+};
 
 function allowedOrigins(c: Context<AppEnv>): Set<string> {
   const origins = new Set([new URL(c.req.url).origin]);
@@ -51,8 +67,9 @@ export const csrfProtection: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+/** The __Host- cookie, always Secure; the plain name only for local development over HTTP. */
 export function sessionCookieName(c: Context<AppEnv>): string {
-  return new URL(c.req.url).protocol === "https:" ? SESSION_COOKIE : DEV_SESSION_COOKIE;
+  return isHttps(c) || !isDevelopment(c) ? SESSION_COOKIE : DEV_SESSION_COOKIE;
 }
 
 export function readSessionToken(c: Context<AppEnv>): string | null {
@@ -74,7 +91,7 @@ export function readSessionToken(c: Context<AppEnv>): string | null {
 }
 
 export function sessionCookie(c: Context<AppEnv>, token: string, expires: Date | null): string {
-  const secure = new URL(c.req.url).protocol === "https:";
+  const secure = sessionCookieName(c) === SESSION_COOKIE;
   const attrs = [
     `${sessionCookieName(c)}=${expires ? encodeURIComponent(token) : ""}`,
     "Path=/",
@@ -154,7 +171,11 @@ export function query<S extends z.ZodType>(c: Context<AppEnv>, schema: S): z.inf
 
 export function clientId(c: Context<AppEnv>): string {
   // Set by Cloudflare's edge and not spoofable by clients; absent only in local development.
-  return clientKey(c.req.header("cf-connecting-ip") ?? "local");
+  const ip = c.req.header("cf-connecting-ip");
+  if (ip) return clientKey(ip);
+  // Elsewhere every such request would share one rate-limit bucket, so refuse it instead.
+  if (!isDevelopment(c)) throw new AppError("NOT_CONFIGURED", "The client address is missing. Reach Talorys through its Cloudflare URL.");
+  return "local";
 }
 
 export function ipv4Octets(text: string): number[] | null {

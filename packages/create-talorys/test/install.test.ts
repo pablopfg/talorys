@@ -173,6 +173,18 @@ describe("installer: idempotency and recovery", () => {
     expect(readManifest(sb.dir)?.status).toBe("failed");
   });
 
+  it("checks health from a signed-out answer that has only ok", async () => {
+    const sb = makeSandbox();
+    const ok = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite({ minimalHealth: true }), templates: sb.templates });
+    expect(ok).toBeTruthy();
+    const sb2 = makeSandbox();
+    const error = await install(
+      { dir: sb2.dir, ...FAST },
+      { ui: new ScriptedUi(freshAnswers()), wrangler: sb2.wrangler(), fetch: fakeSite({ healthy: false, minimalHealth: true }), templates: sb2.templates },
+    ).catch((e) => e);
+    expect((error as CliError).details).toMatch(/not ready yet \(HTTP 503\)/);
+  });
+
   it("explains missing permissions", async () => {
     const sb = makeSandbox();
     sb.update((s) => (s.failNext = { deploy: "A request to the Cloudflare API failed. Authentication error [code: 10000]" }));

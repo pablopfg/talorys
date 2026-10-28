@@ -15,11 +15,16 @@ Talorys is single-user. The threat model assumes the internet can reach your
   the password as not configured and refuses every login.
 - A 256-bit `SESSION_SECRET` is generated locally and stored as a Worker secret.
 - Sessions are random 256-bit tokens in an `HttpOnly; Secure; SameSite=Strict;
-  Path=/` cookie named `__Host-talorys_session`. The database stores only
+  Path=/` cookie named `__Host-talorys_session`. Outside development the
+  Worker refuses plain HTTP and always issues this cookie, never the
+  unprefixed one used by local development. The database stores only
   `HMAC(SESSION_SECRET, token)`; a storage leak cannot be replayed.
 - Sessions expire after 30 days, or 14 days of inactivity. Logout and
   "sign out other sessions" revoke server-side. At most 20 sessions are kept.
-- Changing the password in the UI signs out other devices.
+- Signing in ends the session the browser already had, so a cookie planted
+  before sign-in cannot ride along.
+- Changing the password in the UI ends every session and access token,
+  the current one too, and signs this browser back in on a new session.
 - `reset-password` (CLI) replaces the secret; the Durable Object detects the
   changed fingerprint, discards any UI-set password and revokes every session.
 - There is no signup, setup or ownership-claim endpoint.
@@ -27,7 +32,8 @@ Talorys is single-user. The threat model assumes the internet can reach your
 ## Brute force
 
 5 failed logins per client within 15 minutes lock that client. A client is the
-IP address from `CF-Connecting-IP`, or its whole /64 for IPv6, since one
+IP address from `CF-Connecting-IP` (outside development a request without it
+is refused, so it can't land in a shared bucket), or its whole /64 for IPv6, since one
 subscriber usually holds a /64 and could otherwise rotate addresses. 25 failures
 overall lock login globally for the window, except for networks that signed in
 successfully within the last 30 days, so a distributed attack cannot lock the
@@ -47,7 +53,9 @@ The Worker is deployed with `workers_dev: false` and `preview_urls: false`. It i
 reachable only through the Pages service binding. A one-Worker deploy is public
 on `workers.dev` instead, behind the same checks. Authorization is enforced in
 the Worker for every route except `GET /api/health`, `POST /api/auth/login` and
-`GET /api/auth/session`. The agent instance name is fixed server-side.
+`GET /api/auth/session`. Without a session or token, `GET /api/health` answers
+only `{ "ok": true|false }`; the version, schema and configuration details are
+for the owner. The agent instance name is fixed server-side.
 
 ## XSS and browser hardening
 
@@ -56,6 +64,11 @@ the Worker for every route except `GET /api/health`, `POST /api/auth/login` and
 - `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
   `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS and a
   restrictive `Permissions-Policy`.
+- API responses carry their own `Content-Security-Policy: default-src 'none';
+  frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer
+  opened directly can't load anything or be framed.
+- Push subscriptions must carry exactly a 65-byte P-256 key and a 16-byte
+  secret, as RFC 8291 requires.
 - The service worker (`/sw.js`) only shows push notifications and caches
   nothing; a notification click can only open a path on the app's own origin.
 - No secrets or bindings exist in browser code (the build checks for this).

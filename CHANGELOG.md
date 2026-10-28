@@ -38,6 +38,11 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - O instalador recusa um `talorys.json` que aponte para um Worker ou projeto Pages que o Talorys não criou, não repassa mais a senha do dono aos processos filhos e redige credenciais também em erros inesperados.
 - O `zod` foi atualizado para 4.6.7 (GHSA-mrhx-c7xc-m3w5, consumo excessivo de memória na validação).
 - O deploy de Worker único desativa as URLs de preview das versões antigas.
+- Fora do ambiente de desenvolvimento, a API recusa HTTP sem criptografia, sempre usa o cookie `__Host-` com `Secure` e recusa pedidos sem o IP do cliente (`CF-Connecting-IP`), que antes caíam todos no mesmo limite de tentativas.
+- Entrar encerra a sessão que o navegador já tinha, e trocar a senha encerra todas as sessões e tokens, inclusive a atual, e abre uma sessão nova neste navegador.
+- Sem login, o `/api/health` responde só se está tudo certo (`ok`); versão, esquema e configuração ficam para o dono. O instalador continua conferindo a saúde do deploy.
+- As respostas da API trazem CSP `default-src 'none'`, `X-Frame-Options: DENY` e HSTS.
+- Inscrições de push só são aceitas com chaves do tamanho exato do padrão (65 e 16 bytes).
 
 ### Upgrading
 
