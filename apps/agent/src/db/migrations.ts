@@ -397,6 +397,14 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_pending_actions ADD COLUMN result TEXT`,
     ],
   },
+  {
+    version: 13,
+    name: "mcp tools in scheduled automations",
+    statements: [
+      // The owner's opt-in to offer an `auto` tool to scheduled automations as well as chat.
+      `ALTER TABLE tal_mcp_tools ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

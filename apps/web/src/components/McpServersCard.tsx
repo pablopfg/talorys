@@ -312,7 +312,7 @@ function hintText(tool: McpToolInfo): string | null {
 function ToolList({ server, maxTools }: { server: McpServerInfo; maxTools: number }) {
   const tools = useMcpTools(server.id);
   const save = useApiMutation(
-    ({ tool, patch }: { tool: McpToolInfo; patch: { enabled?: boolean; policy?: McpToolPolicy } }) =>
+    ({ tool, patch }: { tool: McpToolInfo; patch: { enabled?: boolean; policy?: McpToolPolicy; scheduled?: boolean } }) =>
       api<{ tool: McpToolInfo }>(`/mcp/servers/${server.id}/tools/${tool.id}`, { method: "PATCH", body: patch }),
     { invalidate: [keys.mcpServers, keys.mcpTools(server.id)] },
   );
@@ -324,8 +324,8 @@ function ToolList({ server, maxTools }: { server: McpServerInfo; maxTools: numbe
   return (
     <div className="space-y-3">
       <p className="text-xs leading-5 text-fg-subtle">
-        Turn on only the tools you want Talorys to use. Up to {maxTools} tools can be on across all servers. MCP tools are never used by scheduled
-        automations.
+        Turn on only the tools you want Talorys to use. Up to {maxTools} tools can be on across all servers. Scheduled automations use only the
+        tools you allow there, and only ones that run without asking.
       </p>
       <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
         {tools.data.map((t) => {
@@ -369,6 +369,17 @@ function ToolList({ server, maxTools }: { server: McpServerInfo; maxTools: numbe
                     <option value="auto">Run without asking</option>
                   </Select>
                   {t.policy === "auto" && <p className="text-xs leading-5 text-warning">{AUTO_WARNING}</p>}
+                  {t.policy === "auto" && (
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <p className="text-xs leading-5 text-fg-muted">Also use in scheduled automations</p>
+                      <Switch
+                        checked={t.scheduled}
+                        onChange={(on) => save.mutate({ tool: t, patch: { scheduled: on } })}
+                        label={`Use ${t.name} in scheduled automations`}
+                        disabled={save.isPending}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </li>
