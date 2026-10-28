@@ -12,6 +12,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   AI_LIMIT_REACHED: 429,
   CONFLICT: 409,
   NOT_CONFIGURED: 503,
+  REAUTH_REQUIRED: 403,
   INTERNAL_ERROR: 500,
 };
 

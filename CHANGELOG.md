@@ -43,9 +43,12 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Sem login, o `/api/health` responde só se está tudo certo (`ok`); versão, esquema e configuração ficam para o dono. O instalador continua conferindo a saúde do deploy.
 - As respostas da API trazem CSP `default-src 'none'`, `X-Frame-Options: DENY` e HSTS.
 - Inscrições de push só são aceitas com chaves do tamanho exato do padrão (65 e 16 bytes).
+- Exportar ou importar um backup, ligar o acesso remoto e criar um token de acesso pedem sua senha de novo quando o login tem mais de 15 minutos. Um cookie de sessão roubado sozinho não leva seus dados nem abre uma porta dos fundos. Desligar o acesso remoto e revogar tokens nunca pedem.
+- Os tokens de acesso remoto agora valem por 90 dias, e as Configurações mostram a data. Tokens criados antes desta versão ganham 90 dias a partir da atualização.
 
 ### Upgrading
 
+- A migração 14 adiciona `confirmed_at` em `tal_sessions` e `expires_at` em `tal_remote_tokens`. Sessões abertas antes dela pedem a senha na primeira ação sensível. O download do backup em Configurações agora é um botão: scripts que baixavam `GET /api/export` com o cookie precisam de um login recente.
 - Migration 13 adds a `scheduled` column on `tal_mcp_tools`; existing tools stay out of scheduled routines.
 - Migration 12 adds the `tal_mcp_servers` and `tal_mcp_tools` tables and a `result` column on pending actions. `npx create-talorys@latest update` adds the new `MCP_CREDENTIAL_KEY` secret; without it, only MCP servers without authentication can be added. Backups include MCP server names and URLs (never tokens); imported servers arrive turned off.
 - Migration 11 adds the `tal_task_plan_drafts` table. Existing data is untouched. Plan drafts are not included in backups, and plan cards in imported conversations are dropped, like approval cards.

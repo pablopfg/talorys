@@ -1,6 +1,7 @@
 import {
   MAX_REMOTE_TOKENS,
   REMOTE_TOKEN_PREFIX,
+  REMOTE_TOKEN_TTL_DAYS,
   type RemoteScope,
   type RemoteTokenInfo,
   hmacSha256Hex,
@@ -8,7 +9,7 @@ import {
   remoteTokenCreateSchema,
 } from "@talorys/shared";
 import type { z } from "zod";
-import { type Database, newId, now } from "../db/database";
+import { type Database, newId } from "../db/database";
 import { AppError, ValidationError } from "../api/errors";
 import { SESSION_IDLE_MS } from "../auth/auth-service";
 import type { SettingsService } from "../services/settings";
@@ -81,7 +82,7 @@ export class RemoteTokenService {
 
   list(): RemoteTokenInfo[] {
     return this.db.all<RemoteTokenInfo>(
-      `SELECT id, name, scope, hint, created_at, last_used_at FROM tal_remote_tokens ORDER BY created_at, rowid`,
+      `SELECT id, name, scope, hint, created_at, last_used_at, expires_at FROM tal_remote_tokens ORDER BY created_at, rowid`,
     );
   }
 
@@ -110,10 +111,14 @@ export class RemoteTokenService {
       if (this.db.one(`SELECT 1 AS x FROM tal_remote_tokens WHERE lower(trim(name)) = lower(?)`, name)) {
         throw new AppError("CONFLICT", "A token with this name already exists.");
       }
-      const info: RemoteTokenInfo = { id: newId(), name, scope, hint: token.slice(-4), created_at: now(), last_used_at: null };
+      const created = new Date();
+      const expires = new Date(created.getTime() + REMOTE_TOKEN_TTL_DAYS * 24 * 3600_000);
+      const info: RemoteTokenInfo = {
+        id: newId(), name, scope, hint: token.slice(-4), created_at: created.toISOString(), last_used_at: null, expires_at: expires.toISOString(),
+      };
       this.db.run(
-        `INSERT INTO tal_remote_tokens (id, name, token_hash, hint, scope, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        info.id, info.name, hash, info.hint, info.scope, info.created_at,
+        `INSERT INTO tal_remote_tokens (id, name, token_hash, hint, scope, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        info.id, info.name, hash, info.hint, info.scope, info.created_at, info.expires_at,
       );
       return { ...info, token };
     });
@@ -138,6 +143,8 @@ export class RemoteTokenService {
     const row = this.db.one<TokenRow>(`SELECT * FROM tal_remote_tokens WHERE token_hash = ?`, hash);
     if (!row) return null;
     const nowMs = Date.now();
+    // Past its lifetime it fails like a wrong token; the owner sees the date in Settings and makes a new one.
+    if (!row.expires_at || Date.parse(row.expires_at) <= nowMs) return null;
     if (!row.last_used_at || nowMs - Date.parse(row.last_used_at) > TOUCH_INTERVAL_MS) {
       this.db.run(`UPDATE tal_remote_tokens SET last_used_at = ? WHERE id = ?`, new Date(nowMs).toISOString(), row.id);
     }

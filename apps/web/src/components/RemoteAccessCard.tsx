@@ -174,7 +174,7 @@ export function RemoteAccessCard() {
                     hint={`${REMOTE_TOKEN_PREFIX}…${token.hint} · ${t("remote.tokenTimes", {
                       created: relativeTime(token.created_at, i18n),
                       used: token.last_used_at ? relativeTime(token.last_used_at, i18n) : t("remote.never"),
-                    })}`}
+                    })} · ${t("remote.expires", { date: new Date(token.expires_at).toLocaleDateString(i18n.locale) })}`}
                   >
                     <div className="flex items-center gap-2">
                       <Badge tone={token.scope === "write" ? "warning" : "neutral"}>{token.scope}</Badge>

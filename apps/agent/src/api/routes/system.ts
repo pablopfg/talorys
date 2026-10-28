@@ -2,7 +2,7 @@ import { type HealthReport, TALORYS_VERSION, type UsageReport, settingsUpdateSch
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app";
-import { body } from "../middleware";
+import { body, requireRecentAuth } from "../middleware";
 import { schemaVersion } from "../../db/migrations";
 import { MAX_IMPORT_BYTES, exportData, importData } from "../../services/backup";
 import { WORKERS_AI_PRICING } from "../../ai/pricing";
@@ -96,6 +96,7 @@ systemRoutes.get("/system/update", async (c) => {
 systemRoutes.get("/activity", (c) => c.json({ activity: c.env.agent.services.activity.list(100) }));
 
 systemRoutes.get("/export", (c) => {
+  requireRecentAuth(c);
   const backup = exportData(c.env.agent.services);
   c.env.agent.services.activity.record("data.exported", "Exported a backup");
   return new Response(JSON.stringify(backup, null, 2), {
@@ -107,6 +108,7 @@ systemRoutes.get("/export", (c) => {
 });
 
 systemRoutes.post("/import", async (c) => {
+  requireRecentAuth(c);
   const raw = await body(c, z.unknown(), MAX_IMPORT_BYTES);
   const summary = await importData(c.env.agent.services, raw);
   return c.json({ imported: summary });

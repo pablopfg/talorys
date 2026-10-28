@@ -10,6 +10,9 @@ export const MAX_REMOTE_TOKENS = 20;
 /** Every remote access token starts with this, so a leaked one is easy to recognise. */
 export const REMOTE_TOKEN_PREFIX = "tal_";
 
+/** A remote access token stops working this many days after it is created. */
+export const REMOTE_TOKEN_TTL_DAYS = 90;
+
 export const remoteTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(64),
   scope: z.enum(REMOTE_SCOPES).optional().default("read"),
@@ -26,4 +29,6 @@ export interface RemoteTokenInfo {
   hint: string;
   created_at: string;
   last_used_at: string | null;
+  /** When the token stops working. */
+  expires_at: string;
 }

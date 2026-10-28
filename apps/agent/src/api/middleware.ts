@@ -118,6 +118,18 @@ export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+/**
+ * Sensitive actions (turning on remote access, minting a token, export, import) need the password
+ * typed recently, so a stolen session cookie alone can't take the data or open a back door.
+ * Access tokens never reach these routes; if one did, it is refused too.
+ */
+export function requireRecentAuth(c: Context<AppEnv>): void {
+  const sessionId = c.get("sessionId");
+  if (!sessionId || !c.env.agent.services.auth.recentlyConfirmed(sessionId)) {
+    throw new AppError("REAUTH_REQUIRED", "Confirm your password to continue.");
+  }
+}
+
 /** Parses and validates a JSON body with a Zod schema, with a size limit. */
 export async function body<S extends z.ZodType>(c: Context<AppEnv>, schema: S, maxBytes = 256 * 1024): Promise<z.infer<S>> {
   const length = Number(c.req.header("content-length") ?? "0");
