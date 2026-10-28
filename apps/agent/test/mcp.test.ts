@@ -212,21 +212,47 @@ describe("remote MCP servers: what the model can use", () => {
     expect(f.calls.map((c) => c.args.query)).toEqual(["a", "b", "c"]);
   });
 
-  it("never offers MCP tools to scheduled runs", async () => {
+  it("offers MCP tools to scheduled runs only when the owner allowed them there", async () => {
     const f = mcpFixture({ tools: [searchTool] });
-    await connected(f, { search_docs: "auto" });
+    const { c, server } = await connected(f, { search_docs: "auto" });
     await inAgent(async (a) => {
       const s = a.services;
       const tools = s.mcp.chatTools();
       expect(tools[0]!.permission).toBe("read");
-      // Even handed to a scheduled executor, an external read tool is filtered out.
+      expect(s.mcp.scheduledTools()).toEqual([]);
+      // Even handed to a scheduled executor, a tool not allowed there is filtered out.
       const scheduled = new ToolExecutor(tools, { services: s, timezone: "UTC", mode: "scheduled" }, { maxToolCalls: 4 });
       expect(scheduled.available()).toEqual([]);
       await expect(scheduled.execute("mcp_docs_search_docs", { query: "a" })).rejects.toThrow(/not available/);
-      // And the scheduled runner itself never asks for them.
       expect(await a.runner().runScheduledPrompt('call mcp_docs_search_docs {"query":"a"}')).not.toContain("Found");
     });
     expect(f.calls).toEqual([]);
+
+    const allowed = await (await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true })).json();
+    expect(allowed).toMatchObject({ tool: { enabled: true, policy: "auto", scheduled: true } });
+    await inAgent(async (a) => {
+      expect(a.services.mcp.scheduledTools().map((t) => t.name)).toEqual(["mcp_docs_search_docs"]);
+      await a.runner().runScheduledPrompt('call mcp_docs_search_docs {"query":"a"}');
+    });
+    expect(f.calls.map((call) => call.args.query)).toEqual(["a"]);
+  });
+
+  it("keeps tools that ask first out of scheduled runs", async () => {
+    const f = mcpFixture({ tools: [searchTool, createIssueTool] });
+    const { c, server } = await connected(f, { search_docs: "auto", create_issue: "approve" });
+    const refused = await setTool(c, server.id, "mcp_docs_create_issue", { scheduled: true });
+    expect(refused.status).toBe(409);
+    expect(await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true })).toHaveProperty("status", 200);
+    // Switching to "ask first" takes the tool out of scheduled runs, and back to "run without asking" doesn't restore it.
+    expect(await (await setTool(c, server.id, "mcp_docs_search_docs", { policy: "approve" })).json()).toMatchObject({ tool: { scheduled: false } });
+    expect(await (await setTool(c, server.id, "mcp_docs_search_docs", { policy: "auto" })).json()).toMatchObject({ tool: { scheduled: false } });
+    await inAgent(async (a) => {
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+      // A turned-off tool is never offered, even if it was allowed in scheduled runs.
+      a.services.mcp.repo.updateTool(server.id, "search_docs", { scheduled: true });
+      a.services.mcp.repo.updateTool(server.id, "search_docs", { enabled: false });
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+    });
   });
 
   it("keeps built-in tools first and unchanged when MCP tools are added", async () => {

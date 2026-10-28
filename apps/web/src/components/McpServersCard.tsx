@@ -318,7 +318,7 @@ function ToolList({ server, maxTools }: { server: McpServerInfo; maxTools: numbe
   const { t, serverText } = useI18n();
   const tools = useMcpTools(server.id);
   const save = useApiMutation(
-    ({ tool, patch }: { tool: McpToolInfo; patch: { enabled?: boolean; policy?: McpToolPolicy } }) =>
+    ({ tool, patch }: { tool: McpToolInfo; patch: { enabled?: boolean; policy?: McpToolPolicy; scheduled?: boolean } }) =>
       api<{ tool: McpToolInfo }>(`/mcp/servers/${server.id}/tools/${tool.id}`, { method: "PATCH", body: patch }),
     { invalidate: [keys.mcpServers, keys.mcpTools(server.id)] },
   );
@@ -372,6 +372,17 @@ function ToolList({ server, maxTools }: { server: McpServerInfo; maxTools: numbe
                     <option value="auto">{t("mcp.policyAuto")}</option>
                   </Select>
                   {tool.policy === "auto" && <p className="text-xs leading-5 text-warning">{t("mcp.autoWarning")}</p>}
+                  {tool.policy === "auto" && (
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <p className="text-xs leading-5 text-fg-muted">{t("mcp.scheduledLabel")}</p>
+                      <Switch
+                        checked={tool.scheduled}
+                        onChange={(on) => save.mutate({ tool, patch: { scheduled: on } })}
+                        label={t("mcp.scheduledAria", { name: tool.name })}
+                        disabled={save.isPending}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </li>

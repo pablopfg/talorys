@@ -61,6 +61,8 @@ export interface McpToolInfo {
   description: string;
   enabled: boolean;
   policy: McpToolPolicy;
+  /** Offered to scheduled automations too. Only `auto` tools can be, since nobody is there to approve. */
+  scheduled: boolean;
   hints: McpToolHints;
   /** `removed`: the server no longer lists it. `invalid`: its definition can't be used safely. */
   status: "available" | "removed" | "invalid";
@@ -101,4 +103,5 @@ export const mcpOAuthCallbackSchema = z.object({
 export const mcpToolUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   policy: z.enum(MCP_TOOL_POLICIES).optional(),
+  scheduled: z.boolean().optional(),
 });

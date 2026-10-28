@@ -86,8 +86,10 @@ export class AgentRunner {
     private readonly services: Services,
     private readonly provider: AIProvider | null,
     private readonly ext?: RunnerExtensions,
-    /** Tools from remote MCP servers the owner enabled. Chat only; scheduled runs never get them. */
+    /** Tools from remote MCP servers the owner enabled for chat. */
     private readonly mcpTools: ToolDefinition[] = [],
+    /** The MCP tools the owner also allowed in scheduled automations (all run without asking). */
+    private readonly scheduledMcpTools: ToolDefinition[] = [],
   ) {}
 
   async *chat(input: TurnInput): AsyncGenerator<ChatStreamEvent> {
@@ -279,14 +281,14 @@ export class AgentRunner {
     }
   }
 
-  /** Runs an AI automation prompt with read-only tools. Returns the reply text. */
+  /** Runs an AI automation prompt with read-only tools (and MCP tools allowed there). Returns the reply text. */
   async runScheduledPrompt(prompt: string, signal?: AbortSignal, routineName?: string): Promise<string> {
     const s = this.services;
     const settings = s.settings.get();
     if (!this.provider) throw new AppError("AI_UNAVAILABLE", "Workers AI is not configured.");
     const executor = new ToolExecutor(
-      this.ext?.tools ?? ALL_TOOLS,
-      { services: s, timezone: settings.timezone, mode: "scheduled", routineName },
+      [...(this.ext?.tools ?? ALL_TOOLS), ...this.scheduledMcpTools],
+      { services: s, timezone: settings.timezone, mode: "scheduled", routineName, ...(signal ? { signal } : {}) },
       { maxToolCalls: Math.min(settings.limits.maxToolCalls, 4) },
     );
     const system = buildSystemPrompt({
@@ -299,6 +301,7 @@ export class AgentRunner {
         memoryTokenBudget(settings.limits),
       ),
       scheduled: true,
+      externalTools: this.scheduledMcpTools.length > 0,
     });
     const providerTools = toProviderTools(executor);
     let text = "";

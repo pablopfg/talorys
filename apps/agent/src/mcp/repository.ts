@@ -33,6 +33,7 @@ export interface StoredTool {
   invalid_reason: string | null;
   enabled: number;
   policy: McpToolPolicy;
+  scheduled: number;
   reviewed_hash: string | null;
   created_at: string;
   updated_at: string;
@@ -89,6 +90,7 @@ export function presentTool(t: StoredTool): McpToolInfo {
     description: t.description,
     enabled: t.enabled === 1,
     policy: t.policy,
+    scheduled: t.scheduled === 1 && t.policy === "auto",
     hints: parseHints(t.annotations),
     status: t.status,
     invalid_reason: t.invalid_reason,
@@ -184,15 +186,18 @@ export class McpRepository {
   /**
    * Enabling records the definition the owner reviewed; a later change hides the tool until reviewed again.
    * Only turning the tool on counts as a review: changing its policy alone keeps the reviewed definition.
+   * Asking first always takes a tool out of scheduled automations, which nobody is there to approve.
    */
-  updateTool(serverId: string, name: string, patch: { enabled?: boolean; policy?: McpToolPolicy }): void {
+  updateTool(serverId: string, name: string, patch: { enabled?: boolean; policy?: McpToolPolicy; scheduled?: boolean }): void {
     const t = this.db.one<StoredTool>(`SELECT * FROM tal_mcp_tools WHERE server_id = ? AND name = ?`, serverId, name);
     if (!t) return;
     const enabled = patch.enabled ?? t.enabled === 1;
     const reviewed = !enabled ? null : patch.enabled === true ? t.schema_hash : t.reviewed_hash;
+    const policy = patch.policy ?? t.policy;
+    const scheduled = policy === "auto" && (patch.scheduled ?? t.scheduled === 1);
     this.db.run(
-      `UPDATE tal_mcp_tools SET enabled = ?, policy = ?, reviewed_hash = ?, updated_at = ? WHERE server_id = ? AND name = ?`,
-      enabled, patch.policy ?? t.policy, reviewed, now(), serverId, name,
+      `UPDATE tal_mcp_tools SET enabled = ?, policy = ?, scheduled = ?, reviewed_hash = ?, updated_at = ? WHERE server_id = ? AND name = ?`,
+      enabled, policy, scheduled ? 1 : 0, reviewed, now(), serverId, name,
     );
   }
 

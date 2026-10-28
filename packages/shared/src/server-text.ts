@@ -218,6 +218,7 @@ const PT_BR: Catalog = {
   "The server no longer offers this tool.": "O servidor não oferece mais esta ferramenta.",
   "This tool can't be used.": "Esta ferramenta não pode ser usada.",
   "You can enable up to {max} MCP tools at once. Turn one off first.": "Você pode ativar até {max} ferramentas MCP ao mesmo tempo. Desative uma primeiro.",
+  "Only tools that run without asking can be used by scheduled automations, since nobody is there to approve them.": "Só ferramentas que executam sem perguntar podem ser usadas por automações agendadas, porque não há ninguém para aprová-las.",
   "These tools' descriptions would take up too much of the AI's context. Turn some off first.": "As descrições dessas ferramentas ocupariam contexto demais da IA. Desative algumas primeiro.",
   "Credential storage isn't set up on this deployment. Run `npx create-talorys update` to add the MCP_CREDENTIAL_KEY secret.":
     "O armazenamento de credenciais não está configurado nesta instalação. Execute `npx create-talorys update` para adicionar o segredo MCP_CREDENTIAL_KEY.",

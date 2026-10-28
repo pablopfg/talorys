@@ -37,8 +37,11 @@ interface BaseTool<S extends z.ZodType> {
   maxCallsPerTurn?: number;
   /** Short human-readable label for the UI, e.g. "Adding task “Buy milk”". */
   label: (input: z.infer<S>) => string;
-  /** Set on tools from a remote MCP server. They are offered in chat only, never in scheduled runs. */
-  external?: { serverId: string };
+  /**
+   * Set on tools from a remote MCP server. Scheduled runs get one only when the owner allowed it
+   * there (`scheduled`), and only if it runs without asking.
+   */
+  external?: { serverId: string; scheduled?: boolean };
 }
 
 export interface ImmediateTool<S extends z.ZodType = z.ZodType, R = unknown> extends BaseTool<S> {
@@ -110,13 +113,14 @@ export class ToolExecutor {
   }
 
   /**
-   * Tools permitted in this context. Scheduled runs never get write, destructive or external tools;
-   * notify_owner exists only there, since in chat the reply itself reaches the owner.
+   * Tools permitted in this context. Scheduled runs never get write or destructive tools, and get
+   * external tools only when the owner allowed them in scheduled automations. notify_owner exists
+   * only there, since in chat the reply itself reaches the owner.
    */
   available(): ToolDefinition[] {
     if (this.limits.maxToolCalls <= 0) return [];
     if (this.ctx.mode === "chat") return this.tools.filter((t) => t.name !== "notify_owner");
-    return this.tools.filter((t) => !t.external && (t.permission === "read" || t.name === "notify_owner"));
+    return this.tools.filter((t) => (t.external ? t.external.scheduled === true && t.permission === "read" : t.permission === "read" || t.name === "notify_owner"));
   }
 
   find(name: string): ToolDefinition | undefined {

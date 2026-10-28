@@ -13,7 +13,10 @@ no extra requests. Adding or removing a server never needs a redeploy.
 - **Transport:** Streamable HTTP only, over `https://`. The older HTTP+SSE
   transport, stdio and local MCP servers are not supported.
 - **Authentication:** none, a bearer token, or [OAuth sign-in](#oauth-sign-in).
-- **Chat only:** MCP tools are never offered to scheduled AI routines.
+- **Scheduled AI routines:** off by default. A tool set to **Run without
+  asking** can also be allowed in scheduled automations with its **Also use in
+  scheduled automations** switch. Tools that ask first are never used there,
+  since nobody is present to approve the call.
 - **Tools only:** MCP prompts, resources and sampling are not used.
 
 ## Connecting a server

@@ -188,8 +188,11 @@ Optional. Full details: [Remote MCP servers](mcp.md#security-model).
   the exact arguments and the tool's permission state) or, if the owner chooses,
   runs without asking. Server annotations such as `readOnlyHint` are shown but
   never trusted.
-- MCP tools are never offered to scheduled runs: the runner doesn't load them,
-  and the executor drops external tools outside chat.
+- Scheduled runs get an MCP tool only when the owner set it to run without
+  asking and also allowed it in scheduled automations (off by default). Tools
+  that ask first are never offered there, since nobody is present to approve:
+  switching a tool to ask first takes it out of scheduled runs, and the executor
+  drops any other external tool outside chat.
 - Bearer tokens and OAuth sign-ins (tokens, client registration, PKCE verifier)
   are AES-256-GCM encrypted under `MCP_CREDENTIAL_KEY`, bound to the server id,
   sent only to the configured origin, and never returned, logged, sent to the
