@@ -36,6 +36,10 @@ http://localhost:5173 and sign in with `talorys-dev-password`. See
 
 ## Before opening a pull request
 
+Open pull requests against `develop`; `main` only receives releases from
+`develop` (see [docs/branch-protection.md](docs/branch-protection.md)).
+
+
 ```bash
 npm run typecheck
 npm run lint
