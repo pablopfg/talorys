@@ -46,3 +46,12 @@ ruleset**, and pick each JSON file.
 
 Rulesets on private repositories need a paid GitHub plan; on public
 repositories they are free.
+
+## A pull request waits forever for `test`
+
+The required `test` check only exists once the CI workflow has run on the pull
+request's latest commit. A pull request opened while Actions was disabled, or
+before the workflow existed on its branch, never gets that run. Start one with
+**Actions → CI → Run workflow** on the pull request's branch, or bring
+`develop` into the branch (the **Update branch** button) so a new commit
+triggers CI.

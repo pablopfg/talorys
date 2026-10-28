@@ -4,6 +4,8 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Lets a missing run be started by hand from the Actions tab.
+  workflow_dispatch:
 
 jobs:
   test:
