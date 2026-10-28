@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to Talorys are listed here. Versions match the `create-talorys` package.
+Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e são iguais às do pacote instalador (`create-talorys`). Cada pull request descreve sua mudança em "Não lançado", nos grupos Adicionado, Alterado, Corrigido, Segurança e Atualização; a release transforma essa seção na versão nova. Veja [docs/releases.md](docs/releases.md).
 
-## Unreleased
+## Não lançado
 
 ### Added
 
@@ -16,6 +16,8 @@ All notable changes to Talorys are listed here. Versions match the `create-talor
 
 - Migration 12 adds the `tal_mcp_servers` and `tal_mcp_tools` tables and a `result` column on pending actions. `npx create-talorys@latest update` adds the new `MCP_CREDENTIAL_KEY` secret; without it, only MCP servers without authentication can be added. Backups include MCP server names and URLs (never tokens); imported servers arrive turned off.
 - Migration 11 adds the `tal_task_plan_drafts` table. Existing data is untouched. Plan drafts are not included in backups, and plan cards in imported conversations are dropped, like approval cards.
+
+## Histórico do Talorys original (até a versão 0.1.7)
 
 ## 0.1.7 — 2026-10-19
 
