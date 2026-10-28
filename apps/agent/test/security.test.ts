@@ -135,6 +135,12 @@ describe("brute-force protection", () => {
     }
   });
 
+  it("ignores Agents SDK internal headers sent by a client", async () => {
+    const res = await client().call("/api/health", { headers: { "x-agents-lifecycle-props": "{" } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain("SyntaxError");
+  });
+
   it("refuses sub-agent routes inside the agent, where each would get its own empty rate-limit table", async () => {
     const stub = await agentStub();
     const res = await stub.fetch(
