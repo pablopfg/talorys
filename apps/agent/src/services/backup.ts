@@ -15,6 +15,8 @@ import type { Services } from "./container";
 import { ValidationError } from "../api/errors";
 import { decodeTools } from "../db/repositories/conversations";
 import { validateEndpoint } from "../mcp/url";
+import { REMOTE_ID_PATTERN } from "../remote/allowlist";
+import { clip } from "./text";
 
 /**
  * Settings a backup may never change: they control cost and model behaviour, and a
@@ -97,6 +99,17 @@ function trustedStamp(v: unknown, now: string): string | null {
 
 const str = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/** A full ISO date-time with a zone, as the API stores due dates; anything else is dropped. */
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+function dueDate(v: unknown): string | null {
+  if (typeof v !== "string" || !ISO_DATE_TIME.test(v)) return null;
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+/** Longest memory, as the API accepts it. */
+const MAX_MEMORY_CHARS = 2_000;
 const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(v as T) ? (v as T) : fallback;
 
@@ -138,18 +151,30 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       );
     }
     const projectExists = (id: unknown) => typeof id === "string" && !!db.one(`SELECT 1 AS x FROM tal_projects WHERE id = ?`, id);
+    /**
+     * Conversations imported messages may join: ones this import creates, or ones that hold only
+     * imported messages. A backup can never add turns to a chat the owner had here.
+     */
+    const importedOnly = (id: string) =>
+      !!db.one(`SELECT 1 AS x FROM tal_messages WHERE conversation_id = ? LIMIT 1`, id) &&
+      !db.one(`SELECT 1 AS x FROM tal_messages WHERE conversation_id = ? AND source IS NOT 'import' LIMIT 1`, id);
+    const importable = new Set<string>();
     for (const c of d.conversations) {
+      const exists = !!db.one(`SELECT 1 AS x FROM tal_conversations WHERE id = ?`, c.id);
+      if (exists && !importedOnly(c.id)) continue;
       // Summaries go into the system prompt but are invisible in the UI, so imported ones are
       // dropped and regenerated from the (visible) messages when needed.
       db.run(
         `INSERT INTO tal_conversations (id, title, summary, summary_upto, created_at, updated_at) VALUES (?, ?, NULL, NULL, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at`,
-        c.id, c.title, at(c.created_at), at(c.updated_at),
+         ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at
+         WHERE excluded.updated_at > tal_conversations.updated_at AND ? = 1`,
+        c.id, c.title, at(c.created_at), at(c.updated_at), newer(c.updated_at),
       );
+      importable.add(c.id);
     }
     let messages = 0;
     for (const m of d.messages) {
-      if (!db.one(`SELECT 1 AS x FROM tal_conversations WHERE id = ?`, m.conversation_id)) continue;
+      if (!importable.has(m.conversation_id)) continue;
       db.run(
         `INSERT INTO tal_messages (id, conversation_id, role, content, tools, status, error, created_at, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'import') ON CONFLICT(id) DO NOTHING`,
@@ -166,6 +191,8 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       const updatedAt = at(m.updated_at);
       // Never overwrite a newer local edit with an older (or untrustworthy) backup copy.
       if (existing && (!newer(m.updated_at) || existing.updated_at >= updatedAt)) continue;
+      const content = clip(m.content.trim(), MAX_MEMORY_CHARS);
+      if (!content) continue;
       // Older backups (before Smart Memory) have no lifecycle fields: those memories stay current.
       const status = pick(m.status, MEMORY_STATUSES, "active");
       db.run(
@@ -173,7 +200,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
          VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET content = excluded.content, category = excluded.category, status = excluded.status,
            valid_from = excluded.valid_from, valid_until = excluded.valid_until, updated_at = excluded.updated_at`,
-        m.id, m.content, pick(m.category, MEMORY_CATEGORIES, "other"), "import", status,
+        m.id, content, pick(m.category, MEMORY_CATEGORIES, "other"), "import", status,
         statedDate(m.valid_from), statedDate(m.valid_until), at(m.created_at), updatedAt,
       );
       if (typeof m.superseded_by === "string" && m.superseded_by) importedLinks.push({ id: m.id, superseded_by: m.superseded_by });
@@ -193,7 +220,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
            completed_at = excluded.completed_at
          WHERE excluded.updated_at > tal_tasks.updated_at AND ? = 1`,
         t.id, t.title, str(t.description), pick(t.status, ["todo", "in_progress", "done"], "todo"),
-        pick(t.priority, ["low", "medium", "high", "urgent"], "medium"), strOrNull(t.due_at),
+        pick(t.priority, ["low", "medium", "high", "urgent"], "medium"), dueDate(t.due_at),
         projectExists(t.project_id) ? t.project_id : null, at(t.created_at), at(t.updated_at), t.completed_at ? at(t.completed_at) : null, newer(t.updated_at),
       );
     }
@@ -229,6 +256,9 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
     for (const m of d.mcp_servers) {
       // An imported server never connects or exposes a tool on its own: it arrives disabled, with no
       // credential and no tools, and an existing server keeps the owner's version. Unsafe URLs are skipped.
+      // Ids end up inside approval targets ("server/tool") and OAuth state ("server.nonce"), so
+      // only servers with the UUIDs Talorys mints are imported.
+      if (!REMOTE_ID_PATTERN.test(m.id)) continue;
       if (db.one(`SELECT 1 AS x FROM tal_mcp_servers WHERE id = ?`, m.id) || s.mcp.repo.count() >= MAX_MCP_SERVERS) continue;
       let url: string;
       try {
@@ -256,7 +286,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       s.settings.update(settings as never);
     }
     return {
-      conversations: d.conversations.length,
+      conversations: importable.size,
       messages,
       memories: d.memories.length,
       tasks: d.tasks.length,

@@ -1,6 +1,7 @@
 import { getAgentByName } from "agents";
 import { AGENT_INSTANCE_NAME } from "@talorys/shared";
 import type { Env } from "./env";
+import { AppError, errorResponse } from "./api/errors";
 
 export { TalorysAgent } from "./agent/talorys-agent";
 
@@ -26,7 +27,7 @@ export default {
       return Response.json({ error: { code: "FORBIDDEN", message: "WebSockets are not supported" } }, { status: 400 });
     }
     const agent = await getAgentByName(env.TalorysAgent, AGENT_INSTANCE_NAME);
-    return agent.fetch(withoutInternalHeaders(request));
+    return withoutRawErrors(await agent.fetch(withoutInternalHeaders(request)));
   },
 } satisfies ExportedHandler<Env>;
 
@@ -40,4 +41,18 @@ function withoutInternalHeaders(request: Request): Request {
   const headers = new Headers(request.headers);
   for (const name of internal) headers.delete(name);
   return new Request(request, { headers });
+}
+
+/**
+ * When the Durable Object fails before the API router runs (a failed migration on startup, a
+ * storage error), the Agents SDK answers with the raw stack trace as plain text. The API's own
+ * errors are always JSON, so any other 5xx body is replaced with the generic error.
+ */
+export function withoutRawErrors(response: Response): Response {
+  if (response.status < 500 || response.headers.get("content-type")?.startsWith("application/json")) return response;
+  void response.body?.cancel();
+  const safe = errorResponse(new AppError("INTERNAL_ERROR", "Something went wrong. Your data is safe; please try again."));
+  safe.headers.set("x-content-type-options", "nosniff");
+  safe.headers.set("content-security-policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+  return safe;
 }

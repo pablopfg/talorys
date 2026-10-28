@@ -20,6 +20,11 @@ export const MCP_LIMITS = {
   maxListPages: 5,
   /** A cached session older than this is closed and opened again on next use. */
   idleMs: 2 * 60_000,
+  /**
+   * Longest any one response body may stay open. The SDK keeps reading an event stream after the
+   * reply it waited for, so without this a server could hold a request open for as long as it likes.
+   */
+  maxResponseMs: 35_000,
 } as const;
 
 /** A failure whose message is safe to show the owner; `kind` drives the stored server status. */
@@ -67,18 +72,33 @@ export function classifyMcpError(error: unknown): McpConnectionError {
   return new McpConnectionError(kind, SAFE_MESSAGES[kind]);
 }
 
-/** Counts bytes as a body streams and fails it past `max`, so a huge or endless response can't exhaust memory. */
-function limitBody(res: Response, max: number): Response {
+/**
+ * Counts bytes as a body streams and fails it past `max` bytes or `maxMs`, so a huge, endless or
+ * slowly trickling response can't exhaust memory or keep a request open.
+ */
+export function limitBody(res: Response, max: number, maxMs: number = MCP_LIMITS.maxResponseMs): Response {
   const length = Number(res.headers.get("content-length") ?? "0");
   if (length > max) throw new McpConnectionError("protocol", "The MCP server's response was too large.");
   if (!res.body) return res;
   let total = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const counted = res.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
+      start(controller) {
+        // Erroring the stream also cancels the server's body, which closes the request.
+        timer = setTimeout(() => controller.error(new McpConnectionError("timeout", SAFE_MESSAGES.timeout)), maxMs);
+      },
       transform(chunk, controller) {
         total += chunk.byteLength;
-        if (total > max) controller.error(new McpConnectionError("protocol", "The MCP server's response was too large."));
-        else controller.enqueue(chunk);
+        if (total <= max) return controller.enqueue(chunk);
+        clearTimeout(timer ?? null);
+        controller.error(new McpConnectionError("protocol", "The MCP server's response was too large."));
+      },
+      flush() {
+        clearTimeout(timer ?? null);
+      },
+      cancel() {
+        clearTimeout(timer ?? null);
       },
     }),
   );

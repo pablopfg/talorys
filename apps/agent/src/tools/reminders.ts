@@ -42,9 +42,10 @@ export const reminderTools = [
       if (!at && i.in_minutes) at = toLocalMinute(new Date(Date.now() + i.in_minutes * 60_000 + 59_000), ctx.timezone);
       if (!at) throw new ToolError("Provide 'at' or 'in_minutes'.");
       const a = await ctx.services.automations.create({
-        name: clip(i.message, 120),
+        name: clip(defangLinks(i.message), 120),
         kind: "reminder",
-        message: i.message,
+        // Model-written: links stay visible but can't be clicked once the reminder fires.
+        message: defangLinks(i.message),
         schedule: { type: "once", at },
         enabled: true,
       });
@@ -72,9 +73,9 @@ export const reminderTools = [
     execute: async (i, ctx) => {
       checkAgentSchedule(i.schedule);
       const a = await ctx.services.automations.create({
-        name: i.name,
+        name: defangLinks(i.name),
         kind: i.kind,
-        message: i.message ?? "",
+        message: defangLinks(i.message ?? ""),
         schedule: i.schedule,
         enabled: true,
       });

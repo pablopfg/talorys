@@ -107,11 +107,18 @@ for the owner. The agent instance name is fixed server-side.
   tool result that tells the model to set one up can't schedule it on its own.
   The agent can't repeat any schedule more often than hourly, and at most 50
   automations can be active at once.
-- Memories and the conversation summary enter the system prompt inside
-  `<data>` blocks, one memory per line, with anything shaped like the block's
-  own tags defused, so stored text can't close the block and pose as rules.
+- Memories, the conversation summary and recalled tasks, notes and reminders
+  enter the system prompt inside `<data>` blocks, one item per line, with
+  anything shaped like the block's own tags defused, so stored text can't close
+  the block and pose as rules. The result of an approved MCP call is added the
+  same way, so a server's reply can't pose as another approval outcome.
 - A conversation restored from a backup is shown to the model as past
-  conversation, not as the owner's instructions.
+  conversation, not as the owner's instructions, and keeps that label when it
+  is summarized.
+- Reminders and automations the agent creates store links as visible,
+  unclickable text, and the task digest shows task titles the same way, so
+  injected text can't plant a clickable link in a notification. `update_task`
+  can't mark a task done; that goes through `complete_task` and its cap.
 - Scheduled AI runs get read-only tools plus `notify_owner`, which exists only
   there. Its title always starts with the routine's name, and links in it, and
   in the run's reply, are shown as plain text that can't be clicked.
@@ -165,7 +172,12 @@ does on its own:
   approvals are stripped, so they never count as the owner's input.
 - Malformed tool activity is dropped instead of breaking the chat view.
 - MCP servers arrive turned off, with no credential and no enabled tools; an
-  existing server is never changed, and unsafe URLs are skipped.
+  existing server is never changed, and unsafe URLs or ids that aren't UUIDs
+  are skipped.
+- Messages only join conversations the import creates or that hold only
+  imported messages; a backup can't add turns to, or retitle, a chat you had.
+- Due dates that aren't full ISO date-times are dropped, and memories are cut
+  to 2,000 characters, as the API allows.
 - A date that can't be read, or that lies more than 5 minutes in the future,
   is replaced by the import time and never replaces a local record, so a forged
   date can't win "newer copy wins" against your later edits.
@@ -246,8 +258,15 @@ Optional. Full details: [Remote MCP servers](mcp.md#security-model).
   answers (checked over DNS-over-HTTPS before each new connection). Redirects
   are refused, and every request must stay on the configured origin.
 - Calls share the turn's tool budget, per-tool caps and duplicate detection, and
-  are bounded by timeouts and response-size limits. Results and descriptions are
-  marked as untrusted third-party data in the prompt.
+  are bounded by timeouts, response-size limits and a 35-second limit on how
+  long any response may stay open. Results and descriptions are marked as
+  untrusted third-party data in the prompt.
+- A tool that runs without asking is re-checked at call time: once the owner
+  switches it to ask first, or out of scheduled runs, a turn or run already in
+  progress can't call it on its own either.
+- Regular expressions in a tool's input schema (`pattern`,
+  `patternProperties`) are not run inside the agent, so a server can't stall
+  the Durable Object with a backtracking pattern; the server validates them.
 - A changed tool definition hides the tool until the owner reviews it again.
 - Backups carry only server names, URLs and auth types; imported servers arrive
   turned off, without credentials or tools.

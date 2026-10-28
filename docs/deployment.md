@@ -127,6 +127,13 @@ a plain variable would be dropped when an update regenerates the Worker config.
 and Durable Object class, appends (never edits) migrations, keeps secrets, and
 re-verifies. Schema migrations run transactionally inside the Durable Object.
 
+Cloudflare Pages keeps every earlier deployment reachable at its own
+`<hash>.<project>.pages.dev` address, wired to the same backend. After an
+update that fixes the web UI, delete older deployments in the dashboard
+(Workers & Pages → your project → Deployments) or with
+`npx wrangler pages deployment delete <id> --project-name <project>`, so an
+old copy of the UI can't be used to phish the owner's password.
+
 ## Permissions
 
 OAuth login (default) uses Wrangler's standard scopes. API tokens need Workers

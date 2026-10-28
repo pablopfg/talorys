@@ -100,6 +100,7 @@ Auth ordering: if `Authorization` is present, it must be a valid Bearer token. A
 - `types` is a comma list from `memory`, `task`, `note`, `automation` (and any other types the handler accepts).
 - `limit` default **10**, capped at **50** (applied per type when types are listed; results are concatenated).
 - Semantic recall **off** → **409**. Clients must handle that; there is no special “keyword while off” mode for remote.
+- Token searches may use at most **half** of each daily embedding cap (memories and items). Past that, they return keyword-only hits (`cosine: null`) for the rest of the day, while the owner's chat keeps the other half.
 - Hits are thin (ids / scores / short fields). Follow up with `GET /api/…/:id` for full bodies.
 - Completed tasks and inactive automations are **not** filtered out of item search.
 

@@ -47,6 +47,16 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Todas as dependências agora têm versão exata em todos os `package.json`, e o `.npmrc` grava versões exatas (`save-exact`). Um teste falha se aparecer uma faixa como `^1.2.3`. O instalador publicado leva um `npm-shrinkwrap.json`, então o `npx create-talorys` instala exatamente a árvore testada, com hashes de integridade.
 - O Wrangler foi para 4.153.0 e o `@cloudflare/vitest-plugin` para 1.4.8, o que corrige alertas do `undici` (bypass de validação TLS, envenenamento de cache e negação de serviço). O `vitest` foi para 4.1.12 (GHSA-qxg6-89mg-rqv8), e `body-parser`, `qs`, `fast-uri` e `ip-address` foram atualizados no lockfile. O `npm audit` não acusa mais nenhuma vulnerabilidade, e o deploy agora bloqueia alertas altos, e não só críticos.
 - Os tokens de acesso remoto agora valem por 90 dias, e as Configurações mostram a data. Tokens criados antes desta versão ganham 90 dias a partir da atualização.
+- Duas expressões regulares podiam travar o app por segundos: o filtro de links das notificações (um texto com muitos `[](` sem fechar levava 7 s de CPU, agora 13 ms) e os `pattern` do esquema de uma ferramenta MCP, que o Talorys compilava e rodava a cada chamada. O Talorys não roda mais as expressões regulares do servidor MCP; o próprio servidor continua validando a entrada.
+- Lembretes e automações que o agente cria guardam os links do texto como texto não clicável, e o resumo de tarefas também mostra os títulos assim. Antes, um texto injetado podia criar um lembrete de hora em hora com um link de phishing clicável.
+- Uma ferramenta MCP que você troca para "perguntar antes" ou tira das automações agendadas deixa de rodar sozinha na mesma hora, mesmo numa resposta ou rotina que já estava em andamento.
+- Respostas de um servidor MCP têm prazo de 35 segundos. Antes, um servidor podia manter a conexão aberta indefinidamente depois de responder.
+- Endereços MCP recusam também IPv6 fora do unicast global (como `::127.0.0.1` e Teredo) e nomes privados terminados em ponto (`localhost.`).
+- O resultado de uma chamada MCP aprovada e as tarefas, notas e lembretes que a busca por significado traz entram na IA dentro de blocos de dados, como as memórias.
+- `update_task` não conclui mais tarefas: o agente usa `complete_task`, que tem o limite de 3 por mensagem e registra a atividade.
+- A importação de backup não acrescenta mais mensagens a uma conversa que você já tinha nem renomeia essa conversa; descarta datas de vencimento ilegíveis (que quebravam a tela de Tarefas e o resumo diário); corta memórias em 2.000 caracteres, como a API; e ignora servidores MCP cujo id não seja UUID. Mensagens restauradas de qualquer papel continuam marcadas como importadas também no resumo da conversa.
+- A busca por significado feita com um token de acesso usa no máximo metade do limite diário de embeddings, então um script ou token vazado não desliga a busca por significado do seu chat.
+- Se o Durable Object falhar ao iniciar, a API responde com o erro genérico em JSON, nunca com o stack trace do Agents SDK.
 
 ### Upgrading
 
