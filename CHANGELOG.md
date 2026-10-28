@@ -44,6 +44,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - As respostas da API trazem CSP `default-src 'none'`, `X-Frame-Options: DENY` e HSTS.
 - Inscrições de push só são aceitas com chaves do tamanho exato do padrão (65 e 16 bytes).
 - Exportar ou importar um backup, ligar o acesso remoto e criar um token de acesso pedem sua senha de novo quando o login tem mais de 15 minutos. Um cookie de sessão roubado sozinho não leva seus dados nem abre uma porta dos fundos. Desligar o acesso remoto e revogar tokens nunca pedem.
+- Todas as dependências agora têm versão exata em todos os `package.json`, e o `.npmrc` grava versões exatas (`save-exact`). Um teste falha se aparecer uma faixa como `^1.2.3`. O instalador publicado leva um `npm-shrinkwrap.json`, então o `npx create-talorys` instala exatamente a árvore testada, com hashes de integridade.
+- O Wrangler foi para 4.153.0 e o `@cloudflare/vitest-plugin` para 1.4.8, o que corrige alertas do `undici` (bypass de validação TLS, envenenamento de cache e negação de serviço). O `vitest` foi para 4.1.12 (GHSA-qxg6-89mg-rqv8), e `body-parser`, `qs`, `fast-uri` e `ip-address` foram atualizados no lockfile. O `npm audit` não acusa mais nenhuma vulnerabilidade, e o deploy agora bloqueia alertas altos, e não só críticos.
 - Os tokens de acesso remoto agora valem por 90 dias, e as Configurações mostram a data. Tokens criados antes desta versão ganham 90 dias a partir da atualização.
 
 ### Upgrading

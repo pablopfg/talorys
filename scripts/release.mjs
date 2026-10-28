@@ -30,6 +30,7 @@ export const VERSION_FILES = {
   installer: "packages/create-talorys/package.json",
   constants: "packages/shared/src/constants.ts",
   lockfile: "package-lock.json",
+  shrinkwrap: "packages/create-talorys/npm-shrinkwrap.json",
 };
 
 export function parseVersion(v) {
@@ -175,6 +176,13 @@ export function writeVersion(root, version) {
   if (!entry) throw new Error(`No packages/create-talorys entry in ${VERSION_FILES.lockfile}`);
   entry.version = version;
   writeFileSync(path("lockfile"), `${JSON.stringify(lock, null, 2)}\n`);
+
+  // The published installer's own lock: its name/version fields follow the package.
+  const shrinkwrap = JSON.parse(readFileSync(path("shrinkwrap"), "utf8"));
+  if (!shrinkwrap.packages?.[""]) throw new Error(`No root entry in ${VERSION_FILES.shrinkwrap}`);
+  shrinkwrap.version = version;
+  shrinkwrap.packages[""].version = version;
+  writeFileSync(path("shrinkwrap"), `${JSON.stringify(shrinkwrap, null, 2)}\n`);
 }
 
 export function prepareRelease(root, target, date) {

@@ -11,6 +11,6 @@
     "./recurrence": "./src/recurrence.ts"
   },
   "dependencies": {
-    "zod": "^4.6.7"
+    "zod": "4.6.7"
   }
 }

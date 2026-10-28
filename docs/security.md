@@ -178,6 +178,20 @@ does on its own:
 - Secrets go to Wrangler via stdin only.
 - `talorys.json` is checked to contain no secret-like values before writing.
 - Error output is sanitized of token-like strings.
+- The published package ships `npm-shrinkwrap.json`, so `npx create-talorys`
+  installs exactly the dependency tree that was tested, with integrity hashes,
+  instead of whatever versions are newest that day. After changing the
+  installer's `dependencies`, run `npm run shrinkwrap -w create-talorys`;
+  the release tests fail while the two disagree.
+
+## Dependencies
+
+- Every `package.json` in the repository pins exact versions (`save-exact=true`
+  in `.npmrc`), and CI installs with `npm ci` from the committed lockfile. A
+  test fails on any range such as `^1.2.3`.
+- Dependabot proposes updates daily, after a cooldown of 3 to 14 days, so a
+  compromised release is usually pulled before it reaches a PR. Security
+  updates skip the cooldown.
 
 ## Update check
 

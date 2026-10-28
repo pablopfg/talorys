@@ -11,6 +11,7 @@
     "dist",
     "templates",
     "README.md",
+    "npm-shrinkwrap.json",
     "LICENSE"
   ],
   "engines": {
@@ -34,17 +35,18 @@
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "test:pack": "node test/pack-test.mjs",
+    "shrinkwrap": "node scripts/shrinkwrap.mjs",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@clack/prompts": "^1.8.1",
-    "wrangler": "4.149.0"
+    "@clack/prompts": "1.8.1",
+    "wrangler": "4.153.0"
   },
   "devDependencies": {
     "@talorys/shared": "*",
-    "@types/node": "^22.0.0",
-    "tsup": "^8.5.1",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "@types/node": "22.20.5",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12"
   }
 }
