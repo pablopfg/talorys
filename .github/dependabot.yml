@@ -1,14 +1,51 @@
-# Keeps the SHA-pinned GitHub Actions up to date. npm dependencies are
-# reviewed by hand (see SECURITY.md).
+# Checks every day for updates to the npm dependencies of every workspace
+# and to the SHA-pinned GitHub Actions, and opens grouped pull requests into
+# develop. Security updates skip the cooldown and arrive as soon as an
+# advisory is published.
+#
+# Pull request titles follow Conventional Commits (chore(deps): …,
+# chore(deps-dev): …, ci(deps): …), so they pass the PR checks; the
+# changelog check skips Dependabot (see docs/releases.md).
 version: 2
 updates:
+  - package-ecosystem: npm
+    # The root lockfile covers every workspace in package.json.
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: daily
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    # A new release waits before a PR is opened, so a compromised or broken
+    # version is usually caught and pulled before it reaches us. Bigger jumps
+    # wait longer.
+    cooldown:
+      semver-patch-days: 3
+      semver-minor-days: 7
+      semver-major-days: 14
+    open-pull-requests-limit: 5
+    labels: [sem-changelog]
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    # Minor and patch updates arrive as at most two PRs per day; each major
+    # update gets its own PR, since it may need code changes.
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+
   - package-ecosystem: github-actions
     directory: /
     target-branch: develop
     schedule:
-      interval: weekly
-    # A new release waits a week before a PR is opened, so a compromised or
-    # broken version is usually caught and pulled before it reaches us.
+      interval: daily
+      time: "06:00"
+      timezone: America/Sao_Paulo
     cooldown:
       default-days: 7
     labels: [sem-changelog]
