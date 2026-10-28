@@ -26,6 +26,18 @@ export default {
       return Response.json({ error: { code: "FORBIDDEN", message: "WebSockets are not supported" } }, { status: 400 });
     }
     const agent = await getAgentByName(env.TalorysAgent, AGENT_INSTANCE_NAME);
-    return agent.fetch(request);
+    return agent.fetch(withoutInternalHeaders(request));
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * The Agents SDK reads its own `x-agents-*` headers before the API router runs (a malformed one
+ * answers with a raw stack trace), so a client must never be able to set them.
+ */
+function withoutInternalHeaders(request: Request): Request {
+  const internal = [...request.headers.keys()].filter((name) => name.startsWith("x-agents-"));
+  if (internal.length === 0) return request;
+  const headers = new Headers(request.headers);
+  for (const name of internal) headers.delete(name);
+  return new Request(request, { headers });
+}

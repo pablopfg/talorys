@@ -7,6 +7,10 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    # A new release waits a week before a PR is opened, so a compromised or
+    # broken version is usually caught and pulled before it reaches us.
+    cooldown:
+      default-days: 7
     labels: [sem-changelog]
     commit-message:
       prefix: ci
