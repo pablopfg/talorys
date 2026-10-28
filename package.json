@@ -25,6 +25,7 @@
     "test:e2e": "playwright test",
     "test:pack": "npm run test:pack -w create-talorys",
     "test:smoke": "node tests/smoke/real-deploy.mjs",
+    "test:deploy": "node --test scripts/deploy/*.test.mjs",
     "test:release": "node --test scripts/release.test.mjs",
     "release:prepare": "node scripts/release.mjs prepare",
     "screenshots": "node scripts/screenshots.mjs"

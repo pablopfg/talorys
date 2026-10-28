@@ -253,6 +253,21 @@ describe("installer: upgrades and password reset", () => {
     ).rejects.toThrow(/No Talorys installation/);
   });
 
+  it("refuses a manifest that points at resources Talorys did not create", async () => {
+    const sb = makeSandbox();
+    const m = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    const writes = () => sb.state().calls.filter((c) => /deploy|secret|create/.test(c.key)).length;
+    const deploys = writes();
+    for (const edit of [{ worker_name: "billing-api" }, { pages_project_name: "--help" }, { installation_id: "../x" }]) {
+      writeFileSync(join(sb.dir, "talorys.json"), JSON.stringify({ ...m, ...edit }));
+      await expect(
+        install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([]), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
+      ).rejects.toThrow(/did not create/);
+      await expect(resetPassword({ dir: sb.dir }, { ui: new ScriptedUi([]), wrangler: sb.wrangler(), templates: sb.templates })).rejects.toThrow(/did not create/);
+    }
+    expect(writes()).toBe(deploys);
+  });
+
   it("reset-password replaces only the password hash", async () => {
     const sb = makeSandbox();
     const m = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });

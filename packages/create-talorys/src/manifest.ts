@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { resourceNames } from "./config";
 import { CliError } from "./errors";
 
 export const MANIFEST_FILE = "talorys.json";
@@ -45,6 +46,15 @@ export function readManifest(dir: string): Manifest | null {
     if (typeof data[key] !== "string" || !data[key]) {
       throw new CliError(`${path} is missing "${key}".`, "Restore the file, or move it away to start a fresh installation.");
     }
+  }
+  // The installer deploys over these names, so a hand-edited or copied manifest must not point it
+  // at an unrelated Worker or Pages project in the same account.
+  const names = /^[a-z][a-z0-9]{3,15}$/.test(data.installation_id) ? resourceNames(data.installation_id) : null;
+  if (!names || data.worker_name !== names.workerName || data.pages_project_name !== names.pagesProjectName) {
+    throw new CliError(
+      `${path} names resources Talorys did not create.`,
+      "Restore the file, or move it away to start a fresh installation.",
+    );
   }
   return { ...data, steps: Array.isArray(data.steps) ? data.steps : [] };
 }

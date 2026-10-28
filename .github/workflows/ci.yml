@@ -8,6 +8,11 @@ on:
   pull_request:
   # Lets a missing run be started by hand from the Actions tab.
   workflow_dispatch:
+    inputs:
+      smoke:
+        description: Also run the real-account smoke test (deploys to the CI Cloudflare account)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -31,6 +38,26 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:pack
+
+  # Deploys a real installation with long-lived Cloudflare credentials and prints
+  # account details to the (public) log, so it never runs on pull requests: only
+  # on demand, behind the "smoke" environment (give it required reviewers in
+  # Settings > Environments and keep the secrets there).
+  smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke
+    needs: checks
+    runs-on: ubuntu-latest
+    environment: smoke
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       # Skips itself when the secrets are not configured.
       - name: Real-account smoke test
         env:
@@ -56,6 +83,8 @@ jobs:
     name: unit (${{ matrix.name }})
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -67,6 +96,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22

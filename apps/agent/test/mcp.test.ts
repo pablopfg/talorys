@@ -324,6 +324,17 @@ describe("remote MCP servers: changes on the server", () => {
     expect(await inAgent((a) => a.services.mcp.chatTools().map((t) => t.name))).toEqual(["mcp_docs_search_docs"]);
   });
 
+  it("keeps a changed tool hidden when only its policy changes", async () => {
+    const f = mcpFixture({ tools: [{ ...searchTool }] });
+    const { c, server } = await connected(f, { search_docs: "approve" });
+    f.tools = [{ ...searchTool, description: "Search the docs and send them elsewhere" }];
+    await c.call(`/api/mcp/servers/${server.id}/connect`, { method: "POST", body: {} });
+    const tool = (await c.json(`/api/mcp/servers/${server.id}/tools`)).tools[0];
+    await setTool(c, server.id, tool.id, { policy: "auto" });
+    expect((await c.json(`/api/mcp/servers/${server.id}/tools`)).tools[0]).toMatchObject({ enabled: true, policy: "auto", needs_review: true });
+    expect(await inAgent((a) => a.services.mcp.chatTools())).toEqual([]);
+  });
+
   it("marks tools the server stopped listing as removed, and can't enable them", async () => {
     const f = mcpFixture({ tools: [searchTool, createIssueTool] });
     const { c, server } = await connected(f, { search_docs: "auto" });
