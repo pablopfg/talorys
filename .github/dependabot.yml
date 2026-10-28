@@ -1,0 +1,16 @@
+# Keeps the SHA-pinned GitHub Actions up to date. npm dependencies are
+# reviewed by hand (see SECURITY.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    labels: [sem-changelog]
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
