@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Language } from "./constants";
 
 /**
  * Timezone-aware recurrence rules. Wall-clock times are interpreted in the
@@ -218,7 +219,9 @@ function describeInterval(minutes: number): string {
   return `Every ${minutes} minutes`;
 }
 
-export function describeSchedule(spec: ScheduleSpec): string {
+/** A schedule in plain words, in `language` (English for languages without their own wording). */
+export function describeSchedule(spec: ScheduleSpec, language: Language = "en"): string {
+  if (language === "pt-BR") return describeSchedulePtBr(spec);
   switch (spec.type) {
     case "once":
       return `Once at ${spec.at.replace("T", " ")}`;
@@ -237,5 +240,42 @@ export function describeSchedule(spec: ScheduleSpec): string {
       return `Monthly on the ${ordinal(spec.day)} at ${spec.time}${spec.day > 28 ? ", or the last day of shorter months" : ""}`;
     case "interval":
       return describeInterval(spec.minutes);
+  }
+}
+
+const DAY_NAMES_PT = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+function joinListPt(items: string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
+function describeIntervalPt(minutes: number): string {
+  if (minutes % 1440 === 0) return minutes === 1440 ? "Todos os dias" : `A cada ${minutes / 1440} dias`;
+  if (minutes % 60 === 0) return minutes === 60 ? "A cada hora" : `A cada ${minutes / 60} horas`;
+  if (minutes > 60) return `A cada ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  return `A cada ${minutes} minutos`;
+}
+
+function describeSchedulePtBr(spec: ScheduleSpec): string {
+  switch (spec.type) {
+    case "once": {
+      const [date, time] = spec.at.split("T");
+      const [y, m, d] = date!.split("-");
+      return `Uma vez em ${d}/${m}/${y} às ${time}`;
+    }
+    case "daily":
+      return `Todos os dias às ${spec.time}`;
+    case "weekly": {
+      const days = [...new Set(spec.days)].sort((a, b) => a - b);
+      const key = days.join("");
+      if (days.length === 7) return `Todos os dias às ${spec.time}`;
+      if (key === "12345") return `Todo dia útil às ${spec.time}`;
+      if (key === "06") return `Todo fim de semana às ${spec.time}`;
+      return `Toda semana (${joinListPt(days.map((d) => DAY_NAMES_PT[d]!))}) às ${spec.time}`;
+    }
+    case "monthly":
+      return `Todo mês no dia ${spec.day} às ${spec.time}${spec.day > 28 ? ", ou no último dia dos meses mais curtos" : ""}`;
+    case "interval":
+      return describeIntervalPt(spec.minutes);
   }
 }

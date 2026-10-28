@@ -1,0 +1,67 @@
+name: PR checks
+
+# Fast checks that need no `npm ci`: the pull request title, the changelog
+# entry, and the release script's own tests. See docs/releases.md.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # The title becomes the squash commit, and Conventional Commits keep the
+  # history readable for each release.
+  pr-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/release.mjs check-title "$TITLE"
+
+  # Every pull request into develop describes itself under "Não lançado",
+  # unless it carries the sem-changelog label (tests, CI, internal docs).
+  changelog:
+    if: >-
+      github.base_ref == 'develop'
+      && !contains(github.event.pull_request.labels.*.name, 'sem-changelog')
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The merge commit and its first parent, the base branch.
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check CHANGELOG.md
+        run: |
+          git show HEAD^1:CHANGELOG.md > "$RUNNER_TEMP/base-CHANGELOG.md"
+          node scripts/release.mjs check-changelog "$RUNNER_TEMP/base-CHANGELOG.md"
+
+  release-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: node --test scripts/release.test.mjs

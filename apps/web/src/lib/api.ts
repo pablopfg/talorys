@@ -1,4 +1,5 @@
 import { CSRF_HEADER, type ApiErrorBody, type ApiErrorCode, type ChatStreamEvent } from "@talorys/shared";
+import { currentI18n } from "./i18n";
 
 export class ApiError extends Error {
   constructor(
@@ -26,7 +27,8 @@ async function toApiError(res: Response): Promise<ApiError> {
     /* non-JSON error */
   }
   const code = body.error?.code ?? (res.status === 401 ? "UNAUTHORIZED" : "INTERNAL_ERROR");
-  const message = body.error?.message ?? (res.status >= 500 ? "Talorys is temporarily unavailable." : `Request failed (${res.status})`);
+  const { t, serverText } = currentI18n();
+  const message = body.error?.message ? serverText(body.error.message) : res.status >= 500 ? t("api.unavailable") : t("api.requestFailed", { status: String(res.status) });
   return new ApiError(res.status, code, message, body.error?.details);
 }
 

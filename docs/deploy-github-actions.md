@@ -113,9 +113,9 @@ histórico do shell).
 
 ### 4. Proteger a `main`
 
-As regras de branch (PR #3) exigem PR e CI verde para mesclar na `main`. Com
+As regras de branch (`.github/rulesets/`, veja [branch-protection.md](branch-protection.md)) exigem PR e CI verde para mesclar na `main`. Com
 elas, **o merge é o portão**: nada vai ao ar sem passar pela revisão e pelos
-testes. Depois que o PR #3 entrar, aplique as regras com
+testes. Se ainda não aplicou as regras, rode
 `scripts/apply-rulesets.sh`.
 
 ### 5. Primeiro deploy
