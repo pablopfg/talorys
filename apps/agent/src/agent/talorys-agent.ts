@@ -147,7 +147,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         );
         const open = s.tasks.list({ status: "open", limit: 200 }).length;
         const line = (t: { title: string; due_at: string | null; priority: string }) =>
-          `- ${t.title}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone)})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
+          `- ${t.title}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone, s.settings.language())})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
         const parts = [
           overdue.length ? `**Overdue (${overdue.length})**\n${overdue.map(line).join("\n")}` : "",
           today.length ? `**Due today (${today.length})**\n${today.map(line).join("\n")}` : "",

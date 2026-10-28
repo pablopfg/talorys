@@ -1,8 +1,8 @@
 import { Fragment, type ReactNode, useSyncExternalStore } from "react";
-import { type Language, LANGUAGES } from "@talorys/shared";
+import { DEFAULT_LANGUAGE, type Language, LANGUAGES, localizeServerText } from "@talorys/shared";
 import { format, isLanguage, type MessageKey, type MessageParams, translate } from "./core";
 
-export type { MessageKey } from "./core";
+export type { MessageKey, PlainMessageKey } from "./core";
 export type LanguagePreference = "system" | Language;
 
 /** Each language's name in that language, as shown in the language picker. */
@@ -18,6 +18,8 @@ export interface I18n {
   t<K extends MessageKey>(key: K, ...params: MessageParams<K, string>): string;
   /** Like t, but parameters may be elements, for messages with links or code inside. */
   rich<K extends MessageKey>(key: K, ...params: MessageParams<K, ReactNode>): ReactNode;
+  /** English text written by the server (errors, notifications, tool labels) in this language. */
+  serverText(text: string): string;
 }
 
 const KEY = "talorys.language";
@@ -27,7 +29,7 @@ const REGIONAL: Partial<Record<string, Language>> = Object.fromEntries(
   LANGUAGES.filter((language) => language.includes("-")).map((language) => [language.split("-")[0]!.toLowerCase(), language]),
 );
 
-/** The first browser language we have messages for, else English. */
+/** The first browser language we have messages for, else the default language. */
 export function browserLanguage(): Language {
   for (const tag of navigator.languages?.length ? navigator.languages : [navigator.language]) {
     const exact = LANGUAGES.find((language) => language.toLowerCase() === tag?.toLowerCase());
@@ -37,7 +39,7 @@ export function browserLanguage(): Language {
     const regional = base && REGIONAL[base];
     if (regional) return regional;
   }
-  return "en";
+  return DEFAULT_LANGUAGE;
 }
 
 function create(preference: LanguagePreference): I18n {
@@ -49,6 +51,7 @@ function create(preference: LanguagePreference): I18n {
     locale,
     t: (key, ...params) => translate(language, locale, key, ...params),
     rich: (key, ...[params]) => format<ReactNode>(language, locale, key, params).map((part, i) => <Fragment key={i}>{part}</Fragment>),
+    serverText: (text) => localizeServerText(text, language),
   };
 }
 
@@ -64,15 +67,18 @@ export function applyLanguage(preference: LanguagePreference): void {
   }
   if (current && current.preference === preference && preference !== "system") return;
   current = create(preference);
-  document.documentElement.lang = current.language;
-  window.removeEventListener("languagechange", onBrowserChange);
-  if (preference === "system") window.addEventListener("languagechange", onBrowserChange);
+  // Absent when components are rendered to a string in tests.
+  if (typeof window !== "undefined") {
+    document.documentElement.lang = current.language;
+    window.removeEventListener("languagechange", onBrowserChange);
+    if (preference === "system") window.addEventListener("languagechange", onBrowserChange);
+  }
   for (const listener of listeners) listener();
 }
 
 /** Applies the last known language before first render, so the sign-in screen is translated too. */
 export function initLanguage(): void {
-  let preference: LanguagePreference = "system";
+  let preference: LanguagePreference = DEFAULT_LANGUAGE;
   try {
     const stored = localStorage.getItem(KEY);
     if (stored === "system" || isLanguage(stored)) preference = stored;
@@ -92,7 +98,12 @@ function snapshot(): I18n {
   return current!;
 }
 
+/** The active language outside React, for code that runs outside components (API errors, push setup). */
+export function currentI18n(): I18n {
+  return snapshot();
+}
+
 /** The active language, its message lookup and its formatting locale. Re-renders when the language changes. */
 export function useI18n(): I18n {
-  return useSyncExternalStore(subscribe, snapshot);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

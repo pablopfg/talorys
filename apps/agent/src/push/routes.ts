@@ -1,4 +1,4 @@
-import { pushSubscribeSchema, pushUnsubscribeSchema } from "@talorys/shared";
+import { localizeServerText, pushSubscribeSchema, pushUnsubscribeSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError, NotFoundError, ValidationError } from "../api/errors";
@@ -46,7 +46,8 @@ pushRoutes.delete("/push/subscriptions/:id", (c) => {
 pushRoutes.post("/push/test", async (c) => {
   const s = c.env.agent.services;
   if (!s.push.configured()) throw new AppError("NOT_CONFIGURED", "Push notifications are not set up on this deployment yet.");
-  const result = await s.push.sendToAll({ title: s.settings.get().agentName, body: "Test notification: push works on this device.", url: "/" });
+  const body = localizeServerText("Test notification: push works on this device.", s.settings.language());
+  const result = await s.push.sendToAll({ title: s.settings.get().agentName, body, url: "/" });
   return c.json({ result, status: s.push.status() });
 });
 

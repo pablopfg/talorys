@@ -30,6 +30,8 @@ export default defineConfig(async () => ({
           TALORYS_ENV: "development",
           TALORYS_MOCK_AI: "1",
           TALORYS_DEV_ORIGINS: "",
+          // Tests read the server's English text; new installations default to pt-BR.
+          TALORYS_DEFAULT_LANGUAGE: "en",
           OWNER_PASSWORD_HASH: await pbkdf2(TEST_PASSWORD),
           SESSION_SECRET: "test-session-secret-0123456789abcdefghijklmnop",
           MCP_CREDENTIAL_KEY: "test-mcp-credential-key-0123456789abcdefghij",

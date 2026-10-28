@@ -66,6 +66,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 export function useSession(): SessionContextValue {
   const ctx = useContext(SessionContext);
+  // i18n-ignore: a developer error, never shown to the owner.
   if (!ctx) throw new Error("useSession outside SessionProvider");
   return ctx;
 }

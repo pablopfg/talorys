@@ -1,4 +1,4 @@
-import { DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
+import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
 import type { z } from "zod";
 import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS: Settings = {
   agentName: "Talorys",
   timezone: "UTC",
   theme: "system",
-  language: "system",
+  language: DEFAULT_LANGUAGE,
   model: DEFAULT_MODEL,
   temperature: 0.4,
   limits: { ...DEFAULT_LIMITS },
@@ -41,6 +41,12 @@ export class SettingsService {
     // Ignore invalid installer defaults rather than failing.
     const fallback = settingsSchema.safeParse({ ...merged, timezone: stored.timezone ?? DEFAULT_SETTINGS.timezone, agentName: stored.agentName ?? DEFAULT_SETTINGS.agentName });
     return fallback.success ? fallback.data : DEFAULT_SETTINGS;
+  }
+
+  /** The language for text the server sends on its own (push notifications). "system" has no browser to follow. */
+  language(): Language {
+    const preference = this.get().language;
+    return preference === "system" ? DEFAULT_LANGUAGE : preference;
   }
 
   update(patch: z.input<typeof settingsUpdateSchema>): Settings {

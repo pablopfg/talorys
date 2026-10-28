@@ -43,9 +43,9 @@ export function localDayBounds(timeZone: string, at = new Date()): { start: stri
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-export function formatLocal(iso: string | null, timeZone: string): string | null {
+export function formatLocal(iso: string | null, timeZone: string, locale = "en-US"): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone,
     weekday: "short",
     year: "numeric",

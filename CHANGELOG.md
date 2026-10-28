@@ -10,7 +10,7 @@ All notable changes to Talorys are listed here. Versions match the `create-talor
 
 - **Remote MCP servers.** Connect remote MCP servers (Streamable HTTP, with no authentication, a bearer token, or OAuth sign-in with PKCE and dynamic client registration) in Settings → Integrations and choose which of their tools Talorys may use in chat. Tools start off; each enabled tool either asks for your approval on every call (the default) or runs without asking. Calls share the chat's tool limits, are never made by scheduled routines, and send only the call's arguments to the server. Tokens are stored encrypted. See [docs/mcp.md](docs/mcp.md).
 
-- **Brazilian Portuguese.** Pick Português (Brasil) in Settings → Language. With "Browser default", browsers set to any Portuguese variant get it too. Screens not yet localized stay in English.
+- **Brazilian Portuguese, now the default language.** Every screen, notification, digest, push message and API error is translated. New installations start in Português (Brasil); pick another language in Settings → Language, or set the `TALORYS_DEFAULT_LANGUAGE` Worker variable. With "Browser default", browsers set to any Portuguese variant get it too, and unsupported browser languages fall back to the default. CI fails when new text has no translation.
 
 ### Upgrading
 
