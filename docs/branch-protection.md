@@ -10,6 +10,8 @@ again after each change).
 - Work happens on feature branches that open pull requests into `develop`.
 - Releases are pull requests from `develop` into `main`. Urgent fixes may come
   from a `hotfix/*` branch.
+- After a `hotfix/*` lands in `main`, open a pull request from `main` into
+  `develop` so `develop` gets the fix too.
 
 ## Rules
 
@@ -20,12 +22,16 @@ again after each change).
 | Changes only through pull requests | yes | yes |
 | Review conversations must be resolved | yes | yes |
 | CI job `test` must pass | yes | yes |
-| Branch must be up to date with the base before merging | yes | no |
 | Source must be `develop` or `hotfix/*` (`source-branch` check) | yes | no |
 
 No approving review is required, because a single maintainer cannot approve
 their own pull request. Repository admins can bypass the rules, but only when
 merging a pull request, never by pushing directly.
+
+Neither branch has to be up to date with its base before merging. Bringing
+`main` into `develop` from a release pull request (the **Update branch**
+button) would be a direct push to `develop`, which its rules block, so on
+`main` that requirement would leave every release after the first stuck.
 
 [`.github/CODEOWNERS`](../.github/CODEOWNERS) requests a review from the owner
 on every pull request.
@@ -52,9 +58,8 @@ repositories they are free.
 The CI workflow runs once for each commit pushed to a pull request, and not
 again when the pull request is merged: the rules above mean `main` and
 `develop` only change through pull requests, so a run after the merge would
-repeat tests on code already tested. A pull request into `main` must also be up
-to date with `main`, so its run tests exactly what lands there. A new commit
-cancels the run still going for the same pull request.
+repeat tests on code already tested. Each run tests the pull request merged
+into its base as it was when the commit was pushed. A new commit cancels the run still going for the same pull request.
 
 Lint, typecheck, build and the package test run in one job; the unit tests
 (the agent suite split in three) and the browser tests run in parallel jobs.
