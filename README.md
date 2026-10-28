@@ -75,7 +75,7 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | ✅ | **Tarefas, notas e projetos** | Criar, ver, editar e apagar pela interface e pelo chat (_"Adicione uma tarefa para revisar meu projeto amanhã"_). Prazos de tarefas criados pelo chat recusam datas impossíveis no calendário, inclusive horários com fuso UTC explícito. |
 | 🗺️ | **Planejamento de tarefas com IA** | Descreva um objetivo (_"Planeje as tarefas para lançar meu app de iOS no mês que vem"_) e receba um plano em um cartão interativo. Revise, edite ou remova tarefas, escolha um projeto e confirme: nada é criado antes disso, e a confirmação cria tudo de uma vez, uma única vez. |
 | ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
-| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Settings → General**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Geral**). Usa Web Push padrão, com criptografia de ponta a ponta. |
 
 > [!TIP]
 > No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.
@@ -84,12 +84,12 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 
 | | Funcionalidade | O que faz |
 | :---: | --- | --- |
-| 🔌 | **Servidores MCP remotos** <sub>opcional</sub> | Conecte servidores [MCP](https://modelcontextprotocol.io) remotos em **Settings → Integrations** (sem autenticação, com token bearer ou login OAuth) e escolha quais ferramentas deles o Talorys pode usar. As ferramentas começam desligadas, e chamadas que podem alterar algo aguardam sua aprovação. Não são usadas pelas rotinas agendadas. [Saiba mais](docs/mcp.md) |
+| 🔌 | **Servidores MCP remotos** <sub>opcional</sub> | Conecte servidores [MCP](https://modelcontextprotocol.io) remotos em **Configurações → Integrações** (sem autenticação, com token bearer ou login OAuth) e escolha quais ferramentas deles o Talorys pode usar. As ferramentas começam desligadas, e chamadas que podem alterar algo aguardam sua aprovação. Não são usadas pelas rotinas agendadas. [Saiba mais](docs/mcp.md) |
 | 👤 | **Usuário único por design** | Sem cadastro, sem contas, sem equipes. O instalador define a senha do dono. |
 | 🛟 | **Funciona sem IA** | Tarefas, notas, memórias e lembretes continuam funcionando se o Workers AI estiver indisponível ou se a sua cota gratuita acabar. |
 
 > [!NOTE]
-> A busca semântica vem desligada. Ative-a com o botão **Semantic memory recall**, perto do fim de **Settings → AI** (as outras opções aparecem depois que ele é ligado), ou instale com `--semantic`.
+> A busca semântica vem desligada. Ative-a com o botão **Busca semântica de memórias**, perto do fim de **Configurações → IA** (as outras opções aparecem depois que ele é ligado), ou instale com `--semantic`.
 
 ---
 
@@ -213,7 +213,7 @@ Veja [docs/deployment.md](docs/deployment.md).
 
 ## 🔑 Acesso
 
-Abra a URL que o instalador mostrar, digite a senha do dono e comece a conversar. Entre por quantos aparelhos quiser — todos são o mesmo dono. Gerencie as sessões em **Settings → Security**.
+Abra a URL que o instalador mostrar, digite a senha do dono e comece a conversar. Entre por quantos aparelhos quiser — todos são o mesmo dono. Gerencie as sessões em **Configurações → Segurança**.
 
 Esqueceu a senha? No seu diretório `talorys/`:
 
@@ -252,7 +252,7 @@ O Talorys foi feito para caber no **plano Free do Cloudflare Workers** e nunca a
 - Se a sua conta estiver num plano pago, o uso além do incluído é cobrado pela Cloudflare conforme o seu plano.
 
 <details>
-<summary><strong>Limites de proteção embutidos</strong> (ajustáveis em Settings → AI)</summary>
+<summary><strong>Limites de proteção embutidos</strong> (ajustáveis em Configurações → IA)</summary>
 
 - Máximo de tokens de saída.
 - Máximo de tokens de contexto (o histórico mais antigo é resumido).
@@ -278,9 +278,9 @@ Modelos sem suporte continuam sem preço, não gratuitos. Uma cobertura mista ap
 
 ## 💾 Backup dos seus dados
 
-**Settings → Privacy → Download backup** gera o arquivo `talorys-backup.json` com conversas, memórias, tarefas, notas, projetos, configurações e automações (nunca sessões ou credenciais).
+**Configurações → Privacidade → Baixar backup** gera o arquivo `talorys-backup.json` com conversas, memórias, tarefas, notas, projetos, configurações e automações (nunca sessões ou credenciais).
 
-**Import** valida o arquivo e o mescla numa única transação. Importar o mesmo backup duas vezes não causa problema, e uma memória, tarefa, nota ou projeto que você editou localmente depois do backup não é sobrescrito.
+**Importar dados** valida o arquivo e o mescla numa única transação. Importar o mesmo backup duas vezes não causa problema, e uma memória, tarefa, nota ou projeto que você editou localmente depois do backup não é sobrescrito.
 
 <details>
 <summary><strong>Detalhes da importação</strong></summary>
@@ -317,7 +317,7 @@ Também disponíveis: `status` e `doctor`.
 | O instalador parou no meio | Rode o mesmo comando de novo; ele continua de onde parou. |
 | "did not pass its health checks yet" | Sites `pages.dev` novos podem levar alguns minutos. Rode de novo. |
 | Erros de permissão | Use uma conta em que você possa editar Workers e Pages, ou um token com as [permissões acima](#-implantação). |
-| O chat diz que a cota de IA acabou | Espere a renovação diária, ou ative o modo de demonstração (Demo mode) em **Settings → AI**. |
+| O chat diz que a cota de IA acabou | Espere a renovação diária, ou ative o **Modo demonstração** em **Configurações → IA**. |
 | Bloqueado depois de logins com erro | Espere 15 minutos ou redefina a senha pela CLI. |
 
 ```bash
