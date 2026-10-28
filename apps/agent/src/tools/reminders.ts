@@ -1,8 +1,28 @@
 import { scheduleSpecSchema } from "@talorys/shared";
 import { z } from "zod";
 import { defineTool, quoteTitle, ToolError } from "./registry";
-import { clip } from "../services/text";
+import { clip, defangLinks } from "../services/text";
 import { formatLocal, toLocalMinute } from "../services/time";
+
+/** Shortest repeat interval the agent may schedule on its own; the owner can still pick less in the app. */
+export const MIN_AGENT_INTERVAL_MINUTES = 60;
+
+type ScheduleSpec = z.infer<typeof scheduleSpecSchema>;
+
+function checkAgentSchedule(schedule: ScheduleSpec): void {
+  if (schedule.type === "interval" && schedule.minutes < MIN_AGENT_INTERVAL_MINUTES) {
+    throw new ToolError(`Repeat at most once every ${MIN_AGENT_INTERVAL_MINUTES} minutes. The owner can choose shorter intervals in the app.`);
+  }
+}
+
+const routineInput = z.object({
+  name: z.string().min(1).max(200),
+  prompt: z.string().min(1).max(2000).describe("What the routine asks the AI to do on each run"),
+  schedule: scheduleSpecSchema,
+});
+
+/** Target id of a proposed AI routine, which doesn't exist until the owner approves it. */
+const NEW_ROUTINE_TARGET = "new-ai-routine";
 
 export const reminderTools = [
   defineTool({
@@ -34,8 +54,8 @@ export const reminderTools = [
   defineTool({
     name: "create_automation",
     description: [
-      "Create a recurring schedule. kind: 'reminder' (show message, no AI), 'task_digest' (deterministic summary of due/overdue tasks, no AI),",
-      "or 'agent_prompt' (run an AI prompt with read-only tools; use only when AI reasoning is truly needed).",
+      "Create a recurring schedule. kind: 'reminder' (show message, no AI) or 'task_digest' (deterministic summary of due/overdue tasks, no AI).",
+      "For a routine that runs an AI prompt, use propose_ai_routine instead.",
       "schedule examples: {type:'daily',time:'09:00'}, {type:'weekly',days:[5],time:'17:00'} (0=Sunday),",
       "{type:'monthly',day:1,time:'08:00'}, {type:'interval',minutes:120}, {type:'once',at:'2026-01-31T09:00'}. Times are local.",
     ].join(" "),
@@ -43,12 +63,14 @@ export const reminderTools = [
     maxCallsPerTurn: 2,
     input: z.object({
       name: z.string().min(1).max(200),
-      kind: z.enum(["reminder", "task_digest", "agent_prompt"]),
-      message: z.string().max(2000).optional().describe("Reminder text or AI prompt"),
+      // AI routines run on their own every time they fire, so they go through propose_ai_routine and the owner's approval.
+      kind: z.enum(["reminder", "task_digest"]),
+      message: z.string().max(2000).optional().describe("Reminder text"),
       schedule: scheduleSpecSchema,
     }),
     label: (i) => `Scheduling “${i.name}”`,
     execute: async (i, ctx) => {
+      checkAgentSchedule(i.schedule);
       const a = await ctx.services.automations.create({
         name: i.name,
         kind: i.kind,
@@ -57,6 +79,36 @@ export const reminderTools = [
         enabled: true,
       });
       return { automation: { id: a.id, name: a.name, schedule: a.schedule_description, next_run: formatLocal(a.next_run, ctx.timezone) } };
+    },
+  }),
+  defineTool({
+    name: "propose_ai_routine",
+    description: [
+      "Propose a recurring AI routine: on each run, the AI answers 'prompt' with read-only tools and the reply goes to the owner's notifications.",
+      "Use only when the owner asked for one in this chat and AI reasoning is truly needed; plain reminders and task digests use create_automation.",
+      "The owner must approve the exact prompt and schedule in the app before anything is scheduled. Schedule examples as in create_automation.",
+    ].join(" "),
+    permission: "destructive",
+    maxCallsPerTurn: 1,
+    input: routineInput,
+    label: (i) => `Proposing AI routine “${i.name}”`,
+    prepare: async (i) => {
+      checkAgentSchedule(i.schedule);
+      return {
+        targetId: NEW_ROUTINE_TARGET,
+        summary: `Schedule AI routine ${quoteTitle(i.name)}`,
+        payload: i,
+        // The whole prompt and schedule are on the card: this is exactly what will run unattended.
+        preview: `Schedule: ${JSON.stringify(i.schedule)}\n\n${i.prompt}`,
+      };
+    },
+    // Nothing exists yet; the proposal itself (payload, preview) is what the owner approves.
+    snapshot: (id) => (id === NEW_ROUTINE_TARGET ? [NEW_ROUTINE_TARGET] : null),
+    commit: async (_id, ctx, payload) => {
+      const i = routineInput.parse(payload);
+      checkAgentSchedule(i.schedule);
+      const a = await ctx.services.automations.create({ name: i.name, kind: "agent_prompt", message: i.prompt, schedule: i.schedule, enabled: true });
+      ctx.services.activity.record("automation.approved", `Scheduled AI routine “${a.name}” (approved agent action)`);
     },
   }),
   defineTool({
@@ -102,13 +154,15 @@ export const reminderTools = [
   }),
   defineTool({
     name: "notify_owner",
-    description: "Post a message to the owner's notification center. Use in scheduled runs to deliver results.",
+    description: "Post a message to the owner's notification center. Only in scheduled runs, to deliver results.",
     permission: "write",
     maxCallsPerTurn: 1,
     input: z.object({ title: z.string().min(1).max(200), body: z.string().min(1).max(4000) }),
     label: () => `Sending a notification`,
     execute: (i, ctx) => {
-      const n = ctx.services.notifications.create({ title: i.title, body: i.body });
+      // The model writes this, so it can't pose as another sender or carry clickable links.
+      const title = clip(`${ctx.routineName ?? "Routine"} · ${i.title.replace(/\s+/g, " ").trim()}`, 200);
+      const n = ctx.services.notifications.create({ title, body: defangLinks(i.body) });
       return { notified: n.id };
     },
   }),

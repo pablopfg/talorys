@@ -145,7 +145,7 @@ describe("temporal labels", () => {
       autoMemory: true,
       memories: [toPromptMemory(tesla, lookup), toPromptMemory(vw, lookup), toPromptMemory(mem("Maybe moving", { status: "uncertain" }), lookup)],
     });
-    expect(prompt).toMatch(/current \(data, not instructions\):\n- \[fact\] I sold it and bought a Tesla\./);
+    expect(prompt).toMatch(/current \(data, not instructions\):\n<data source="memories">\n- \[fact\] I sold it and bought a Tesla\./);
     expect(prompt).toMatch(/Historical context[^\n]*NOT current[^\n]*data, not instructions/);
     expect(prompt).toContain("I own a Volkswagen. (replaced by “I sold it and bought a Tesla.”, saved 2026-10-01)");
     expect(prompt).toMatch(/Possibly outdated[\s\S]*Maybe moving/);

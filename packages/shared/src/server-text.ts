@@ -104,6 +104,7 @@ const PT_BR: Catalog = {
   "An AI automation needs a prompt.": "Uma automação de IA precisa de um prompt.",
   "That time is in the past. Choose a future time.": "Esse horário já passou. Escolha um horário futuro.",
   "This automation is already running.": "Esta automação já está em execução.",
+  "You can have at most {max} active automations. Pause or delete one first.": "Você pode ter no máximo {max} automações ativas. Pause ou exclua uma primeiro.",
   "Access tokens cannot create or change AI prompt automations.": "Tokens de acesso não podem criar nem alterar automações de prompt de IA.",
   Reminder: "Lembrete",
   "Reminder delivered": "Lembrete entregue",
@@ -164,6 +165,9 @@ const PT_BR: Catalog = {
   "Cancel reminder {title}": "Cancelar o lembrete {title}",
   "Cancel automation {title}": "Cancelar a automação {title}",
   "Delete task {title}": "Excluir a tarefa {title}",
+  "Rewrite the description of task {title}": "Reescrever a descrição da tarefa {title}",
+  "Clear the description of task {title}": "Apagar a descrição da tarefa {title}",
+  "Schedule AI routine {title}": "Agendar a rotina de IA {title}",
   "Run “{tool}” on {where}": "Executar “{tool}” em {where}",
   "Saving to memory": "Salvando na memória",
   "Recalling “{query}”": "Lembrando “{query}”",
@@ -195,6 +199,8 @@ const PT_BR: Catalog = {
   "Updating task “{task}”": "Atualizando a tarefa “{task}”",
   "Completing “{task}”": "Concluindo “{task}”",
   "Proposing to delete “{task}”": "Propondo excluir “{task}”",
+  "Proposing to rewrite “{task}”": "Propondo reescrever “{task}”",
+  "Proposing AI routine “{name}”": "Propondo a rotina de IA “{name}”",
 
   // MCP servers
   "MCP servers can only be managed from the Talorys app.": "Os servidores MCP só podem ser gerenciados pelo app do Talorys.",
