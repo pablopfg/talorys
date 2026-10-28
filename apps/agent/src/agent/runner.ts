@@ -123,6 +123,7 @@ export class AgentRunner {
     let text = "";
     const tools: ToolActivity[] = [];
     let executor: ToolExecutor | null = null;
+    let toolCallsCounted = false;
     const finish = (status: ChatMessage["status"], error: string | null): ChatMessage => {
       // A plan proposed in a turn the owner stopped is withdrawn, so a half-finished reply can't leave one to confirm.
       if (status === "cancelled" && executor) {
@@ -257,6 +258,7 @@ export class AgentRunner {
         }
       }
       s.usage.increment({ tool_calls: turnTools.callCount });
+      toolCallsCounted = true;
 
       // Providers (like the AI SDK's streamText) may end the stream quietly on abort instead of throwing.
       if (input.signal.aborted) {
@@ -270,6 +272,8 @@ export class AgentRunner {
       }
       yield { type: "done", message: finish("complete", null) };
     } catch (error) {
+      // Tools that ran before the failure still count against today's usage.
+      if (executor && !toolCallsCounted) s.usage.increment({ tool_calls: executor.callCount });
       if (input.signal.aborted) {
         yield { type: "done", message: finish("cancelled", null) };
         return;
@@ -327,8 +331,9 @@ export class AgentRunner {
     } catch (error) {
       s.usage.increment({ ai_errors: 1 });
       throw classifyAiError(error);
+    } finally {
+      s.usage.increment({ tool_calls: executor.callCount });
     }
-    s.usage.increment({ tool_calls: executor.callCount });
     return text.trim() || "(No output)";
   }
 }

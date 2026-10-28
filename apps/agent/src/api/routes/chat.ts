@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app";
 import { body, query } from "../middleware";
-import { AppError, NotFoundError } from "../errors";
+import { AppError, NotFoundError, errorSummary } from "../errors";
 import { ALL_TOOLS, runApprovedAction } from "../../tools";
 
 export const chatRoutes = new Hono<AppEnv>();
@@ -97,7 +97,7 @@ chatRoutes.post("/chat", async (c) => {
       }
     } catch (error) {
       const appError = error instanceof AppError ? error : new AppError("INTERNAL_ERROR", "Something went wrong.");
-      if (!(error instanceof AppError)) console.error("Chat turn failed", error);
+      if (!(error instanceof AppError)) console.error("Chat turn failed", errorSummary(error));
       await send({ type: "error", code: appError.code, message: appError.message });
     } finally {
       if (conversationId && agent.activeRuns.get(conversationId) === controller) agent.activeRuns.delete(conversationId);

@@ -16,9 +16,16 @@ describe("update check", () => {
     expect(compareVersions("0.2.0-beta.1", "0.1.5")).toBe(0);
   });
 
+  it("is off by default", async () => {
+    await inAgent(async (agent) => {
+      expect(agent.services.settings.get().updateCheck).toBe(false);
+    });
+  });
+
   it("reports a newer release and caches the lookup for a day", async () => {
     await inAgent(async (agent) => {
       const s = agent.services.settings;
+      s.update({ updateCheck: true });
       s.delete("update.latest");
       const calls = { n: 0 };
       const t = 1_000_000;
@@ -29,16 +36,19 @@ describe("update check", () => {
       const later = await checkForUpdate(s, "0.1.5", registry("0.3.0", calls), t + 25 * 3600_000);
       expect(later.latest).toBe("0.3.0");
       s.delete("update.latest");
+      s.update({ updateCheck: false });
     });
   });
 
   it("fails quietly when offline", async () => {
     await inAgent(async (agent) => {
       const s = agent.services.settings;
+      s.update({ updateCheck: true });
       s.delete("update.latest");
       const r = await checkForUpdate(s, "0.1.5", registry(null, { n: 0 }));
       expect(r).toMatchObject({ enabled: true, latest: null, update_available: false });
       s.delete("update.latest");
+      s.update({ updateCheck: false });
     });
   });
 
@@ -53,7 +63,7 @@ describe("update check", () => {
         expect(calls.n).toBe(0);
       });
     } finally {
-      await c.json("/api/settings", { method: "PATCH", body: { updateCheck: true } });
+      await c.json("/api/settings", { method: "PATCH", body: { updateCheck: false } });
     }
   });
 });

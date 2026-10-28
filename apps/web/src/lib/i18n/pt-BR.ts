@@ -309,7 +309,7 @@ export const ptBR = {
   "settings.aiConflictCheckHint":
     "Deixa o Clef, o modelo de decisão da Cloudflare, decidir se uma nova memória substitui uma mais antiga. Só uma substituição confiante marca a antiga como passado; casos duvidosos aguardam revisão. Usa um pedido de IA por salvamento com possíveis conflitos.",
   "settings.deletedItems": { one: "{count} item excluído", other: "{count} itens excluídos" },
-  "settings.backupTooLarge": "O arquivo de backup tem mais de 25 MB.",
+  "settings.backupTooLarge": "O arquivo de backup tem mais de 10 MB.",
   "settings.importAutomationsPaused": { one: "{count} automação importada pausada; ative-a em Automações", other: "{count} automações importadas pausadas; ative-as em Automações" },
   "settings.importMcpOff": { one: "{count} servidor MCP importado desligado; revise-o em Configurações → Integrações", other: "{count} servidores MCP importados desligados; revise-os em Configurações → Integrações" },
   "settings.importKeptSettings": "suas configurações atuais de {settings} foram mantidas",

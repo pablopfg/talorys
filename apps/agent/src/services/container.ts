@@ -60,7 +60,7 @@ export function createServices(
   const notifications = new NotificationRepository(db, (n) => push.notify(n));
   const activity = new ActivityLog(db);
   const memories = new MemoryRepository(db);
-  const usage = new UsageService(db);
+  const usage = new UsageService(db, () => settings.get().timezone);
   const tasks = new TaskRepository(db);
   const projects = new ProjectRepository(db);
   return {

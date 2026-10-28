@@ -383,7 +383,7 @@ function PrivacyTab() {
   async function onImport(file: File) {
     setImporting(true);
     try {
-      if (file.size > 25 * 1024 * 1024) throw new Error(t("settings.backupTooLarge"));
+      if (file.size > 10 * 1024 * 1024) throw new Error(t("settings.backupTooLarge"));
       const json = JSON.parse(await file.text());
       const r = await api<{ imported: Record<string, number> & { automations_paused: number; mcp_servers?: number; ignored_settings: string[] } }>("/import", {
         method: "POST",

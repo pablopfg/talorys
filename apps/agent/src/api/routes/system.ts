@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AppEnv } from "../app";
 import { body } from "../middleware";
 import { schemaVersion } from "../../db/migrations";
-import { exportData, importData } from "../../services/backup";
+import { MAX_IMPORT_BYTES, exportData, importData } from "../../services/backup";
 import { WORKERS_AI_PRICING } from "../../ai/pricing";
 import { checkForUpdate } from "../../services/update-check";
 
@@ -59,7 +59,7 @@ systemRoutes.get("/usage", (c) => {
   const s = c.env.agent.services;
   const settings = s.settings.get();
   const report: UsageReport = {
-    day: new Date().toISOString().slice(0, 10),
+    day: s.usage.day(),
     today: s.usage.today(),
     last_7_days: s.usage.lastDays(7),
     limits: settings.limits,
@@ -104,7 +104,7 @@ systemRoutes.get("/export", (c) => {
 });
 
 systemRoutes.post("/import", async (c) => {
-  const raw = await body(c, z.unknown(), 25 * 1024 * 1024);
+  const raw = await body(c, z.unknown(), MAX_IMPORT_BYTES);
   const summary = await importData(c.env.agent.services, raw);
   return c.json({ imported: summary });
 });
