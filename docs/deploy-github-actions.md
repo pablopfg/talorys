@@ -47,6 +47,25 @@ tempo.
 
 ## Configuração (uma vez)
 
+Tudo abaixo é feito no navegador, nos painéis do GitHub e da Cloudflare. Não
+precisa instalar nada no computador. Quem preferir o terminal tem a
+alternativa com o Wrangler no passo 5.
+
+Reserve uns 30 minutos. A ordem importa: siga os passos na sequência.
+
+### 0. Antes de começar
+
+- **Conta na Cloudflare** (o plano gratuito basta).
+- **Domínio próprio na Cloudflare** (recomendado): o domínio precisa estar
+  adicionado à sua conta, com os nameservers da Cloudflare (Websites → *Add a
+  domain*). Defina o subdomínio do Talorys (por exemplo
+  `assistente.exemplo.com.br`). Ele vai **só** na variável do ambiente (passo
+  3), nunca no repositório, que é público.
+  Sem domínio, o Talorys fica em `https://<nome-do-worker>.<sua-conta>.workers.dev`.
+- **Regras de branch aplicadas** no GitHub (passo 4).
+- Um **gerenciador de senhas** (Bitwarden, 1Password, o do navegador) para
+  gerar e guardar a senha de acesso e o segredo de sessão.
+
 ### 1. Criar o token na Cloudflare
 
 1. Painel da Cloudflare → **Manage account → Account API tokens → Create Token**
@@ -57,7 +76,7 @@ tempo.
    - **Zone → Workers Routes → Edit** (só se for usar domínio próprio)
    - remova KV, R2, Tail e o que mais não for usado.
 3. **Account Resources:** só a sua conta. **Zone Resources:** só a zona do
-   domínio (por exemplo `pablofreitasnutri.com.br`).
+   domínio (por exemplo `exemplo.com.br`).
 4. **TTL:** defina uma data de expiração (por exemplo 6 a 12 meses) e anote
    para renovar.
    Se o primeiro deploy com domínio falhar por permissão na zona, acrescente
@@ -67,12 +86,21 @@ tempo.
 
 O **Account ID** fica na página inicial da conta (Workers & Pages → lateral direita).
 
-### 2. Criar o ambiente `production` no GitHub
+### 2. Forçar HTTPS no domínio próprio
+
+A API recusa HTTP, mas a interface (HTML e JavaScript) é servida pela camada de
+arquivos estáticos da Cloudflare antes do Worker. Se o domínio aceitar HTTP, a
+primeira visita digitada sem `https://` chega sem criptografia, e quem estiver
+na mesma rede (um Wi-Fi público, por exemplo) pode alterar a página de login.
+Na zona do domínio, ative **SSL/TLS → Edge Certificates → Always Use HTTPS**.
+O HSTS do Talorys protege as visitas seguintes.
+
+### 3. Criar o ambiente `production` no GitHub
 
 Repositório → **Settings → Environments → New environment** → `production`.
 
 - **Deployment branches and tags:** *Selected branches and tags* → adicione só `main`.
-- **Required reviewers** (recomendado): `pablopfg`. Cada deploy espera você
+- **Required reviewers** (recomendado): o seu usuário. Cada deploy espera você
   clicar em *Approve*. Deixe *Prevent self-review* desligado, senão você não
   consegue aprovar o próprio deploy.
 - **Environment secrets:**
@@ -83,7 +111,7 @@ Repositório → **Settings → Environments → New environment** → `producti
 | Variável | Obrigatória | Exemplo | Para quê |
 | --- | --- | --- | --- |
 | `TALORYS_WORKER_NAME` | sim | `talorys` | Nome do Worker. Os dados ficam no Durable Object desse Worker: se já existe uma instalação feita pelo instalador (`talorys-<id>-agent`), use esse nome para manter os dados. |
-| `TALORYS_CUSTOM_DOMAIN` | recomendada | `assistente.pablofreitasnutri.com.br` | Domínio próprio. Com ele, `*.workers.dev` e as URLs de preview ficam desligados. |
+| `TALORYS_CUSTOM_DOMAIN` | recomendada | `assistente.exemplo.com.br` | Domínio próprio. Com ele, `*.workers.dev` e as URLs de preview ficam desligados. |
 | `TALORYS_PUBLIC_URL` | sem domínio | `https://talorys.<sub>.workers.dev` | Só para o health check quando ainda não há domínio. |
 | `TALORYS_DEFAULT_TIMEZONE` | não | `America/Sao_Paulo` | Fuso padrão do agente. |
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
@@ -92,11 +120,54 @@ Repositório → **Settings → Environments → New environment** → `producti
 > Actions → *Repository secrets*). No nível do repositório, qualquer workflow,
 > de qualquer branch, consegue lê-los. No ambiente, só o job de deploy na `main`.
 
-### 3. Gravar os segredos do Worker (no seu computador)
+### 4. Proteger a `main`
 
-Uma vez, antes do primeiro deploy, com o Wrangler logado na sua conta
-(`npx wrangler login`). O primeiro comando cria o Worker vazio se ainda não
-existir. Troque `talorys` pelo valor de `TALORYS_WORKER_NAME`.
+As regras de branch (`.github/rulesets/`, veja [branch-protection.md](branch-protection.md)) exigem PR e CI verde para mesclar na `main`. Com
+elas, **o merge é o portão**: nada vai ao ar sem passar pela revisão e pelos
+testes. Se ainda não aplicou as regras, siga o
+[branch-protection.md](branch-protection.md).
+
+### 5. Primeiro deploy e segredos do Worker
+
+O Worker só passa a existir no primeiro deploy, e só responde depois de
+receber a senha e o segredo de sessão. Por isso o primeiro deploy **falha de
+propósito no health check**: ele cria o Worker, você grava os segredos e roda
+de novo.
+
+1. **Levar o código para a `main`:** GitHub → **Pull requests → New pull
+   request** → base `main`, compare `develop` → *Create pull request*. Espere
+   o CI ficar verde e clique em *Merge*.
+2. O merge dispara o workflow **Deploy** (aba **Actions**). Se o ambiente exige
+   aprovação, clique em *Review deployments → Approve and deploy*.
+   Para rodar sem merge: Actions → **Deploy** → *Run workflow* → branch `main`.
+3. O job `deploy` publica o Worker e termina vermelho no passo *Health check*
+   (HTTP 503). É o esperado neste primeiro deploy.
+4. Painel da Cloudflare → **Workers & Pages** → o Worker com o nome de
+   `TALORYS_WORKER_NAME` → **Settings → Variables and Secrets → Add**. Para
+   cada linha abaixo, escolha o tipo **Secret** (nunca *Text*), cole o valor e
+   clique em *Deploy*:
+
+| Segredo | Obrigatório | Valor |
+| --- | --- | --- |
+| `OWNER_PASSWORD` | sim | A senha de acesso ao Talorys. Gere no gerenciador de senhas (20+ caracteres) e guarde lá. |
+| `SESSION_SECRET` | sim | 48+ caracteres aleatórios, gerados no gerenciador de senhas. Ninguém precisa digitá-lo. |
+| `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
+| `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
+
+5. Volte ao GitHub → **Actions** → a execução que falhou → **Re-run failed
+   jobs**. Agora o health check responde 200 e o job fica verde.
+6. Abra o endereço (o domínio próprio ou o `*.workers.dev`) e entre com a
+   senha. Em Configurações → Sobre, confira a versão publicada.
+
+Os segredos ficam guardados no Worker: os próximos deploys os preservam e
+nunca passam pelo GitHub.
+
+<details>
+<summary>Alternativa pelo terminal (Wrangler)</summary>
+
+Com o Wrangler logado na sua conta (`npx wrangler login`), antes ou depois do
+primeiro deploy. O primeiro comando cria o Worker vazio se ainda não existir.
+Troque `talorys` pelo valor de `TALORYS_WORKER_NAME`.
 
 ```bash
 cd apps/agent
@@ -111,27 +182,15 @@ Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores
 quando o Wrangler pedir; não os passe na linha de comando (ficariam no
 histórico do shell).
 
-### 4. Proteger a `main`
+</details>
 
-As regras de branch (`.github/rulesets/`, veja [branch-protection.md](branch-protection.md)) exigem PR e CI verde para mesclar na `main`. Com
-elas, **o merge é o portão**: nada vai ao ar sem passar pela revisão e pelos
-testes. Se ainda não aplicou as regras, rode
-`scripts/apply-rulesets.sh`.
+### Conferência final
 
-### 5. Forçar HTTPS no domínio próprio
-
-A API recusa HTTP, mas a interface (HTML e JavaScript) é servida pela camada de
-arquivos estáticos da Cloudflare antes do Worker. Se o domínio aceitar HTTP, a
-primeira visita digitada sem `https://` chega sem criptografia, e quem estiver
-na mesma rede (um Wi-Fi público, por exemplo) pode alterar a página de login.
-Na zona do `TALORYS_CUSTOM_DOMAIN`, ative **SSL/TLS → Edge Certificates →
-Always Use HTTPS**. O HSTS do Talorys protege as visitas seguintes.
-
-### 6. Primeiro deploy
-
-Actions → **Deploy** → *Run workflow* → branch `main`. Ou mescle um PR de
-`develop` para `main`. Se o ambiente exigir aprovação, aprove em
-*Review deployments*.
+- [ ] O endereço abre só em `https://` (digitar `http://` redireciona).
+- [ ] O login funciona e uma senha errada é recusada.
+- [ ] Com domínio próprio, `https://<worker>.<conta>.workers.dev` não responde.
+- [ ] A aba **Deployments** do repositório mostra o ambiente `production` verde.
+- [ ] Nenhum segredo aparece em Settings → Secrets → Actions → *Repository secrets*.
 
 ## Rotina
 
