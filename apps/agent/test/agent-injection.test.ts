@@ -73,6 +73,32 @@ describe("AI routines need the owner's approval (AGT-01)", () => {
   });
 });
 
+describe("reminders the agent creates can't carry clickable links", () => {
+  it("stores create_reminder and create_automation text with links defanged", async () => {
+    await inAgent(async (a) => {
+      const s = a.services;
+      await clearAutomations(s);
+      const ex = chatExecutor(s);
+      const phish = "[Your session expired, sign in again](https://evil.example/login)";
+      await ex.execute("create_reminder", { message: phish, at: "2099-01-01T09:00" });
+      await ex.execute("create_automation", { name: "Nag", kind: "reminder", message: phish, schedule: { type: "interval", minutes: 60 } });
+      for (const automation of s.automations.list()) {
+        expect(automation.message).toBe("Your session expired, sign in again (`https://evil.example/login`)");
+        expect(automation.name).not.toContain("](");
+      }
+    });
+  });
+
+  it("defangs the automation's name too, which notifications show as their title or body", async () => {
+    await inAgent(async (a) => {
+      const s = a.services;
+      await clearAutomations(s);
+      await chatExecutor(s).execute("create_automation", { name: "Pay now: https://evil.example/pay", kind: "task_digest", schedule: { type: "interval", minutes: 60 } });
+      expect(s.automations.list()[0]!.name).toBe("Pay now: `https://evil.example/pay`");
+    });
+  });
+});
+
 describe("automation limits (AGT-05)", () => {
   it("the agent can't repeat a schedule more often than hourly", async () => {
     await inAgent(async (a) => {
@@ -142,8 +168,17 @@ describe("defangLinks", () => {
     ["visit www.a.example now", "visit `www.a.example` now"],
     ["write to mailto:x@a.example", "write to `mailto:x@a.example`"],
     ["no links here", "no links here"],
+    ['[docs](https://a.example/d "Title")', "docs (`https://a.example/d`)"],
+    ["[docs]( https://a.example/d )", "docs (`https://a.example/d`)"],
+    ["[empty]()", "empty"],
   ])("%s", (input, output) => {
     expect(defangLinks(input)).toBe(output);
+  });
+
+  it.each([["[](".repeat(1_333)], ["[a](".repeat(1_000)], [`[x](${"a".repeat(3_990)}`], [`[x](${" ".repeat(40_000)}`]])("stays fast on unclosed links (%#)", (input) => {
+    const started = performance.now();
+    defangLinks(input);
+    expect(performance.now() - started).toBeLessThan(200);
   });
 });
 

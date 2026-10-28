@@ -5,6 +5,7 @@ import type { ItemType } from "./itemStore";
 import { type SemanticContext, peekQueryVector } from "./recall";
 import { type ItemHit, scanItemVectors } from "./itemSearch";
 import { NOTE_SPLIT_CHARS, noteParts } from "./itemText";
+import { dataBlock } from "../agent/prompt";
 
 /** Most task, note and automation lines one turn recalls. */
 export const MAX_RECALLED_ITEMS = 3;
@@ -72,12 +73,14 @@ export function selectSemanticItems(ctx: SemanticContext, message: string): stri
  * because pasted notes may be non-Latin.
  */
 export function itemSection(lines: string[]): string | undefined {
+  // The lines are stored text, so they sit in a data block like memories do.
+  const render = (kept: string[]) => `${ITEM_SECTION_HEADING}\n${dataBlock("items", kept.join("\n"))}`;
   const kept: string[] = [];
   for (const line of lines) {
-    if (conservativeEmbeddingTokens([ITEM_SECTION_HEADING, ...kept, line].join("\n")) > ITEM_SECTION_TOKEN_BUDGET) break;
+    if (conservativeEmbeddingTokens(render([...kept, line])) > ITEM_SECTION_TOKEN_BUDGET) break;
     kept.push(line);
   }
-  return kept.length > 0 ? [ITEM_SECTION_HEADING, ...kept].join("\n") : undefined;
+  return kept.length > 0 ? render(kept) : undefined;
 }
 
 function itemLine(ctx: SemanticContext, hit: ItemHit & { type: ItemType }, timezone: string): string | null {

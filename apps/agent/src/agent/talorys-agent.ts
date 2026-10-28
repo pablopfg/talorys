@@ -137,8 +137,8 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     const settings = s.settings.get();
     switch (a.kind) {
       case "reminder": {
-        // Simple reminders never use AI.
-        s.notifications.create({ title: "Reminder", body: a.message || a.name, automation_id: a.id });
+        // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.
+        s.notifications.create({ title: "Reminder", body: defangLinks(a.message || a.name), automation_id: a.id });
         return { status: "success", result: "Reminder delivered" };
       }
       case "task_digest": {
@@ -149,7 +149,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         );
         const open = s.tasks.list({ status: "open", limit: 200 }).length;
         const line = (t: { title: string; due_at: string | null; priority: string }) =>
-          `- ${t.title}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone, s.settings.language())})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
+          `- ${defangLinks(t.title)}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone, s.settings.language())})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
         const parts = [
           overdue.length ? `**Overdue (${overdue.length})**\n${overdue.map(line).join("\n")}` : "",
           today.length ? `**Due today (${today.length})**\n${today.map(line).join("\n")}` : "",

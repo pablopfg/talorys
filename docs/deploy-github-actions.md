@@ -118,7 +118,16 @@ elas, **o merge é o portão**: nada vai ao ar sem passar pela revisão e pelos
 testes. Se ainda não aplicou as regras, rode
 `scripts/apply-rulesets.sh`.
 
-### 5. Primeiro deploy
+### 5. Forçar HTTPS no domínio próprio
+
+A API recusa HTTP, mas a interface (HTML e JavaScript) é servida pela camada de
+arquivos estáticos da Cloudflare antes do Worker. Se o domínio aceitar HTTP, a
+primeira visita digitada sem `https://` chega sem criptografia, e quem estiver
+na mesma rede (um Wi-Fi público, por exemplo) pode alterar a página de login.
+Na zona do `TALORYS_CUSTOM_DOMAIN`, ative **SSL/TLS → Edge Certificates →
+Always Use HTTPS**. O HSTS do Talorys protege as visitas seguintes.
+
+### 6. Primeiro deploy
 
 Actions → **Deploy** → *Run workflow* → branch `main`. Ou mescle um PR de
 `develop` para `main`. Se o ambiente exigir aprovação, aprove em

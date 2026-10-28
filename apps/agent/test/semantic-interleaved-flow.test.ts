@@ -101,7 +101,7 @@ describe("interleaved saves and questions", () => {
     await inAgent(async (a) => {
       expect(await pending(a.services)).toBe(1);
       const section = await ask(a.services);
-      const lines = section.split("\n").slice(1);
+      const lines = section.split("\n").slice(2, -1);
       expect(lines).toHaveLength(3);
       for (const id of [reminder, task, note]) expect(section).toContain(`(id ${id})`);
       expect(await pending(a.services)).toBe(0);

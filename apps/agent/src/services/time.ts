@@ -44,7 +44,8 @@ export function localDayBounds(timeZone: string, at = new Date()): { start: stri
 }
 
 export function formatLocal(iso: string | null, timeZone: string, locale = "en-US"): string | null {
-  if (!iso) return null;
+  // A date stored by an older import may be unreadable; Intl would throw on it.
+  if (!iso || Number.isNaN(Date.parse(iso))) return null;
   return new Intl.DateTimeFormat(locale, {
     timeZone,
     weekday: "short",

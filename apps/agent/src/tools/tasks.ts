@@ -96,7 +96,7 @@ export const taskTools = [
   defineTool({
     name: "update_task",
     description:
-      "Update a task's title, status, priority, due date or project, or add a description to a task that has none. To change or remove an existing description, use replace_task_description, which the owner must approve.",
+      "Update a task's title, status (todo or in_progress), priority, due date or project, or add a description to a task that has none. To mark it done, use complete_task. To change or remove an existing description, use replace_task_description, which the owner must approve.",
     permission: "write",
     maxCallsPerTurn: 5,
     input: z.object({
@@ -110,6 +110,8 @@ export const taskTools = [
     }),
     label: (i) => `Updating task “${i.task}”`,
     execute: (i, ctx) => {
+      // Completing goes through complete_task, so its per-turn cap and activity entry always apply.
+      if (i.status === "done") throw new ToolError("Use complete_task to mark a task as done.");
       const task = resolveTask(i.task, ctx);
       // Overwriting text the owner wrote goes through approval, like a note rewrite.
       if (i.description !== undefined && task.description.trim() && i.description !== task.description) {

@@ -233,3 +233,24 @@ describe("sessions management", () => {
     expect((await a.call("/api/tasks")).status).toBe(200);
   });
 });
+
+describe("Durable Object startup failures", () => {
+  it("never return the Agents SDK's raw stack trace", async () => {
+    const { withoutRawErrors } = await import("../src/index");
+    const raw = new Response("Error: no such table: tal_settings\n    at migrate (src/db/migrations.ts:12:3)", { status: 500 });
+    const res = withoutRawErrors(raw);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const text = await res.text();
+    expect(text).toContain("INTERNAL_ERROR");
+    expect(text).not.toContain("migrations.ts");
+  });
+
+  it("keep the API's own JSON errors and successful answers untouched", async () => {
+    const { withoutRawErrors } = await import("../src/index");
+    const json = new Response('{"error":{"code":"AI_UNAVAILABLE","message":"x"}}', { status: 503, headers: { "content-type": "application/json; charset=utf-8" } });
+    expect(withoutRawErrors(json)).toBe(json);
+    const ok = new Response("ok", { status: 200 });
+    expect(withoutRawErrors(ok)).toBe(ok);
+  });
+});

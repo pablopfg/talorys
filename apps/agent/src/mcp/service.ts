@@ -19,7 +19,7 @@ import { McpConnectionError, McpSessions, type SessionAuth, classifyMcpError } f
 import { type OAuthRecord, TalorysOAuthProvider, oauthStateServerId, sameSecret } from "./oauth";
 import { McpCredentials } from "./credentials";
 import { McpRepository, type StoredServer, isUsable, presentTool } from "./repository";
-import { TOOL_LIMITS, checkTool, permissionSnapshot, toToolDefinition, toZod } from "./tools";
+import { type McpCallOptions, TOOL_LIMITS, checkTool, permissionSnapshot, toToolDefinition, toZod } from "./tools";
 import { type Resolver, assertPublicHost, dohResolver, validateEndpoint } from "./url";
 
 /** Network access for MCP. Tests replace it to talk to an in-process server. */
@@ -426,12 +426,17 @@ export class McpService {
    * enabled. Only `retry` calls (owner-trusted read-only ones) reopen a stale session and try once
    * more; a call that may have changed something is never repeated.
    */
-  async call(serverId: string, toolName: string, args: Record<string, unknown>, opts: { signal?: AbortSignal; retry: boolean }) {
+  async call(serverId: string, toolName: string, args: Record<string, unknown>, opts: McpCallOptions) {
     if (!this.enabled) throw new ToolError("MCP servers are turned off for this deployment.");
     const server = this.repo.get(serverId);
     if (!server) throw new ToolError("This MCP server was removed.");
     const tool = this.repo.tools(server.id).find((t) => t.name === toolName);
     if (server.enabled !== 1 || server.status !== "connected" || !tool || !isUsable(tool)) throw new ToolError("This tool is disabled.");
+    // The tool list is built once per turn or run: an owner who switched the tool to "ask first",
+    // or out of scheduled runs, meanwhile must not see it run on its own anyway.
+    if (opts.unattended && (tool.policy !== "auto" || (opts.unattended === "scheduled" && tool.scheduled !== 1))) {
+      throw new ToolError("The owner changed this tool's permission; it no longer runs without asking.");
+    }
     const started = Date.now();
     const log = (outcome: string) =>
       this.activity.record("mcp.tool_call", `${server.name} · ${tool.name} → ${outcome} (${Date.now() - started} ms)`);
