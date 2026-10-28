@@ -26,6 +26,9 @@ type ParamName<K extends MessageKey> = Placeholders<MessageText<Messages[K]>> | 
  */
 export type MessageParams<K extends MessageKey, V> = [ParamName<K>] extends [never] ? [] : [params: Record<ParamName<K>, V | number>];
 
+/** Keys of messages that take no parameters, for tables of keys looked up later. */
+export type PlainMessageKey = { [K in MessageKey]: [ParamName<K>] extends [never] ? K : never }[MessageKey];
+
 const translations: Record<Language, Translation> = { en, ko, "pt-BR": ptBR };
 
 const pluralRules = new Map<string, Intl.PluralRules>();

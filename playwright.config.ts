@@ -6,7 +6,12 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  use: { baseURL: "http://localhost:5173", trace: "retain-on-failure" },
+  use: {
+    baseURL: "http://localhost:5173",
+    trace: "retain-on-failure",
+    // The tests read English; without a stored choice the app starts in pt-BR, even on the sign-in page.
+    storageState: { cookies: [], origins: [{ origin: "http://localhost:5173", localStorage: [{ name: "talorys.language", value: "en" }] }] },
+  },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] }, grep: /@mobile/ },

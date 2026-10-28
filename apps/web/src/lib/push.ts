@@ -1,5 +1,6 @@
 import type { PushDevice, PushStatus } from "@talorys/shared";
 import { api } from "./api";
+import { currentI18n } from "./i18n";
 
 /** Why this browser cannot turn on push right now, or null when it can. */
 export type PushBlocker = "unsupported" | "ios-not-installed" | "denied" | null;
@@ -34,7 +35,7 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
 /** Asks permission (must run from a click), subscribes this browser, and registers it with Talorys. */
 export async function enablePush(publicKey: string): Promise<{ device: PushDevice; status: PushStatus }> {
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Notifications were not allowed for this site.");
+  if (permission !== "granted") throw new Error(currentI18n().t("push.notAllowed"));
   const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
   await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();

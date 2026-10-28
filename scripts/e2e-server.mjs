@@ -32,7 +32,8 @@ async function listening(port, ms = 60_000) {
 
 // The two wrangler processes are started one after the other: started together, both runtimes
 // can pick the same free internal port and one fails with "bind(): Address already in use".
-start([wrangler, "dev", "--local", "--port", "8787", "--persist-to", state], "apps/agent");
+// The tests read English; a real installation starts in pt-BR.
+start([wrangler, "dev", "--local", "--port", "8787", "--persist-to", state, "--var", "TALORYS_DEFAULT_LANGUAGE:en"], "apps/agent");
 await listening(8787);
 start([wrangler, "pages", "dev", "dist", "--port", "8788", "--persist-to", `${state}-pages`], "apps/web");
 start([join(root, "node_modules/vite/bin/vite.js"), "--port", "5173", "--strictPort"], "apps/web");

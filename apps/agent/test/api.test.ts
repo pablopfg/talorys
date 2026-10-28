@@ -232,7 +232,7 @@ describe("settings, usage, export and import", () => {
 
   it("stores the UI language and returns it with the session", async () => {
     const c = await loggedIn();
-    expect((await c.json("/api/settings")).settings.language).toBe("system");
+    expect((await c.json("/api/settings")).settings.language).toBe("en");
     expect((await c.call("/api/settings", { method: "PATCH", body: { language: "xx" } })).status).toBe(400);
     await c.json("/api/settings", { method: "PATCH", body: { language: "en" } });
     expect(await c.json("/api/auth/session")).toMatchObject({ authenticated: true, language: "en" });

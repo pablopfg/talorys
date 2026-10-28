@@ -23,8 +23,8 @@ describe("browserLanguage", () => {
     expect(browserLanguage()).toBe("ko");
   });
 
-  it("falls back to English", () => {
+  it("falls back to Brazilian Portuguese", () => {
     prefer("fr-FR");
-    expect(browserLanguage()).toBe("en");
+    expect(browserLanguage()).toBe("pt-BR");
   });
 });
