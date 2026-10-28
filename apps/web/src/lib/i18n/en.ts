@@ -313,7 +313,7 @@ export const en = {
   "settings.aiConflictCheckHint":
     "Let Clef, Cloudflare's decision model, decide whether a new memory replaces an older one. Only a confident replacement marks the older one as past; unclear cases wait for review. Uses one AI request per save that has possible conflicts.",
   "settings.deletedItems": { one: "Deleted {count} item", other: "Deleted {count} items" },
-  "settings.backupTooLarge": "Backup file is larger than 25 MB.",
+  "settings.backupTooLarge": "Backup file is larger than 10 MB.",
   "settings.importAutomationsPaused": { one: "{count} automation imported paused — enable it in Automations", other: "{count} automations imported paused — enable them in Automations" },
   "settings.importMcpOff": { one: "{count} MCP server imported turned off — review it in Settings → Integrations", other: "{count} MCP servers imported turned off — review them in Settings → Integrations" },
   "settings.importKeptSettings": "kept your current {settings} settings",

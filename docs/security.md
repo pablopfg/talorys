@@ -147,6 +147,11 @@ does on its own:
 - Malformed tool activity is dropped instead of breaking the chat view.
 - MCP servers arrive turned off, with no credential and no enabled tools; an
   existing server is never changed, and unsafe URLs are skipped.
+- A date that can't be read, or that lies more than 5 minutes in the future,
+  is replaced by the import time and never replaces a local record, so a forged
+  date can't win "newer copy wins" against your later edits.
+- A file is at most 10 MB, with a cap on records of each kind (for example
+  50,000 messages and 500 automations); past either, nothing is imported.
 
 ## Installer
 
@@ -157,11 +162,11 @@ does on its own:
 
 ## Update check
 
-Once a day, when Settings → About is opened, the Worker fetches
+Off by default. When turned on, once a day, when Settings → About is opened, the Worker fetches
 `https://registry.npmjs.org/create-talorys/latest` to see if a newer version
 exists. The request carries no user data; npm only sees the Worker's IP. The
-browser never contacts npm (`connect-src 'self'` is unchanged). Turn it off
-under Settings → About → Check for updates.
+browser never contacts npm (`connect-src 'self'` is unchanged). Turn it on or
+off under Settings → About → Check for updates.
 
 ## Remote access
 

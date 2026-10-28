@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { AppError } from "../api/errors";
+import { AppError, errorSummary } from "../api/errors";
 
 export interface ModelMessage {
   role: "user" | "assistant";
@@ -127,7 +127,7 @@ export function classifyAiError(error: unknown): AppError {
   if (lower.includes("abort")) {
     return new AppError("AI_UNAVAILABLE", "The response was cancelled.");
   }
-  console.error("Workers AI error", message);
+  console.error("Workers AI error", errorSummary(error));
   return new AppError("AI_UNAVAILABLE", "The AI model could not respond. Please try again.");
 }
 

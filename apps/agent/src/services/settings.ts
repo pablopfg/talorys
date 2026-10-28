@@ -14,7 +14,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoMemory: true,
   demoMode: false,
   memoryHistory: { ...DEFAULT_MEMORY_HISTORY },
-  updateCheck: true,
+  // Off until the owner turns it on: it asks the public npm registry about create-talorys.
+  updateCheck: false,
 };
 
 const SETTINGS_KEY = "app.settings";

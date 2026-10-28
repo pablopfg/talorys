@@ -123,6 +123,7 @@ const PT_BR: Catalog = {
   "Skipped because a manual run was in progress.": "Ignorado porque uma execução manual estava em andamento.",
 
   // Backups
+  "This backup is too large to import ({kind}: more than {max}).": "Este backup é grande demais para importar ({kind}: mais de {max}).",
   "This backup was made by a newer Talorys (format v{version}). Update Talorys first.": "Este backup foi feito por um Talorys mais novo (formato v{version}). Atualize o Talorys primeiro.",
 
   // Remote access

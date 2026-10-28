@@ -62,3 +62,14 @@ export function errorResponse(error: unknown): Response {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...appError.headers },
   });
 }
+
+/**
+ * What gets logged about a failure from the AI provider or a chat turn: the error's name and any
+ * status-like code in it. The message itself may quote a prompt, a note or a provider response.
+ */
+export function errorSummary(error: unknown): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const message = error instanceof Error ? error.message : String(error);
+  const code = /\b(\d{3,4})\b/.exec(message)?.[1];
+  return code ? `${name} ${code}` : name;
+}
