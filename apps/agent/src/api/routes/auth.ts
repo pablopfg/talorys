@@ -39,6 +39,15 @@ authRoutes.get("/session", (c) => {
   });
 });
 
+/** Opens the step-up window for sensitive actions. Only for a signed-in browser session. */
+authRoutes.post("/confirm", async (c) => {
+  const sessionId = c.get("sessionId");
+  if (!sessionId) throw new AppError("UNAUTHORIZED", "Please sign in.");
+  const { password } = await body(c, loginSchema, 4096);
+  const until = await c.env.agent.services.auth.confirm(sessionId, password, clientId(c));
+  return c.json({ confirmed: true, until: until.toISOString() });
+});
+
 authRoutes.get("/sessions", (c) => c.json({ sessions: c.env.agent.services.auth.listSessions(c.get("sessionId")) }));
 
 authRoutes.delete("/sessions/:id", (c) => {

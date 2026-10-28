@@ -410,6 +410,8 @@ export type ApiErrorCode =
   | "AI_LIMIT_REACHED"
   | "CONFLICT"
   | "NOT_CONFIGURED"
+  /** A sensitive action needs the password again (POST /api/auth/confirm), then a retry. */
+  | "REAUTH_REQUIRED"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {

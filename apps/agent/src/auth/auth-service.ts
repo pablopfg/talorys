@@ -16,6 +16,8 @@ import { AppError, ValidationError } from "../api/errors";
 export const SESSION_TTL_MS = 30 * 24 * 3600_000; // absolute lifetime
 export const SESSION_IDLE_MS = 14 * 24 * 3600_000; // idle timeout
 const TOUCH_INTERVAL_MS = 5 * 60_000;
+/** Sensitive actions need the password typed within this window: at sign-in or with confirm(). */
+export const STEP_UP_WINDOW_MS = 15 * 60_000;
 
 export const LOGIN_WINDOW_MS = 15 * 60_000;
 export const MAX_FAILURES_PER_CLIENT = 5;
@@ -29,6 +31,7 @@ const FINGERPRINT_KEY = "auth.secret_fingerprint";
 interface SessionRow {
   id: string;
   created_at: string;
+  confirmed_at: string | null;
   last_seen_at: string;
   expires_at: string;
   user_agent: string;
@@ -191,8 +194,8 @@ export class AuthService {
     const ts = new Date();
     const expiresAt = new Date(ts.getTime() + SESSION_TTL_MS);
     this.db.run(
-      `INSERT INTO tal_sessions (id, created_at, last_seen_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)`,
-      id, ts.toISOString(), ts.toISOString(), expiresAt.toISOString(), userAgent.slice(0, 300),
+      `INSERT INTO tal_sessions (id, created_at, last_seen_at, expires_at, user_agent, confirmed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      id, ts.toISOString(), ts.toISOString(), expiresAt.toISOString(), userAgent.slice(0, 300), ts.toISOString(),
     );
     // Cap concurrent sessions; drop the least recently used beyond 20.
     this.db.run(`DELETE FROM tal_sessions WHERE id NOT IN (SELECT id FROM tal_sessions ORDER BY last_seen_at DESC LIMIT 20)`);
@@ -225,10 +228,31 @@ export class AuthService {
     return this.db.run(`DELETE FROM tal_sessions WHERE id != ?`, sessionId ?? "").changes;
   }
 
+  /**
+   * Checks the password again for a signed-in session (same rate limit as sign-in) and opens
+   * the step-up window. A wrong password is FORBIDDEN, not UNAUTHORIZED: the session stays valid.
+   */
+  async confirm(sessionId: string, password: string, client: string): Promise<Date> {
+    this.requireConfigured();
+    await this.syncSecretFingerprint();
+    const attempt = this.beginAttempt(client);
+    if (!(await this.checkPassword(password))) throw new AppError("FORBIDDEN", "Incorrect password.");
+    this.markAttemptSucceeded(attempt);
+    const at = new Date();
+    this.db.run(`UPDATE tal_sessions SET confirmed_at = ? WHERE id = ?`, at.toISOString(), sessionId);
+    return new Date(at.getTime() + STEP_UP_WINDOW_MS);
+  }
+
+  /** True when this session's password was typed within STEP_UP_WINDOW_MS. */
+  recentlyConfirmed(sessionId: string): boolean {
+    const row = this.db.one<{ confirmed_at: string | null }>(`SELECT confirmed_at FROM tal_sessions WHERE id = ?`, sessionId);
+    return !!row?.confirmed_at && Date.parse(row.confirmed_at) + STEP_UP_WINDOW_MS > Date.now();
+  }
+
   listSessions(currentId: string | null): SessionInfo[] {
     return this.db
       .all<SessionRow>(`SELECT * FROM tal_sessions ORDER BY last_seen_at DESC`)
-      .map((s) => ({ ...s, id: s.id.slice(0, 16), current: s.id === currentId }));
+      .map(({ confirmed_at: _, ...s }) => ({ ...s, id: s.id.slice(0, 16), current: s.id === currentId }));
   }
 
   /** Revokes a session by the shortened public id shown in the UI. */

@@ -2,7 +2,7 @@ import { MAX_REMOTE_TOKENS, remoteStatusSchema, remoteTokenCreateSchema } from "
 import { Hono } from "hono";
 import type { AppEnv } from "../api/app";
 import { NotFoundError } from "../api/errors";
-import { body } from "../api/middleware";
+import { body, requireRecentAuth } from "../api/middleware";
 
 /**
  * Owner-only token admin. Session and CSRF checks apply as for every other API route; a
@@ -15,6 +15,8 @@ remoteRoutes.get("/remote/status", (c) => c.json({ enabled: c.env.agent.services
 remoteRoutes.patch("/remote/status", async (c) => {
   const s = c.env.agent.services;
   const { enabled } = await body(c, remoteStatusSchema, 1024);
+  // Turning it off is always allowed: it only closes the door.
+  if (enabled) requireRecentAuth(c);
   s.remote.setEnabled(enabled);
   s.activity.record(enabled ? "remote.enabled" : "remote.disabled", enabled ? "Remote access turned on" : "Remote access turned off");
   return c.json({ enabled });
@@ -24,6 +26,7 @@ remoteRoutes.get("/remote/tokens", (c) => c.json({ tokens: c.env.agent.services.
 
 remoteRoutes.post("/remote/tokens", async (c) => {
   const s = c.env.agent.services;
+  requireRecentAuth(c);
   const input = await body(c, remoteTokenCreateSchema, 4 * 1024);
   const token = await s.remote.create(input, c.get("sessionId"));
   s.activity.record("remote.token_created", `Created access token "${token.name}" (${token.scope})`);

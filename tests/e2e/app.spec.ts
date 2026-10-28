@@ -263,7 +263,9 @@ test.describe("Talorys owner experience", () => {
     await page.getByRole("tab", { name: "Security" }).click();
     await expect(page.getByText("This device", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Privacy" }).click();
-    await expect(page.getByRole("link", { name: "Download backup" })).toHaveAttribute("href", "/api/export");
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download backup" }).click();
+    expect((await download).suggestedFilename()).toBe("talorys-backup.json");
   });
 
   test("the language setting is saved with the account and sets <html lang>", async ({ page }) => {

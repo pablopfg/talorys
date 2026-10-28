@@ -9,10 +9,11 @@ Cookie + CSRF session access already works for the owner UI and for scripted ses
 ## Turning it on and creating a token
 
 1. Open **Settings → Security → Remote access**.
-2. Turn **Remote access** on (off by default).
+2. Turn **Remote access** on (off by default). If you signed in more than 15 minutes ago, Talorys asks for your password first; creating a token asks the same way.
 3. Enter a name (1–64 characters), leave scope at **`read`** unless you need writes, then **Generate token**.
 4. **Copy the token immediately.** It starts with `tal_` and is shown only once. Closing the panel loses the plaintext forever. The panel also shows a ready-to-run `curl` example for your install.
 5. Store it in your client’s secret store (not in git, chat, or CI logs).
+6. Each token works for **90 days**; Settings shows the date. After that it fails like a revoked token (Bearer **401**), and you create a new one.
 
 Admin routes (`/api/remote/*`) require the browser session and CSRF header. Tokens cannot manage other tokens.
 
@@ -118,6 +119,7 @@ Write mutations are attributed in the activity log in a **coalesced** way: at mo
 | --- | --- |
 | Revoke one | Hash deleted; Bearer **401** immediately. |
 | Revoke all | Every token deleted; Bearer **401**. |
+| 90 days after creation | Token expired; Bearer **401**. Tokens created before expiry existed got 90 days from the upgrade. |
 | Password change (UI) | All remote tokens revoked. |
 | CLI `reset-password` | All remote tokens revoked (with sessions). |
 | `SESSION_SECRET` rotation | Stored hashes no longer verify; regenerate tokens. |

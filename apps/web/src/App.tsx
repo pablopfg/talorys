@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { useSession } from "./hooks/session";
 import { AppShell } from "./components/AppShell";
+import { ConfirmPasswordDialog } from "./components/ConfirmPasswordDialog";
 import { LoginPage } from "./pages/LoginPage";
 import { ChatPage } from "./pages/ChatPage";
 import { Spinner, ErrorNotice } from "./components/ui";
@@ -44,19 +45,22 @@ export function App() {
   if (!session.authenticated) return <LoginPage configured={session.configured} />;
 
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/chat" replace />} />
-        <Route path="chat/:conversationId?" element={<ChatPage />} />
-        <Route path="memory" element={<Lazy><MemoryPage /></Lazy>} />
-        <Route path="tasks" element={<Lazy><TasksPage /></Lazy>} />
-        <Route path="notes/:noteId?" element={<Lazy><NotesPage /></Lazy>} />
-        <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
-        <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
-        <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
-        <Route path="*" element={<Navigate to="/chat" replace />} />
-      </Route>
-    </Routes>
+    <>
+      <ConfirmPasswordDialog />
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to="/chat" replace />} />
+          <Route path="chat/:conversationId?" element={<ChatPage />} />
+          <Route path="memory" element={<Lazy><MemoryPage /></Lazy>} />
+          <Route path="tasks" element={<Lazy><TasksPage /></Lazy>} />
+          <Route path="notes/:noteId?" element={<Lazy><NotesPage /></Lazy>} />
+          <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
+          <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
+          <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
 

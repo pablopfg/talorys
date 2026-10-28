@@ -27,6 +27,12 @@ Talorys is single-user. The threat model assumes the internet can reach your
   the current one too, and signs this browser back in on a new session.
 - `reset-password` (CLI) replaces the secret; the Durable Object detects the
   changed fingerprint, discards any UI-set password and revokes every session.
+- Sensitive actions need the password typed within the last 15 minutes in
+  this session: exporting or importing a backup, turning remote access on, and
+  creating an access token. Signing in counts; after that the app asks for the
+  password again (`POST /api/auth/confirm`, under the same rate limit as
+  sign-in). A stolen session cookie alone can't take the data or open a back
+  door. Turning remote access off and revoking tokens never ask.
 - There is no signup, setup or ownership-claim endpoint.
 
 ## Brute force
@@ -187,6 +193,7 @@ Optional machine-client access with named personal access tokens (`tal_…`).
 
 - Tokens are stored as **HMAC(SESSION_SECRET, token)** only; plaintext is returned **once** at creation and cannot be recovered from the database.
 - Scopes: `read` (GET allowlist) or `write` (owner-level replace + delete on the allowlist). Max **20** tokens.
+- Tokens expire **90 days** after creation.
 - **Revoke** / **Revoke all** destroy hashes immediately. Turning Remote access **off** suspends tokens (Bearer 401) without deleting them; turning it back on restores them.
 - CORS stays closed. Server-side clients only.
 - Token rows are excluded from backups; a restore never enables Remote access or resurrects tokens.

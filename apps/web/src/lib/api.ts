@@ -19,6 +19,16 @@ export function onUnauthorized(fn: Listener): () => void {
   return () => unauthorizedListeners.delete(fn);
 }
 
+/** Asks the owner for the password again; resolves true once confirmed, false if they cancel. */
+type ReauthHandler = () => Promise<boolean>;
+let reauthHandler: ReauthHandler | null = null;
+export function onReauthRequired(fn: ReauthHandler): () => void {
+  reauthHandler = fn;
+  return () => {
+    if (reauthHandler === fn) reauthHandler = null;
+  };
+}
+
 async function toApiError(res: Response): Promise<ApiError> {
   let body: Partial<ApiErrorBody> = {};
   try {
@@ -32,8 +42,21 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, message, body.error?.details);
 }
 
-/** Same-origin JSON API call. Cookies carry the session; the custom header defeats CSRF. */
+/**
+ * Same-origin JSON API call. Cookies carry the session; the custom header defeats CSRF.
+ * A sensitive action the server wants the password for asks the owner once, then retries.
+ */
 export async function api<T>(path: string, init: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+  try {
+    return await request<T>(path, init);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== "REAUTH_REQUIRED" || !reauthHandler) throw error;
+    if (!(await reauthHandler())) throw error;
+    return request<T>(path, init);
+  }
+}
+
+async function request<T>(path: string, init: { method?: string; body?: unknown; signal?: AbortSignal }): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method: init.method ?? "GET",
     credentials: "same-origin",

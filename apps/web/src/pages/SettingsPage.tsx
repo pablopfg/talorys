@@ -380,6 +380,25 @@ function PrivacyTab() {
     },
   );
 
+  const [exporting, setExporting] = useState(false);
+  /** Fetched rather than linked, so a password prompt can come first when the server asks for one. */
+  async function onExport() {
+    setExporting(true);
+    try {
+      const backup = await api<unknown>("/export");
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "talorys-backup.json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      toast(errorMessage(error, t("common.somethingWentWrong")), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function onImport(file: File) {
     setImporting(true);
     try {
@@ -411,9 +430,9 @@ function PrivacyTab() {
       <Section title={t("settings.yourData")}>
         <div className="px-5 py-4 text-sm leading-6 text-fg-muted">{t("settings.yourDataDescription")}</div>
         <Row label={t("settings.export")} hint={t("settings.exportHint")}>
-          <a href="/api/export" download="talorys-backup.json" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium hover:bg-subtle">
+          <Button variant="outline" className="w-full justify-center" loading={exporting} onClick={() => void onExport()}>
             <Download className="h-4 w-4" /> {t("settings.downloadBackup")}
-          </a>
+          </Button>
         </Row>
         <Row label={t("settings.import")} hint={t("settings.importHint")}>
           <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && void onImport(e.target.files[0])} />

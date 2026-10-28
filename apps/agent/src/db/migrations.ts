@@ -405,6 +405,17 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_mcp_tools ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    version: 14,
+    name: "password confirmation and token expiry",
+    statements: [
+      // When the owner last typed the password in this session; null asks for it before a sensitive action.
+      `ALTER TABLE tal_sessions ADD COLUMN confirmed_at TEXT`,
+      `ALTER TABLE tal_remote_tokens ADD COLUMN expires_at TEXT`,
+      // Tokens from before expiry existed get the full lifetime from today, so none stops working at upgrade.
+      `UPDATE tal_remote_tokens SET expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days') WHERE expires_at IS NULL`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -35,6 +35,7 @@ const PT_BR: Catalog = {
 
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
+  "Confirm your password to continue.": "Confirme sua senha para continuar.",
   "Current password is incorrect.": "A senha atual está incorreta.",
   "Too many failed attempts. Please wait before trying again.": "Muitas tentativas sem sucesso. Aguarde antes de tentar novamente.",
   "Owner credentials are not configured. Run the Talorys installer, or set a strong OWNER_PASSWORD and SESSION_SECRET with `wrangler secret put`.":
