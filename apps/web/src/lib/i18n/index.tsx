@@ -1,12 +1,12 @@
 import { Fragment, type ReactNode, useSyncExternalStore } from "react";
-import type { Language } from "@talorys/shared";
+import { type Language, LANGUAGES } from "@talorys/shared";
 import { format, isLanguage, type MessageKey, type MessageParams, translate } from "./core";
 
 export type { MessageKey } from "./core";
 export type LanguagePreference = "system" | Language;
 
 /** Each language's name in that language, as shown in the language picker. */
-export const LANGUAGE_NAMES: Record<Language, string> = { en: "English", ko: "한국어" };
+export const LANGUAGE_NAMES: Record<Language, string> = { en: "English", ko: "한국어", "pt-BR": "Português (Brasil)" };
 
 export interface I18n {
   /** What the owner picked in Settings. */
@@ -22,11 +22,20 @@ export interface I18n {
 
 const KEY = "talorys.language";
 
+/** A language whose code has a region, matched by its base too ("pt" or "pt-PT" picks "pt-BR"). */
+const REGIONAL: Partial<Record<string, Language>> = Object.fromEntries(
+  LANGUAGES.filter((language) => language.includes("-")).map((language) => [language.split("-")[0]!.toLowerCase(), language]),
+);
+
 /** The first browser language we have messages for, else English. */
 export function browserLanguage(): Language {
   for (const tag of navigator.languages?.length ? navigator.languages : [navigator.language]) {
+    const exact = LANGUAGES.find((language) => language.toLowerCase() === tag?.toLowerCase());
+    if (exact) return exact;
     const base = tag?.toLowerCase().split("-")[0];
     if (isLanguage(base)) return base;
+    const regional = base && REGIONAL[base];
+    if (regional) return regional;
   }
   return "en";
 }
