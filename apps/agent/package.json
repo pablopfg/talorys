@@ -19,7 +19,7 @@
     "eventsource-parser": "^3.1.1",
     "hono": "^4.13.13",
     "workers-ai-provider": "^4.0.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.0",
