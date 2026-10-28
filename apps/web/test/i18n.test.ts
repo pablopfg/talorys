@@ -31,6 +31,13 @@ describe("translate", () => {
     expect(translate("ko", "ko", "login.tryAgainIn", { seconds: 30 })).toBe("30초 뒤에 다시 시도");
     expect(translate("ko", "ko", "time.justNow")).toBe("방금");
   });
+
+  it("returns the Brazilian Portuguese message", () => {
+    expect(translate("pt-BR", "pt-BR", "login.unlock")).toBe("Desbloquear");
+    expect(translate("pt-BR", "pt-BR", "login.tryAgainIn", { seconds: 1500 })).toBe("Tente novamente em 1.500s");
+    expect(translate("pt-BR", "pt-BR", "notifications.titleUnread", { count: 1 })).toBe("Notificações (1 não lida)");
+    expect(translate("pt-BR", "pt-BR", "notifications.titleUnread", { count: 3 })).toBe("Notificações (3 não lidas)");
+  });
 });
 
 describe("formatMessage", () => {
