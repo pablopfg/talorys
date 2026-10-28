@@ -48,6 +48,41 @@ describe("renderConfig", () => {
     assert.deepEqual(config.routes, [{ pattern: "assistente.example.com", custom_domain: true }]);
     assert.equal(config.workers_dev, false);
     assert.equal(config.preview_urls, false);
+    assert.equal(config.vars.TALORYS_ALLOWED_HOSTS, "assistente.example.com");
+  });
+
+  it("limits the API to the workers.dev host given for the health check", () => {
+    const config = renderConfig(base(), { TALORYS_WORKER_NAME: "talorys", TALORYS_PUBLIC_URL: "https://Talorys.Me.workers.dev/" });
+    assert.equal(config.vars.TALORYS_ALLOWED_HOSTS, "talorys.me.workers.dev");
+    // The custom domain wins over the public URL.
+    const both = renderConfig(base(), {
+      TALORYS_WORKER_NAME: "talorys",
+      TALORYS_CUSTOM_DOMAIN: "a.example.com",
+      TALORYS_PUBLIC_URL: "https://talorys.me.workers.dev",
+    });
+    assert.equal(both.vars.TALORYS_ALLOWED_HOSTS, "a.example.com");
+  });
+
+  it("rejects a public URL that is not a bare https origin", () => {
+    for (const url of ["http://a.example.com", "https://a.example.com/x", "https://a.example.com:8443", "https://u:p@a.example.com", "nope"]) {
+      assert.throws(() => renderConfig(base(), { TALORYS_WORKER_NAME: "talorys", TALORYS_PUBLIC_URL: url }), ConfigError, url);
+    }
+  });
+
+  it("passes Cloudflare Access settings through only as a valid pair", () => {
+    const aud = "a".repeat(64);
+    const config = renderConfig(base(), {
+      TALORYS_WORKER_NAME: "talorys",
+      TALORYS_ACCESS_TEAM_DOMAIN: "MyTeam.cloudflareaccess.com",
+      TALORYS_ACCESS_AUD: aud.toUpperCase(),
+    });
+    assert.equal(config.vars.TALORYS_ACCESS_TEAM_DOMAIN, "myteam.cloudflareaccess.com");
+    assert.equal(config.vars.TALORYS_ACCESS_AUD, aud);
+    const ok = { TALORYS_WORKER_NAME: "talorys" };
+    assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ACCESS_TEAM_DOMAIN: "myteam.cloudflareaccess.com" }), ConfigError);
+    assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ACCESS_AUD: aud }), ConfigError);
+    assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ACCESS_TEAM_DOMAIN: "evil.example.com", TALORYS_ACCESS_AUD: aud }), ConfigError);
+    assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ACCESS_TEAM_DOMAIN: "myteam.cloudflareaccess.com", TALORYS_ACCESS_AUD: "short" }), ConfigError);
   });
 
   it("falls back to workers.dev without a domain, still without preview URLs", () => {

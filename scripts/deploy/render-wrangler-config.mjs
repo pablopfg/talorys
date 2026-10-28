@@ -8,8 +8,9 @@
 // `wrangler secret put` and survive every deploy.
 //
 // Usage: node scripts/deploy/render-wrangler-config.mjs <base.jsonc> <out.json>
-// Reads TALORYS_WORKER_NAME (required), TALORYS_CUSTOM_DOMAIN, TALORYS_DEFAULT_TIMEZONE,
-// TALORYS_AGENT_NAME and TALORYS_DEPLOYED_VERSION from the environment.
+// Reads TALORYS_WORKER_NAME (required), TALORYS_CUSTOM_DOMAIN, TALORYS_PUBLIC_URL,
+// TALORYS_ACCESS_TEAM_DOMAIN, TALORYS_ACCESS_AUD, TALORYS_DEFAULT_TIMEZONE, TALORYS_AGENT_NAME
+// and TALORYS_DEPLOYED_VERSION from the environment.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -22,6 +23,26 @@ const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
 const TIMEZONE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+){0,2}$/;
 const VERSION = /^[A-Za-z0-9._+-]{1,64}$/;
+// The Zero Trust team domain and the Access application's AUD tag (both public identifiers).
+const ACCESS_TEAM = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$/;
+const ACCESS_AUD = /^[0-9a-f]{64}$/;
+
+/** The host of an https:// URL with nothing else in it, or undefined when unset. */
+function publicHost(value) {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return undefined;
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new ConfigError(`TALORYS_PUBLIC_URL is not valid: "${trimmed}".`);
+  }
+  const host = url.hostname.toLowerCase();
+  if (url.protocol !== "https:" || url.port || url.username || url.password || (url.pathname !== "/" && url.pathname !== "") || !HOSTNAME.test(host)) {
+    throw new ConfigError(`TALORYS_PUBLIC_URL must be https://<host> with nothing after it: "${trimmed}".`);
+  }
+  return host;
+}
 
 /** Removes // and /* *\/ comments and trailing commas from JSONC, leaving string contents alone. */
 export function stripJsonc(text) {
@@ -65,6 +86,12 @@ export function renderConfig(base, env) {
   const domain = optional(env.TALORYS_CUSTOM_DOMAIN?.toLowerCase(), HOSTNAME, "TALORYS_CUSTOM_DOMAIN");
   const timezone = optional(env.TALORYS_DEFAULT_TIMEZONE, TIMEZONE, "TALORYS_DEFAULT_TIMEZONE");
   const version = optional(env.TALORYS_DEPLOYED_VERSION, VERSION, "TALORYS_DEPLOYED_VERSION");
+  const publicUrlHost = publicHost(env.TALORYS_PUBLIC_URL);
+  const accessTeam = optional(env.TALORYS_ACCESS_TEAM_DOMAIN?.toLowerCase(), ACCESS_TEAM, "TALORYS_ACCESS_TEAM_DOMAIN");
+  const accessAud = optional(env.TALORYS_ACCESS_AUD?.toLowerCase(), ACCESS_AUD, "TALORYS_ACCESS_AUD");
+  if (!accessTeam !== !accessAud) {
+    throw new ConfigError("Set both TALORYS_ACCESS_TEAM_DOMAIN and TALORYS_ACCESS_AUD to use Cloudflare Access, or neither.");
+  }
   const agentName = (env.TALORYS_AGENT_NAME ?? "").trim();
   if (agentName.length > 64 || /\p{Cc}/u.test(agentName)) {
     throw new ConfigError("TALORYS_AGENT_NAME must be at most 64 characters, without control characters.");
@@ -91,6 +118,14 @@ export function renderConfig(base, env) {
   if (timezone) vars.TALORYS_DEFAULT_TIMEZONE = timezone;
   if (agentName) vars.TALORYS_AGENT_NAME = agentName;
   if (version) vars.TALORYS_DEPLOYED_VERSION = version;
+  // The API answers 404 on any other host (AUTH-03): the domain, or the workers.dev address
+  // given for the health check. With neither, every host is accepted, as before.
+  const allowedHost = domain ?? publicUrlHost;
+  if (allowedHost) vars.TALORYS_ALLOWED_HOSTS = allowedHost;
+  if (accessTeam) {
+    vars.TALORYS_ACCESS_TEAM_DOMAIN = accessTeam;
+    vars.TALORYS_ACCESS_AUD = accessAud;
+  }
   if (Object.keys(vars).length > 0) config.vars = vars;
 
   return config;

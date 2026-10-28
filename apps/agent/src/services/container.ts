@@ -80,7 +80,7 @@ export function createServices(
       passwordHash: env.OWNER_PASSWORD_HASH,
       password: env.OWNER_PASSWORD,
       sessionSecret: env.SESSION_SECRET,
-    }),
+    }, (title, body) => notifications.create({ title, body })),
     automations: new AutomationService(automationsRepo, settings, activity, scheduler),
     memoryHistory: new MemoryHistoryService(db, memories, settings, usage, activity, memoryHooks),
     push,

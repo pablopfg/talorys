@@ -19,7 +19,7 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.res.headers.set("referrer-policy", "same-origin");
   c.res.headers.set("content-security-policy", API_CSP);
   c.res.headers.set("x-frame-options", "DENY");
-  if (isHttps(c)) c.res.headers.set("strict-transport-security", "max-age=31536000");
+  if (isHttps(c)) c.res.headers.set("strict-transport-security", "max-age=63072000; includeSubDomains");
 };
 
 function isDevelopment(c: Context<AppEnv>): boolean {

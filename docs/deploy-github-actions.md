@@ -112,9 +112,14 @@ Repositório → **Settings → Environments → New environment** → `producti
 | --- | --- | --- | --- |
 | `TALORYS_WORKER_NAME` | sim | `talorys` | Nome do Worker. Os dados ficam no Durable Object desse Worker: se já existe uma instalação feita pelo instalador (`talorys-<id>-agent`), use esse nome para manter os dados. |
 | `TALORYS_CUSTOM_DOMAIN` | recomendada | `assistente.exemplo.com.br` | Domínio próprio. Com ele, `*.workers.dev` e as URLs de preview ficam desligados. |
-| `TALORYS_PUBLIC_URL` | sem domínio | `https://talorys.<sub>.workers.dev` | Só para o health check quando ainda não há domínio. |
+| `TALORYS_PUBLIC_URL` | sem domínio | `https://talorys.<sub>.workers.dev` | Para o health check quando ainda não há domínio. A API passa a responder só nesse endereço. |
 | `TALORYS_DEFAULT_TIMEZONE` | não | `America/Sao_Paulo` | Fuso padrão do agente. |
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
+| `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
+| `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
+
+Com o domínio próprio (ou o `TALORYS_PUBLIC_URL`), a API responde **só** nesse
+endereço. Qualquer outro host recebe 404.
 
 > **Não crie esses segredos no nível do repositório** (Settings → Secrets →
 > Actions → *Repository secrets*). No nível do repositório, qualquer workflow,
@@ -184,6 +189,42 @@ histórico do shell).
 
 </details>
 
+### 6. (Recomendado) Cloudflare Access na frente
+
+O Access pede o seu e-mail (com um código enviado a ele) antes de a página do
+Talorys abrir. Quem não for você nem chega à tela de login. O Talorys confere a
+assinatura do Access em cada requisição, então um endereço esquecido fora do
+Access não serve de atalho. O plano Free do Zero Trust atende até 50 usuários;
+no cadastro, a Cloudflare pode pedir um meio de pagamento.
+
+1. Painel da Cloudflare → **Zero Trust**. No primeiro acesso, escolha o nome da
+   equipe: o endereço fica `<equipe>.cloudflareaccess.com`.
+2. **Access → Applications → Add an application → Self-hosted**:
+   - **Application domain:** o seu `TALORYS_CUSTOM_DOMAIN`, sem caminho.
+   - **Session duration:** `12 hours`, igual à duração máxima da sessão do app.
+   - **Policy:** *Allow*, incluindo **Emails** = o seu e-mail.
+3. Crie uma **segunda aplicação**, só para o health check do deploy:
+   - **Application domain:** o mesmo domínio, com o caminho `api/health`.
+   - **Policy:** *Bypass*, incluindo **Everyone**.
+   - Sem cookie nem token, essa rota responde só `{"ok": true}`.
+4. Na primeira aplicação, aba **Overview**, copie a **Application Audience
+   (AUD) Tag**.
+5. No ambiente `production` do GitHub, crie as variáveis
+   `TALORYS_ACCESS_TEAM_DOMAIN` e `TALORYS_ACCESS_AUD`. Depois rode o Deploy
+   (Actions → **Deploy** → *Run workflow*).
+6. Abra o endereço: o Access pede o e-mail e o código, e só então o Talorys
+   pede a senha.
+
+> **Ordem importa.** Crie as variáveis só depois que o Access estiver
+> funcionando no domínio. Com as variáveis e sem o Access, toda requisição
+> recebe 403. Para desligar o Access, apague as duas variáveis e rode o Deploy.
+
+**Tokens de acesso remoto** (scripts que usam `Authorization: Bearer`) também
+passam pelo Access. Crie um *Service Token* em **Access → Service Auth**,
+acrescente à primeira aplicação uma política *Service Auth* que inclua esse
+token, e mande os cabeçalhos `CF-Access-Client-Id` e `CF-Access-Client-Secret`
+junto com o Bearer.
+
 ### Conferência final
 
 - [ ] O endereço abre só em `https://` (digitar `http://` redireciona).
@@ -191,6 +232,7 @@ histórico do shell).
 - [ ] Com domínio próprio, `https://<worker>.<conta>.workers.dev` não responde.
 - [ ] A aba **Deployments** do repositório mostra o ambiente `production` verde.
 - [ ] Nenhum segredo aparece em Settings → Secrets → Actions → *Repository secrets*.
+- [ ] Com o Access: uma janela anônima pede o e-mail antes de mostrar o Talorys.
 
 ## Rotina
 

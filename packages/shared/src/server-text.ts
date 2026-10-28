@@ -38,6 +38,11 @@ const PT_BR: Catalog = {
   "Confirm your password to continue.": "Confirme sua senha para continuar.",
   "Current password is incorrect.": "A senha atual está incorreta.",
   "Too many failed attempts. Please wait before trying again.": "Muitas tentativas sem sucesso. Aguarde antes de tentar novamente.",
+  "Many failed sign-ins": "Muitas tentativas de login falharam",
+  "Many sign-in attempts with a wrong password came from different networks in the last 15 minutes. Until they stop, each unknown network gets one attempt every 15 minutes; your recent networks are not affected. If this wasn't you, consider putting Cloudflare Access in front of Talorys.":
+    "Muitas tentativas de login com senha errada vieram de redes diferentes nos últimos 15 minutos. Enquanto elas continuarem, cada rede desconhecida tem uma tentativa a cada 15 minutos; as suas redes recentes não são afetadas. Se não foi você, considere colocar o Cloudflare Access na frente do Talorys.",
+  "Sign in through Cloudflare Access to continue.": "Entre pelo Cloudflare Access para continuar.",
+  "Cloudflare Access is not configured correctly.": "O Cloudflare Access não está configurado corretamente.",
   "Owner credentials are not configured. Run the Talorys installer, or set a strong OWNER_PASSWORD and SESSION_SECRET with `wrangler secret put`.":
     "As credenciais do proprietário não estão configuradas. Execute o instalador do Talorys ou defina OWNER_PASSWORD e SESSION_SECRET fortes com `wrangler secret put`.",
   "Use at least {min} characters.": "Use pelo menos {min} caracteres.",
