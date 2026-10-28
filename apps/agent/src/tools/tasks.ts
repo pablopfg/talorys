@@ -95,7 +95,8 @@ export const taskTools = [
   }),
   defineTool({
     name: "update_task",
-    description: "Update a task's title, description, status, priority, due date or project.",
+    description:
+      "Update a task's title, status, priority, due date or project, or add a description to a task that has none. To change or remove an existing description, use replace_task_description, which the owner must approve.",
     permission: "write",
     maxCallsPerTurn: 5,
     input: z.object({
@@ -110,6 +111,10 @@ export const taskTools = [
     label: (i) => `Updating task “${i.task}”`,
     execute: (i, ctx) => {
       const task = resolveTask(i.task, ctx);
+      // Overwriting text the owner wrote goes through approval, like a note rewrite.
+      if (i.description !== undefined && task.description.trim() && i.description !== task.description) {
+        throw new ToolError("This task already has a description. Use replace_task_description to propose the new text for approval.");
+      }
       const updated = ctx.services.tasks.update(task.id, {
         title: i.title,
         description: i.description,
@@ -122,10 +127,37 @@ export const taskTools = [
     },
   }),
   defineTool({
+    name: "replace_task_description",
+    description:
+      "Propose replacing (or clearing, with an empty text) a task's existing description. The owner must approve it in the app before anything changes.",
+    permission: "destructive",
+    maxCallsPerTurn: 2,
+    input: z.object({ task: z.string().min(1).describe("Task id or exact/partial title"), description: z.string().max(2000) }),
+    label: (i) => `Proposing to rewrite “${i.task}”`,
+    prepare: (i, ctx) => {
+      const task = resolveTask(i.task, ctx);
+      return {
+        targetId: task.id,
+        summary: i.description ? `Rewrite the description of task ${quoteTitle(task.title)}` : `Clear the description of task ${quoteTitle(task.title)}`,
+        payload: { description: i.description },
+        preview: i.description || undefined,
+      };
+    },
+    snapshot: (id, ctx) => {
+      const t = ctx.services.tasks.get(id);
+      return t && [t.title, t.description];
+    },
+    commit: (id, ctx, payload) => {
+      const { description } = z.object({ description: z.string().max(2000) }).parse(payload);
+      const task = ctx.services.tasks.update(id, { description });
+      ctx.services.activity.record("task.rewritten", `Rewrote the description of task “${task.title}” (approved agent action)`);
+    },
+  }),
+  defineTool({
     name: "complete_task",
     description: "Mark a task as done.",
     permission: "write",
-    maxCallsPerTurn: 10,
+    maxCallsPerTurn: 3,
     input: z.object({ task: z.string().min(1).describe("Task id or exact/partial title") }),
     label: (i) => `Completing “${i.task}”`,
     execute: (i, ctx) => {

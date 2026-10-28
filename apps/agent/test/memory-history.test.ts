@@ -90,7 +90,7 @@ describe("temporal memory", () => {
       expect(present.system).toContain("I sold it and bought a Tesla.");
       expect(present.system).not.toContain("I own a Volkswagen.");
       const past = await chatOnce(agent, "Which Volkswagen did I have before?");
-      expect(past.system).toMatch(/Historical context[^\n]*\n- \[fact\] I own a Volkswagen\. \(replaced by “I sold it and bought a Tesla\.”/);
+      expect(past.system).toMatch(/Historical context[^\n]*\n<data source="memories">\n- \[fact\] I own a Volkswagen\. \(replaced by “I sold it and bought a Tesla\.”/);
 
       const history = s.memoryHistory.lifecycle.history(tesla.id);
       expect(history.previous.map((m) => m.id)).toEqual([vw.id]);
@@ -168,7 +168,7 @@ describe("with semantic recall (#9) on", () => {
       expect(chat.system).toContain("bought a Tesla");
       expect(chat.system).not.toContain("I drive a VW Bug");
       const chatPast = await chatOnce(agent, "What car did I drive before?", true);
-      expect(chatPast.system).toMatch(/Historical context[^\n]*\n- \[other\] \(saved [^)]+\) I drive a VW Bug \(replaced by “I sold the VW Bug/);
+      expect(chatPast.system).toMatch(/Historical context[^\n]*\n<data source="memories">\n- \[other\] \(saved [^)]+\) I drive a VW Bug \(replaced by “I sold the VW Bug/);
     });
   });
 

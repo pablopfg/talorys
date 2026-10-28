@@ -10,6 +10,7 @@ import { CloudflareWorkersAIProvider } from "../ai/workers-ai";
 import { MockAIProvider } from "../ai/mock";
 import type { AIProvider } from "../ai/provider";
 import { localDayBounds, formatLocal } from "../services/time";
+import { defangLinks } from "../services/text";
 import { semanticExtensions } from "../semantic";
 import { AppError } from "../api/errors";
 import { semanticNeighbors } from "../semantic/neighbors";
@@ -161,13 +162,14 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         if (!s.usage.canRunScheduledAi(settings.limits)) return skipForBudget(s, a);
         let text: string;
         try {
-          text = await this.runner().runScheduledPrompt(a.message);
+          text = await this.runner().runScheduledPrompt(a.message, undefined, a.name);
         } catch (error) {
           // The budget ran out while this run waited (another run or chat took the last request).
           if (error instanceof AppError && error.code === "AI_LIMIT_REACHED") return skipForBudget(s, a);
           throw error;
         }
-        s.notifications.create({ title: a.name, body: text, automation_id: a.id });
+        // The reply is model-written: links in it stay visible but can't be clicked.
+        s.notifications.create({ title: a.name, body: defangLinks(text), automation_id: a.id });
         return { status: "success", result: text };
       }
     }
