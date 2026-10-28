@@ -53,9 +53,6 @@ All notable changes to Talorys are listed here. Versions match the `create-talor
 - The owner can still sign in during a distributed attack; IPv6 addresses are grouped by /64 (#39)
 - Notification clicks stay on the app's own origin (#36)
 
-- **MCP tools in scheduled routines.** A tool set to run without asking can also be allowed in scheduled AI routines (Settings → Integrations → *Also use in scheduled automations*). It's off by default, and tools that ask first are never used by routines.
-
 ### Upgrading
 
-- Migration 13 adds a `scheduled` column on `tal_mcp_tools`; existing tools stay out of scheduled routines.
 - A `.dev.vars` created before push existed gets Web Push keys added automatically (#37)
