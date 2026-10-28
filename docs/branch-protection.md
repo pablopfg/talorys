@@ -1,0 +1,48 @@
+# Branch protection
+
+`main` and `develop` are protected by GitHub rulesets stored as JSON in
+[`.github/rulesets/`](../.github/rulesets). The files are the source of truth;
+GitHub does not read them automatically, so they have to be applied once (and
+again after each change).
+
+## Workflow
+
+- Work happens on feature branches that open pull requests into `develop`.
+- Releases are pull requests from `develop` into `main`. Urgent fixes may come
+  from a `hotfix/*` branch.
+
+## Rules
+
+| Rule | `main` | `develop` |
+| --- | --- | --- |
+| Cannot be deleted | yes | yes |
+| No force pushes | yes | yes |
+| Changes only through pull requests | yes | yes |
+| Review conversations must be resolved | yes | yes |
+| CI job `test` must pass | yes | yes |
+| Branch must be up to date with the base before merging | yes | no |
+| Source must be `develop` or `hotfix/*` (`source-branch` check) | yes | no |
+
+No approving review is required, because a single maintainer cannot approve
+their own pull request. Repository admins can bypass the rules, but only when
+merging a pull request, never by pushing directly.
+
+[`.github/CODEOWNERS`](../.github/CODEOWNERS) requests a review from the owner
+on every pull request.
+
+## Applying the rulesets
+
+With the [GitHub CLI](https://cli.github.com/) logged in as a repository admin:
+
+```bash
+scripts/apply-rulesets.sh            # current repository
+scripts/apply-rulesets.sh owner/repo # another repository
+```
+
+The script creates each ruleset, or updates the one with the same name.
+
+Without the CLI: **Settings → Rules → Rulesets → New ruleset → Import a
+ruleset**, and pick each JSON file.
+
+Rulesets on private repositories need a paid GitHub plan; on public
+repositories they are free.

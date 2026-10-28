@@ -1,0 +1,22 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  # main only receives develop (releases) or hotfix/* branches.
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            develop|hotfix/*) echo "OK: $HEAD_REF -> main" ;;
+            *)
+              echo "::error::Pull requests into main must come from develop or hotfix/*, not '$HEAD_REF'."
+              exit 1
+              ;;
+          esac

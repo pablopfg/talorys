@@ -1,0 +1,5 @@
+# Owners are requested for review on every pull request.
+* @pablopfg
+
+# Branch protection and CI changes deserve a second look.
+/.github/ @pablopfg
