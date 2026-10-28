@@ -8,6 +8,8 @@ All notable changes to Talorys are listed here. Versions match the `create-talor
 
 - **AI task planning.** Ask Talorys to plan a goal ("Help me prepare for my trip to Japan") and it proposes a structured plan as a card in chat: tasks with priorities, optional due dates (suggested dates are marked as suggestions) and an optional existing or new project. You can edit titles, descriptions, priorities and dates, remove tasks or change the project, then confirm or cancel. Nothing is created until you confirm; confirming creates every task (and the new project) in one transaction, at most once, even if the button is pressed twice or in two tabs. Plans expire after 24 hours, survive reloads, and use no extra AI requests for editing or confirming.
 
+- **Automatic deploy from GitHub.** A merge into `main` builds, tests and publishes the one-Worker build (UI + API) to Cloudflare through GitHub Actions, behind a protected `production` environment, then checks `/api/health`. The Cloudflare token never reaches pull requests or the build job, and Worker secrets stay out of GitHub. See [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
+
 - **Remote MCP servers.** Connect remote MCP servers (Streamable HTTP, with no authentication, a bearer token, or OAuth sign-in with PKCE and dynamic client registration) in Settings → Integrations and choose which of their tools Talorys may use in chat. Tools start off; each enabled tool either asks for your approval on every call (the default) or runs without asking. Calls share the chat's tool limits, are never made by scheduled routines, and send only the call's arguments to the server. Tokens are stored encrypted. See [docs/mcp.md](docs/mcp.md).
 
 ### Upgrading
