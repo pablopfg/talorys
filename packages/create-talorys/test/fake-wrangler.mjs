@@ -48,7 +48,7 @@ async function readStdin() {
 
 switch (key) {
   case "--version":
-    console.log("4.149.0 (fake)");
+    console.log("4.153.0 (fake)");
     break;
   case "whoami":
     if (!state.loggedIn) fail("Not logged in");

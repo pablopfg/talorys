@@ -156,9 +156,24 @@ describe("prepare on a copy of the repository files", () => {
       // Only the installer's lockfile entry changes.
       const changed = lockAfter.split("\n").filter((line, i) => line !== lockBefore.split("\n")[i]);
       assert.deepEqual(changed, ['      "version": "9.0.0",']);
+      const shrinkwrap = JSON.parse(readFileSync(join(dir, VERSION_FILES.shrinkwrap), "utf8"));
+      assert.equal(shrinkwrap.version, "9.0.0");
+      assert.equal(shrinkwrap.packages[""].version, "9.0.0");
       assert.match(readFileSync(join(dir, "CHANGELOG.md"), "utf8"), /## 9\.0\.0 — 2026-11-20/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("every dependency in the repository is pinned to an exact version", () => {
+    const manifests = ["package.json", "apps/agent/package.json", "apps/web/package.json", "packages/shared/package.json", "packages/create-talorys/package.json"];
+    for (const file of manifests) {
+      const pkg = JSON.parse(readFileSync(join(root, file), "utf8"));
+      const specs = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.overrides?.tsup };
+      for (const [name, spec] of Object.entries(specs)) {
+        // "*" is a workspace package, resolved to the local copy.
+        if (spec !== "*") assert.match(spec, /^\d+\.\d+\.\d+/, `${file}: ${name} "${spec}" should be exact (save-exact=true in .npmrc)`);
+      }
     }
   });
 
@@ -166,6 +181,14 @@ describe("prepare on a copy of the repository files", () => {
     const pkg = JSON.parse(readFileSync(join(root, VERSION_FILES.installer), "utf8"));
     const constants = readFileSync(join(root, VERSION_FILES.constants), "utf8");
     assert.equal(constants.match(/TALORYS_VERSION = "([^"]+)"/)[1], pkg.version);
+    // The published installer installs exactly the locked tree: same version and same direct dependencies.
+    const shrinkwrap = JSON.parse(readFileSync(join(root, VERSION_FILES.shrinkwrap), "utf8"));
+    assert.equal(shrinkwrap.packages[""].version, pkg.version);
+    assert.deepEqual(shrinkwrap.packages[""].dependencies, pkg.dependencies, "run npm run shrinkwrap -w create-talorys");
+    for (const [name, spec] of Object.entries(pkg.dependencies)) {
+      assert.match(spec, /^\d+\.\d+\.\d+/, `${name} is pinned to an exact version`);
+      assert.equal(shrinkwrap.packages[`node_modules/${name}`]?.version, spec, `${name} is locked at ${spec}`);
+    }
     assert.ok(unreleasedSection(readFileSync(join(root, "CHANGELOG.md"), "utf8")), "CHANGELOG.md has a Não lançado section");
   });
 });
