@@ -49,7 +49,7 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
                   <time className="shrink-0 text-xs text-fg-subtle">{relativeTime(n.created_at, i18n)}</time>
                 </div>
                 <div className="mt-1 text-sm text-fg-muted">
-                  <Markdown content={serverText(n.body)} compact />
+                  <Markdown content={serverText(n.body)} compact plainLinks />
                 </div>
               </div>
               <button type="button"

@@ -50,6 +50,24 @@ const components: Components = {
   img: ({ alt }) => <span className="text-fg-subtle">[image: {alt}]</span>,
 };
 
+/**
+ * For text the owner didn't write and may trust as Talorys' own (notifications from reminders and
+ * routines): every link, in any Markdown form, shows its address as plain code and can't be clicked.
+ */
+export const plainLinkComponents: Components = {
+  ...components,
+  a: ({ href, children }) => {
+    const label = typeof children === "string" ? children : null;
+    const shown = href?.replace(/^mailto:/, "") ?? "";
+    if (!href || label === href || label === shown) return <code>{shown || children}</code>;
+    return (
+      <span>
+        {children} (<code>{href}</code>)
+      </span>
+    );
+  },
+};
+
 /** Task list items with clickable checkboxes; `line` is the 0-based source line. */
 export function taskComponents(onToggleTask: (line: number) => void): Components {
   return {
@@ -77,8 +95,13 @@ export function taskComponents(onToggleTask: (line: number) => void): Components
 }
 
 /** Safe Markdown renderer: raw HTML is not rendered (react-markdown default). */
-export const Markdown = memo(function Markdown({ content, compact, onToggleTask }: { content: string; compact?: boolean; onToggleTask?: (line: number) => void }) {
-  const comps = useMemo(() => (onToggleTask ? taskComponents(onToggleTask) : components), [onToggleTask]);
+export const Markdown = memo(function Markdown({
+  content,
+  compact,
+  onToggleTask,
+  plainLinks,
+}: { content: string; compact?: boolean; onToggleTask?: (line: number) => void; plainLinks?: boolean }) {
+  const comps = useMemo(() => (onToggleTask ? taskComponents(onToggleTask) : plainLinks ? plainLinkComponents : components), [onToggleTask, plainLinks]);
   return (
     <div className={cn("prose-talorys", compact && "text-sm leading-6")}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={comps} skipHtml>

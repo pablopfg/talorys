@@ -94,6 +94,7 @@ const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
  * looks like the block's own tags is defused, so the text can't close the block and pose as rules.
  */
 export function dataBlock(source: string, text: string): string {
-  const safe = text.replace(/<(\/?)data\b/gi, "‹$1data");
+  // Spaced, fullwidth/small-form and entity-encoded brackets read as the same tag to a model.
+  const safe = text.replace(/(?:<|＜|﹤|&lt;|&#0*60;|&#x0*3c;)\s*(\/?)\s*data\b/gi, "‹$1data");
   return `<data source="${source}">\n${safe}\n</data>`;
 }

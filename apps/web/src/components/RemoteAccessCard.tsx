@@ -49,10 +49,12 @@ export function RemoteAccessCard() {
   const create = useApiMutation(
     async (input: { name: string; scope: RemoteScope }) => {
       const r = await api<{ token: RemoteTokenInfo & { token: string } }>("/remote/tokens", { method: "POST", body: input });
+      // Cleared with the panel's appearance, not after the list refetch: by then the owner may have typed the next name.
+      setName("");
       setPlaintext(r.token.token);
       return r.token.name;
     },
-    { invalidate: [keys.remoteTokens], success: (n) => t("remote.created", { name: n }), onSuccess: () => setName("") },
+    { invalidate: [keys.remoteTokens], success: (n) => t("remote.created", { name: n }) },
   );
   const revoke = useApiMutation((token: RemoteTokenInfo) => api(`/remote/tokens/${token.id}`, { method: "DELETE" }), {
     invalidate: [keys.remoteTokens],

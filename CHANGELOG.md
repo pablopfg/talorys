@@ -30,6 +30,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Trocar a descrição de uma tarefa que já tem descrição agora pede aprovação, como reescrever uma nota. O agente conclui no máximo 3 tarefas por mensagem e para de acrescentar texto numa nota ao chegar a 50.000 caracteres.
 - O agente não repete um agendamento mais de uma vez por hora, e no máximo 50 automações podem ficar ativas ao mesmo tempo.
 - Notificações de uma rotina sempre trazem o nome da rotina, e os links nelas não são clicáveis.
+- Nenhum link numa notificação é clicável, em qualquer formato do Markdown: link com colchetes aninhados, link por referência, endereço `//site`, e-mail e também lembretes e resumos de tarefas, que antes passavam direto. O endereço aparece como código ao lado do texto.
+- Variações da tag de fim dos blocos de dados no prompt (com espaços, caracteres de largura total ou entidades HTML) também são neutralizadas, para que uma memória ou o resumo não feche o bloco e se passe por regra.
 - Um backup com data no futuro ou ilegível não substitui mais suas edições locais: a data vira a hora da importação. A importação aceita arquivos de até 10 MB e tem um limite de registros por tipo.
 - Os logs de erro da IA e do chat guardam só o nome e o código do erro, nunca o texto da mensagem.
 - Um backup importado não consegue mais se passar pelo dono: as mensagens de usuário restauradas são mostradas ao modelo como conversa passada, não como instruções.
