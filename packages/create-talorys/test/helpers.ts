@@ -139,7 +139,7 @@ export const CANCEL = Symbol("cancel");
 export const STRONG_PASSWORD = "correct-horse-Battery-9";
 
 /** Simulates a healthy (or unhealthy) deployed Talorys behind pages.dev. */
-export function fakeSite(opts: { healthy?: boolean; failFirst?: number } = {}): FetchLike & { calls: string[] } {
+export function fakeSite(opts: { healthy?: boolean; failFirst?: number; minimalHealth?: boolean } = {}): FetchLike & { calls: string[] } {
   let failures = opts.failFirst ?? 0;
   const calls: string[] = [];
   const fn = (async (url: string) => {
@@ -153,6 +153,8 @@ export function fakeSite(opts: { healthy?: boolean; failFirst?: number } = {}): 
     if (path === "/api/auth/session") return Response.json({ authenticated: false, configured: true });
     if (path === "/api/tasks") return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
     if (path === "/api/health") {
+      // What a current agent answers without a session.
+      if (opts.minimalHealth) return Response.json({ ok: opts.healthy !== false }, { status: opts.healthy === false ? 503 : 200 });
       return opts.healthy === false
         ? Response.json({ ok: false, storage: "ok", configured: { password: false, session_secret: false } }, { status: 503 })
         : Response.json({ ok: true, storage: "ok", schema_version: 1, configured: { password: true, session_secret: true } });

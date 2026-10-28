@@ -237,7 +237,11 @@ export class AuthService {
     return this.db.run(`DELETE FROM tal_sessions WHERE substr(id, 1, 16) = ?`, publicId).changes > 0;
   }
 
-  async changePassword(current: string, next: string, keepSessionId: string | null, client: string): Promise<void> {
+  /**
+   * Every session ends, the caller's too, along with all access tokens: whoever held one
+   * before the change has nothing left. The route signs the caller back in with a new session.
+   */
+  async changePassword(current: string, next: string, client: string): Promise<void> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
@@ -250,7 +254,7 @@ export class AuthService {
     const hash = await hashPassword(next);
     this.db.transaction(() => {
       this.settings.setJson(OVERRIDE_KEY, hash);
-      this.revokeAllExcept(keepSessionId);
+      this.db.run(`DELETE FROM tal_sessions`);
       this.db.run(`DELETE FROM tal_remote_tokens`);
     });
   }

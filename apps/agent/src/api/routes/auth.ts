@@ -10,6 +10,9 @@ authRoutes.post("/login", async (c) => {
   const { password } = await body(c, loginSchema, 4096);
   const auth = c.env.agent.services.auth;
   const { token, expiresAt } = await auth.login(password, clientId(c), c.req.header("user-agent") ?? "");
+  // A session cookie this browser already had ends here, so a planted one can't outlive the sign-in.
+  const previous = c.get("sessionId");
+  if (previous) auth.revoke(previous);
   c.env.agent.services.activity.record("auth.login", "Signed in");
   c.header("set-cookie", sessionCookie(c, token, expiresAt));
   return c.json({ authenticated: true, expires_at: expiresAt.toISOString() });
@@ -52,7 +55,10 @@ authRoutes.post("/sessions/revoke-others", (c) => {
 authRoutes.post("/password", async (c) => {
   const input = await body(c, changePasswordSchema, 4096);
   const s = c.env.agent.services;
-  await s.auth.changePassword(input.current_password, input.new_password, c.get("sessionId"), clientId(c));
+  await s.auth.changePassword(input.current_password, input.new_password, clientId(c));
   s.activity.record("auth.password_changed", "Password changed; other sessions signed out and access tokens revoked");
+  // This browser stays signed in, on a new session: the old token no longer works anywhere.
+  const { token, expiresAt } = await s.auth.createSession(c.req.header("user-agent") ?? "");
+  c.header("set-cookie", sessionCookie(c, token, expiresAt));
   return c.json({ changed: true });
 });

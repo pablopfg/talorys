@@ -13,6 +13,7 @@ export const systemRoutes = new Hono<AppEnv>();
 /**
  * Non-inference health check used by the installer and monitoring.
  * Verifies storage and configuration without calling Workers AI.
+ * Without a session or token it answers only ok, so strangers learn nothing about the deploy.
  */
 systemRoutes.get("/health", (c) => {
   const s = c.env.agent.services;
@@ -38,7 +39,9 @@ systemRoutes.get("/health", (c) => {
     push: s.push.configured(),
     time: new Date().toISOString(),
   };
-  return c.json(report, report.ok ? 200 : 503);
+  const status = report.ok ? 200 : 503;
+  if (!c.get("sessionId") && !c.get("remote")) return c.json({ ok: report.ok }, status);
+  return c.json(report, status);
 });
 
 systemRoutes.get("/settings", (c) => c.json({ settings: c.env.agent.services.settings.get() }));

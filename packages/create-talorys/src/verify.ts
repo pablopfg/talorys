@@ -88,10 +88,11 @@ export async function runChecks(baseUrl: string, fetchFn: FetchLike, deadline = 
       schema_version?: number;
       configured?: { password?: boolean; session_secret?: boolean };
     };
-    if (data.storage !== "ok") throw new Error(`Storage: ${data.storage ?? `HTTP ${res.status}`}`);
-    if (!data.configured?.password || !data.configured?.session_secret) throw new Error("Owner secrets are not configured yet");
-    if (!data.ok) throw new Error(`HTTP ${res.status}`);
-    return `SQLite schema v${data.schema_version}`;
+    // Signed out, newer agents answer only { ok }; older ones also name what is missing.
+    if (data.storage !== undefined && data.storage !== "ok") throw new Error(`Storage: ${data.storage}`);
+    if (data.configured && (!data.configured.password || !data.configured.session_secret)) throw new Error("Owner secrets are not configured yet");
+    if (!data.ok) throw new Error(`Storage or owner secrets are not ready yet (HTTP ${res.status})`);
+    return data.schema_version ? `SQLite schema v${data.schema_version}` : "Healthy";
   });
   return results;
 }
