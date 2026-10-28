@@ -233,7 +233,7 @@ export default function MemoryPage() {
 }
 
 function ReviewPanel({ reviews }: { reviews: MemoryReview[] }) {
-  const { t } = useI18n();
+  const { t, serverText } = useI18n();
   const resolve = useApiMutation(
     ({ id, action }: { id: string; action: MemoryReviewAction }) => api(`/memories/reviews/${id}`, { method: "POST", body: { action } }),
     { invalidate: [["memories"]], success: t("memory.done") },
@@ -245,7 +245,7 @@ function ReviewPanel({ reviews }: { reviews: MemoryReview[] }) {
       </h2>
       {reviews.map((r) => (
         <div key={r.id} className="rounded-xl border border-warning/40 bg-surface px-4 py-3">
-          <p className="text-xs text-fg-subtle">{r.reason}</p>
+          <p className="text-xs text-fg-subtle">{serverText(r.reason)}</p>
           <dl className="mt-2 grid gap-1 text-sm">
             <div className="flex gap-2">
               <dt className="w-16 shrink-0 text-fg-subtle">{t("memory.newer")}</dt>

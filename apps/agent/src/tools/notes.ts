@@ -7,6 +7,9 @@ function noteSnapshot(id: string, ctx: ToolContext) {
   return n && [n.title, n.content, n.project_id];
 }
 
+/** Longest a note may grow through the agent's appends; the owner can still write longer ones in the app. */
+export const MAX_AGENT_NOTE_CHARS = 50_000;
+
 export const noteTools = [
   defineTool({
     name: "create_note",
@@ -71,6 +74,9 @@ export const noteTools = [
       const note = ctx.services.notes.get(i.id);
       if (!note) throw new ToolError("Note not found.");
       const content = i.append ? `${note.content}\n\n${i.append}` : undefined;
+      if (content !== undefined && content.length > MAX_AGENT_NOTE_CHARS) {
+        throw new ToolError(`This note would pass ${MAX_AGENT_NOTE_CHARS.toLocaleString("en-US")} characters. Start a new note instead.`);
+      }
       const updated = ctx.services.notes.update(note.id, { title: i.title, content });
       return { updated: { id: updated.id, title: updated.title } };
     },

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { CancelledError, CliError } from "./errors";
+import { CancelledError, CliError, sanitize } from "./errors";
 import { formatChecks, install, resetPassword, ensureAuthenticated, type Deps } from "./install";
 import { MANIFEST_FILE, readManifest } from "./manifest";
 import { checkNodeVersion, detectGlobalClis } from "./requirements";
@@ -162,6 +162,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   const ui = new ClackUi();
   const deps: Deps = { ui, wrangler: new Wrangler() };
   const password = process.env.TALORYS_OWNER_PASSWORD;
+  // Wrangler and any other child process inherit the environment; the plaintext must not go with it.
+  delete process.env.TALORYS_OWNER_PASSWORD;
 
   try {
     if (values.semantic && values["no-semantic"]) throw new CliError("Pass either --semantic or --no-semantic, not both.");
@@ -193,7 +195,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       ui.outro("Setup did not finish. No data was deleted.");
       return 1;
     }
-    ui.error(error instanceof Error ? error.message : String(error));
+    ui.error(sanitize(error instanceof Error ? error.message : String(error)));
     ui.outro("Unexpected error. Re-run to resume; please report persistent failures on GitHub.");
     return 1;
   }
@@ -205,7 +207,7 @@ if (isDirectRun && !process.env.VITEST) {
   main().then(
     (code) => process.exit(code),
     (error) => {
-      console.error(error);
+      console.error(sanitize(error instanceof Error ? (error.stack ?? error.message) : String(error), 40));
       process.exit(1);
     },
   );

@@ -35,6 +35,8 @@ export interface Env {
   /** Installer defaults: the owner's timezone and chosen agent name. */
   TALORYS_DEFAULT_TIMEZONE?: string;
   TALORYS_AGENT_NAME?: string;
+  /** Language of a new installation ("system", "en", "ko" or "pt-BR"); pt-BR when unset. */
+  TALORYS_DEFAULT_LANGUAGE?: string;
   /** Informational, written by the installer. */
   TALORYS_INSTALLATION_ID?: string;
   TALORYS_DEPLOYED_VERSION?: string;

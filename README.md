@@ -1,201 +1,336 @@
+<div align="center">
+
+<img src="site/favicon.svg" alt="Logo do Talorys" width="88" height="88">
+
 # Talorys
 
-**Your personal AI agent. Your own cloud.**
+**Seu agente pessoal de IA. Na sua própria nuvem.**
 
-Website: [rociiu.github.io/talorys](https://rociiu.github.io/talorys/)
+Um assistente pessoal de IA gratuito e de código aberto que roda inteiramente dentro da **sua própria conta Cloudflare**.<br>
+Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talorys.
 
-Talorys is a free, open-source personal AI assistant that runs entirely inside
-**your own Cloudflare account**. It chats with you, remembers what matters,
-manages tasks, notes and projects, and runs reminders and routines on a
-schedule — without any server, database or account operated by the Talorys
-developers.
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-1f6f63)](LICENSE)
+[![Roda na Cloudflare](https://img.shields.io/badge/roda%20na-Cloudflare-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
+[![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-1f6f63)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
+[![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-1f6f63)](#-onde-ficam-seus-dados)
 
-One person. One Cloudflare account. One command. One personal AI agent.
+[Site](https://rociiu.github.io/talorys/) · [Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
-```bash
-npx create-talorys@latest
-```
-
-Or install it with [Appflare](https://appflare.dev), which deploys it as a
-[single Worker](docs/deployment.md#one-worker-without-pages):
-
-[![Install with Appflare](https://appflare.dev/badge.svg)](https://appflare.dev/install/talorys/)
+</div>
 
 ---
 
-## 1. What Talorys is
+<div align="center">
 
-- **A private assistant** — chat with streaming responses, Markdown and tool activity indicators.
-- **Memory** — durable personal facts and preferences you can view, edit and delete. Only the most relevant memories are sent to the model on each turn.
-- **Semantic recall (optional)** — finds memories by meaning as well as keyword, lists them newest first with their saved date, and lets the agent find tasks, notes and automations by meaning. Off by default; turn it on with the **Semantic memory recall** switch near the bottom of Settings → AI (its other settings appear once it is on), or install with `--semantic`. See [docs/semantic-recall.md](docs/semantic-recall.md).
-- **Memory history** — facts that change over time: when you say you sold your car, Talorys asks you whether the old one is now a past fact, and with the optional AI check a confident answer does it for you. Unclear conflicts also wait for your review. See [docs/memory-history.md](docs/memory-history.md).
-- **Tasks, notes and projects** — full CRUD in the UI, and from chat ("Add a task to review my project tomorrow"). Chat task due dates reject impossible calendar dates, including timestamps with explicit UTC offsets.
-- **AI task planning** — describe a goal ("Plan the tasks to launch my iOS app next month") and Talorys proposes a plan as an interactive card in chat. Review, edit or remove tasks, pick a project, then confirm: nothing is created until you do, and confirming creates everything at once, exactly once.
-- **Automations** — one-time and recurring reminders, daily task digests and optional AI routines, delivered to an in-app notification center. They run on Durable Object alarms, so nothing has to stay online.
-- **Push notifications** — reminders, digests and routines also arrive as system notifications on the phones and computers you turn them on for, even when Talorys is closed (Settings → General). Uses standard Web Push, encrypted end to end; on iPhone and iPad, add Talorys to the Home Screen first.
-- **Remote MCP servers (optional)** — connect remote [MCP](https://modelcontextprotocol.io) servers in Settings → Integrations (no auth, a bearer token, or OAuth sign-in) and choose which of their tools Talorys may use. Tools start off, and calls that may change something wait for your approval. Tools that run without asking can also be allowed in scheduled routines. See [docs/mcp.md](docs/mcp.md).
-- **Single-user by design** — no signup, no accounts, no teams. The installer sets the owner password.
-- **Works without AI** — tasks, notes, memories and reminders keep working if Workers AI is unavailable or your free quota is used up.
-
-### Screenshots
-
-| Chat with tool activity | Tasks |
-| --- | --- |
-| ![Chat](docs/screenshots/chat.png) | ![Tasks](docs/screenshots/tasks.png) |
-| **Memory (dark mode)** | **Automations** |
-| ![Memory](docs/screenshots/memory.png) | ![Automations](docs/screenshots/automations.png) |
-
-<p align="center"><img src="docs/screenshots/mobile.png" alt="Mobile" width="260"> &nbsp; <img src="docs/screenshots/login.png" alt="Login" width="520"></p>
-
-## 2. How it works
-
-```
-Browser ──HTTPS──▶ Cloudflare Pages (React app + /api Pages Function)
-                         │  service binding (no public URL)
-                         ▼
-                   Private Worker (Hono router)
-                         │  getAgentByName("personal-agent")
-                         ▼
-                   TalorysAgent — Cloudflare Agents SDK Durable Object
-                     ├─ SQLite: conversations, memories, tasks, notes, projects,
-                     │          automations, sessions, settings, usage
-                     ├─ Workers AI: @cf/zai-org/glm-4.7-flash (streaming + tool calling)
-                     └─ Alarms: reminders and recurring schedules
-```
-
-- The browser only ever talks to your `*.pages.dev` site. `/api/*` requests run a
-  Pages Function that forwards them over a **service binding** to the agent Worker.
-- The agent Worker is deployed with `workers_dev: false` and `preview_urls: false`:
-  it has **no public URL**.
-- Authentication and authorization happen in the Worker, not the frontend.
-- Chat responses stream as Server-Sent Events end-to-end.
-
-More detail: [docs/architecture.md](docs/architecture.md).
-
-## 3. Cloudflare services used
-
-| Service | Used for | Free plan |
-| --- | --- | --- |
-| Cloudflare Pages | Frontend + Pages Function | Yes |
-| Cloudflare Workers | Private API Worker | Yes |
-| Durable Objects (SQLite) | All data, scheduling alarms | Yes |
-| Workers AI | Chat model (`@cf/zai-org/glm-4.7-flash`) | Yes, daily allocation |
-
-Talorys does **not** provision R2, D1, KV, Vectorize, AI Search, Workflows or any
-paid service.
-
-## 4. Deploy
+**Uma pessoa. Uma conta Cloudflare. Um comando. Um agente pessoal de IA.**
 
 ```bash
 npx create-talorys@latest
 ```
 
-The installer:
+Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#one-worker-without-pages):
 
-1. Checks Node.js (22+) and uses its bundled Wrangler CLI (any globally installed `wrangler`/`cf` is detected but not required).
-2. Verifies your Cloudflare login, or **opens Cloudflare's authorization page in your browser**.
-3. Lets you choose an account (if you have several) and an agent name.
-4. Asks for an owner password (hidden input, strength-checked). It is hashed locally with PBKDF2-SHA256 and stored only as a Cloudflare secret.
-5. Generates a 256-bit session secret, a Web Push key pair, and unique resource names (`talorys-<id>-agent`, `talorys-<id>-web`).
-6. Deploys the private Worker (creating its SQLite Durable Object), stores secrets, creates and deploys the Pages project with the service binding.
-7. Verifies the live deployment (frontend, auth endpoint, unauthenticated rejection, storage health) **without** running any AI inference.
-8. Prints the real `https://….pages.dev` URL reported by Cloudflare.
+[![Instalar com o Appflare](https://appflare.dev/badge.svg)](https://appflare.dev/install/talorys/)
 
-It writes a `talorys/` directory containing `talorys.json` (installation id,
-account id, resource names, URL — **no secrets**) and the deployable artifacts.
-Keep it for updates.
+</div>
 
-**Interrupted?** Run the same command again in the same place. It reconciles
-what already exists: no duplicate resources, no password re-prompt if the
-password is already configured, and **no data is ever deleted**.
+---
 
-Non-interactive installs: `TALORYS_OWNER_PASSWORD=... npx create-talorys@latest --yes --account-id <id>`
-(with `CLOUDFLARE_API_TOKEN` set if you are not logged in).
+## Sumário
 
-### Permissions
+- [✨ Funcionalidades](#-funcionalidades)
+- [📸 Capturas de tela](#-capturas-de-tela)
+- [🧭 Como funciona](#-como-funciona)
+- [☁️ Serviços da Cloudflare utilizados](#️-serviços-da-cloudflare-utilizados)
+- [🚀 Implantação](#-implantação)
+- [🔑 Acesso](#-acesso)
+- [🔒 Onde ficam seus dados](#-onde-ficam-seus-dados)
+- [💸 O que é gratuito e o que pode custar dinheiro](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
+- [💾 Backup dos seus dados](#-backup-dos-seus-dados)
+- [🔄 Atualização](#-atualização)
+- [🩺 Solução de problemas](#-solução-de-problemas)
+- [🛠️ Desenvolvimento local](#️-desenvolvimento-local)
+- [📁 Estrutura do repositório](#-estrutura-do-repositório)
+- [🙌 Créditos](#-créditos)
+- [📄 Licença](#-licença)
 
-Browser login uses Wrangler's standard OAuth flow — no Global API Key. If you
-use an API token instead, it needs:
+---
 
-- Account › Workers Scripts › Edit
-- Account › Cloudflare Pages › Edit
-- Account › Workers AI › Read
-- Account › Account Settings › Read
-- User › User Details › Read (optional; shows your email)
+## ✨ Funcionalidades
 
-See [docs/deployment.md](docs/deployment.md).
+### Assistente
 
-## 5. Access
+| | Funcionalidade | O que faz |
+| :---: | --- | --- |
+| 💬 | **Chat privado** | Respostas em streaming, Markdown e indicadores da atividade das ferramentas. |
+| 🧠 | **Memória** | Fatos e preferências pessoais duradouros, que você pode ver, editar e apagar. Só as memórias mais relevantes são enviadas ao modelo a cada mensagem. |
+| 🔎 | **Busca semântica** <sub>opcional</sub> | Encontra memórias pelo significado, além das palavras-chave, lista as mais recentes primeiro com a data em que foram salvas e permite que o agente encontre tarefas, notas e automações pelo significado. [Saiba mais](docs/semantic-recall.md) |
+| 🕰️ | **Histórico da memória** | Fatos que mudam com o tempo: quando você diz que vendeu o carro, o Talorys pergunta se o antigo agora é um fato passado. Com a verificação opcional por IA, uma resposta confiante já resolve por você; conflitos pouco claros aguardam sua revisão. [Saiba mais](docs/memory-history.md) |
 
-Open the URL the installer prints, enter your owner password, and start chatting.
-Sign in from any number of devices — they are all the same owner. Manage
-sessions under **Settings → Security**.
+### Produtividade
 
-Forgot the password? From your `talorys/` directory:
+| | Funcionalidade | O que faz |
+| :---: | --- | --- |
+| ✅ | **Tarefas, notas e projetos** | Criar, ver, editar e apagar pela interface e pelo chat (_"Adicione uma tarefa para revisar meu projeto amanhã"_). Prazos de tarefas criados pelo chat recusam datas impossíveis no calendário, inclusive horários com fuso UTC explícito. |
+| 🗺️ | **Planejamento de tarefas com IA** | Descreva um objetivo (_"Planeje as tarefas para lançar meu app de iOS no mês que vem"_) e receba um plano em um cartão interativo. Revise, edite ou remova tarefas, escolha um projeto e confirme: nada é criado antes disso, e a confirmação cria tudo de uma vez, uma única vez. |
+| ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
+| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Geral**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+
+> [!TIP]
+> No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.
+
+### Integrações e design
+
+| | Funcionalidade | O que faz |
+| :---: | --- | --- |
+| 🔌 | **Servidores MCP remotos** <sub>opcional</sub> | Conecte servidores [MCP](https://modelcontextprotocol.io) remotos em **Configurações → Integrações** (sem autenticação, com token bearer ou login OAuth) e escolha quais ferramentas deles o Talorys pode usar. As ferramentas começam desligadas, e chamadas que podem alterar algo aguardam sua aprovação. As que rodam sem perguntar também podem ser liberadas para as rotinas agendadas. [Saiba mais](docs/mcp.md) |
+| 👤 | **Usuário único por design** | Sem cadastro, sem contas, sem equipes. O instalador define a senha do dono. |
+| 🛟 | **Funciona sem IA** | Tarefas, notas, memórias e lembretes continuam funcionando se o Workers AI estiver indisponível ou se a sua cota gratuita acabar. |
+
+> [!NOTE]
+> A busca semântica vem desligada. Ative-a com o botão **Busca semântica de memórias**, perto do fim de **Configurações → IA** (as outras opções aparecem depois que ele é ligado), ou instale com `--semantic`.
+
+---
+
+## 📸 Capturas de tela
+
+<table>
+  <tr>
+    <th>Chat com atividade das ferramentas</th>
+    <th>Tarefas</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/chat.png" alt="Chat com atividade das ferramentas"></td>
+    <td><img src="docs/screenshots/tasks.png" alt="Tarefas"></td>
+  </tr>
+  <tr>
+    <th>Memória (modo escuro)</th>
+    <th>Automações</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/memory.png" alt="Memória no modo escuro"></td>
+    <td><img src="docs/screenshots/automations.png" alt="Automações"></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/mobile.png" alt="Celular" width="260">
+  &nbsp;
+  <img src="docs/screenshots/login.png" alt="Login" width="520">
+</p>
+
+---
+
+## 🧭 Como funciona
+
+```mermaid
+flowchart TD
+    B["🌐 Navegador"] -- HTTPS --> P["Cloudflare Pages<br/>app React + Pages Function /api"]
+    P -- "service binding<br/>(sem URL pública)" --> W["Worker privado<br/>roteador Hono"]
+    W -- "getAgentByName('personal-agent')" --> A["TalorysAgent<br/>Durable Object do Cloudflare Agents SDK"]
+    A --- S[("SQLite<br/>conversas, memórias, tarefas, notas,<br/>projetos, automações, sessões, configurações, uso")]
+    A --- AI["Workers AI<br/>@cf/zai-org/glm-4.7-flash<br/>streaming + chamada de ferramentas"]
+    A --- AL["⏰ Alarmes<br/>lembretes e agendamentos recorrentes"]
+```
+
+- O navegador só conversa com o seu site `*.pages.dev`. As requisições `/api/*` executam uma Pages Function que as repassa, por um **service binding**, ao Worker do agente.
+- O Worker do agente é implantado com `workers_dev: false` e `preview_urls: false`: ele **não tem URL pública**.
+- A autenticação e a autorização acontecem no Worker, não no frontend.
+- As respostas do chat chegam em streaming como Server-Sent Events, de ponta a ponta.
+
+Mais detalhes: [docs/architecture.md](docs/architecture.md).
+
+---
+
+## ☁️ Serviços da Cloudflare utilizados
+
+| Serviço | Usado para | Plano Free |
+| --- | --- | :---: |
+| Cloudflare Pages | Frontend + Pages Function | ✅ |
+| Cloudflare Workers | Worker privado da API | ✅ |
+| Durable Objects (SQLite) | Todos os dados e os alarmes de agendamento | ✅ |
+| Workers AI | Modelo do chat (`@cf/zai-org/glm-4.7-flash`) | ✅ cota diária |
+
+O Talorys **não** provisiona R2, D1, KV, Vectorize, AI Search, Workflows nem qualquer serviço pago.
+
+---
+
+## 🚀 Implantação
+
+```bash
+npx create-talorys@latest
+```
+
+<details open>
+<summary><strong>O que o instalador faz</strong></summary>
+
+1. Verifica o Node.js (22+) e usa o Wrangler CLI que vem junto (um `wrangler`/`cf` instalado globalmente é detectado, mas não é necessário).
+2. Confere o seu login na Cloudflare ou **abre a página de autorização da Cloudflare no navegador**.
+3. Deixa você escolher a conta (se tiver mais de uma) e o nome do agente.
+4. Pede a senha do dono (digitação oculta, com verificação de força). Ela é transformada em hash localmente com PBKDF2-SHA256 e guardada apenas como um secret da Cloudflare.
+5. Gera um segredo de sessão de 256 bits, um par de chaves Web Push e nomes de recursos únicos (`talorys-<id>-agent`, `talorys-<id>-web`).
+6. Implanta o Worker privado (criando o Durable Object com SQLite), guarda os secrets, cria e implanta o projeto do Pages com o service binding.
+7. Verifica a implantação no ar (frontend, endpoint de autenticação, recusa de acesso sem login, saúde do armazenamento) **sem** rodar nenhuma inferência de IA.
+8. Mostra a URL real `https://….pages.dev` informada pela Cloudflare.
+
+</details>
+
+Ele cria um diretório `talorys/` com o `talorys.json` (id da instalação, id da conta, nomes dos recursos, URL — **sem segredos**) e os artefatos de implantação. Guarde-o para as atualizações.
+
+> [!TIP]
+> **Foi interrompido?** Rode o mesmo comando de novo, no mesmo lugar. Ele reconcilia o que já existe: sem recursos duplicados, sem pedir a senha de novo se ela já estiver configurada e **sem nunca apagar dados**.
+
+<details>
+<summary><strong>Instalação não interativa</strong></summary>
+
+```bash
+TALORYS_OWNER_PASSWORD=... npx create-talorys@latest --yes --account-id <id>
+```
+
+Defina `CLOUDFLARE_API_TOKEN` se você não estiver logado.
+
+</details>
+
+<details>
+<summary><strong>Permissões do token de API</strong></summary>
+
+O login pelo navegador usa o fluxo OAuth padrão do Wrangler — sem Global API Key. Se você usar um token de API, ele precisa de:
+
+| Escopo | Permissão |
+| --- | --- |
+| Account › Workers Scripts | Edit |
+| Account › Cloudflare Pages | Edit |
+| Account › Workers AI | Read |
+| Account › Account Settings | Read |
+| User › User Details | Read _(opcional; mostra o seu e-mail)_ |
+
+</details>
+
+Veja [docs/deployment.md](docs/deployment.md).
+
+---
+
+## 🔑 Acesso
+
+Abra a URL que o instalador mostrar, digite a senha do dono e comece a conversar. Entre por quantos aparelhos quiser — todos são o mesmo dono. Gerencie as sessões em **Configurações → Segurança**.
+
+Esqueceu a senha? No seu diretório `talorys/`:
 
 ```bash
 npx create-talorys@latest reset-password
 ```
 
-This replaces the password secret and signs out every device.
+Isso substitui o secret da senha e desconecta todos os aparelhos.
 
-## 6. Where your data lives
+---
 
-All data is stored in a single SQLite-backed Durable Object (`personal-agent`)
-**in your Cloudflare account**. Talorys has no telemetry, analytics, tracking or
-advertising code and sends nothing to its developers.
+## 🔒 Onde ficam seus dados
 
-Cloudflare processes your data to provide its services — including running
-Workers AI inference on your chat messages and the relevant memories included
-in each prompt. Review Cloudflare's privacy policy and Workers AI terms.
+Todos os dados ficam num único Durable Object com SQLite (`personal-agent`) **na sua conta Cloudflare**.
 
-If you connect a remote MCP server, calling one of its tools sends that call's
-arguments to the server, outside your Cloudflare account. Nothing is sent to an
-MCP server unless you connected it and turned the tool on. See
-[docs/mcp.md](docs/mcp.md#privacy).
+> [!IMPORTANT]
+> O Talorys não tem código de telemetria, analytics, rastreamento ou publicidade e não envia nada aos seus desenvolvedores.
 
-Security model and threat mitigations: [docs/security.md](docs/security.md).
+A Cloudflare processa seus dados para prestar os serviços dela — inclusive a inferência do Workers AI sobre as suas mensagens do chat e as memórias relevantes incluídas em cada prompt. Leia a política de privacidade da Cloudflare e os termos do Workers AI.
 
-Calling the API from scripts with personal access tokens: [docs/remote-access.md](docs/remote-access.md).
+Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia os argumentos dessa chamada ao servidor, fora da sua conta Cloudflare. Nada é enviado a um servidor MCP a menos que você o tenha conectado e ligado a ferramenta. Veja [docs/mcp.md](docs/mcp.md#privacy).
 
-## 7. What is free and what may cost money
+| Leia mais | |
+| --- | --- |
+| 🛡️ Modelo de segurança e mitigação de ameaças | [docs/security.md](docs/security.md) |
+| 🔐 Chamar a API por scripts com tokens de acesso pessoal | [docs/remote-access.md](docs/remote-access.md) |
 
-Talorys is designed to fit the **Cloudflare Workers Free plan** and never enables
-paid features on its own. It is not "unlimited free", though:
+---
 
-- Free plans have account-level quotas (requests, Durable Object usage, a daily
-  Workers AI Neuron allocation). Quotas are set by Cloudflare and can change.
-- When the AI allocation is exhausted, chat shows a clear message and resumes
-  after the daily reset. Everything else keeps working, and your data is untouched.
-- If your account is on a paid plan, usage beyond included amounts is billed by
-  Cloudflare under your plan.
+## 💸 O que é gratuito e o que pode custar dinheiro
 
-Built-in guardrails (adjustable in **Settings → AI**): max output tokens, max
-context tokens (older history is summarized), max tool calls and reasoning
-steps per request, max AI requests per day (every chat-model call counts, including
-each reasoning step, history summary and memory check), and max scheduled AI runs
-per day. Embeddings have their own daily request cap. Simple reminders and task
-digests never use AI.
+O Talorys foi feito para caber no **plano Free do Cloudflare Workers** e nunca ativa recursos pagos por conta própria. Mas não é "gratuito e ilimitado":
 
-The Usage panel separates **provider-reported tokens** from **fallback token
-estimates**, and shows local estimated Neurons and USD inference value for today
-and the last seven days. Model-specific estimates use static published Workers AI
-rates at the time each call is recorded; the pricing date and source are linked
-in the panel. They are **not a Cloudflare bill or quota balance**: account-wide
-usage and free allowances are excluded. No account credentials or extra network
-calls are needed for these estimates.
+- Os planos Free têm cotas por conta (requisições, uso de Durable Objects e uma cota diária de Neurons do Workers AI). As cotas são definidas pela Cloudflare e podem mudar.
+- Quando a cota de IA acaba, o chat mostra uma mensagem clara e volta a funcionar depois da renovação diária. Todo o resto continua funcionando, e os seus dados não são afetados.
+- Se a sua conta estiver num plano pago, o uso além do incluído é cobrado pela Cloudflare conforme o seu plano.
 
-Unsupported models remain unpriced, not free. Mixed coverage is labelled as a
-partial subtotal, while historical mixed token counts retain an unknown model
-and provenance and cannot be repriced. Demo/mock calls show estimated tokens but
-have no real AI consumption and no Neuron or USD estimate. Completed model steps
-remain counted if a later step fails or is cancelled; steps without a usage
-receipt cannot be measured. Use the linked Cloudflare dashboard for account-level
-usage and billing.
+<details>
+<summary><strong>Limites de proteção embutidos</strong> (ajustáveis em Configurações → IA)</summary>
 
-## 8. Local development
+- Máximo de tokens de saída.
+- Máximo de tokens de contexto (o histórico mais antigo é resumido).
+- Máximo de chamadas de ferramentas e de etapas de raciocínio por requisição.
+- Máximo de requisições de IA por dia (toda chamada ao modelo do chat conta, incluindo cada etapa de raciocínio, resumo do histórico e verificação de memória).
+- Máximo de execuções agendadas de IA por dia.
+- Os embeddings têm seu próprio limite diário de requisições.
 
-Requirements: Node.js 22+.
+Lembretes simples e resumos de tarefas nunca usam IA.
+
+</details>
+
+<details>
+<summary><strong>Como o painel de uso estima o custo</strong></summary>
+
+O painel de uso separa os **tokens informados pelo provedor** das **estimativas de tokens de reserva** e mostra, localmente, os Neurons estimados e o valor de inferência estimado em USD de hoje e dos últimos sete dias. As estimativas por modelo usam as tarifas estáticas publicadas do Workers AI no momento em que cada chamada é registrada; a data e a fonte dos preços aparecem como link no painel. Elas **não são uma fatura da Cloudflare nem o saldo da sua cota**: o uso de toda a conta e as franquias gratuitas ficam de fora. Essas estimativas não precisam de credenciais da conta nem de chamadas de rede extras.
+
+Modelos sem suporte continuam sem preço, não gratuitos. Uma cobertura mista aparece como subtotal parcial, enquanto contagens históricas de tokens mistos mantêm o modelo e a origem como desconhecidos e não podem ser recalculadas. Chamadas de demonstração (mock) mostram tokens estimados, mas não têm consumo real de IA nem estimativa de Neurons ou USD. Etapas concluídas do modelo continuam contadas se uma etapa seguinte falhar ou for cancelada; etapas sem recibo de uso não podem ser medidas. Use o painel da Cloudflare, com link no app, para ver o uso e a cobrança de toda a conta.
+
+</details>
+
+---
+
+## 💾 Backup dos seus dados
+
+**Configurações → Privacidade → Baixar backup** gera o arquivo `talorys-backup.json` com conversas, memórias, tarefas, notas, projetos, configurações e automações (nunca sessões ou credenciais).
+
+**Importar dados** valida o arquivo e o mescla numa única transação. Importar o mesmo backup duas vezes não causa problema, e uma memória, tarefa, nota ou projeto que você editou localmente depois do backup não é sobrescrito.
+
+<details>
+<summary><strong>Detalhes da importação</strong></summary>
+
+- O histórico da memória (fatos atuais e passados) vai junto. Backups antigos são importados como antes.
+- As configurações incluem os padrões efetivos do instalador.
+- Se o fuso horário importado mudar, as automações locais mantidas também são reagendadas nesse fuso.
+
+</details>
+
+> [!WARNING]
+> Um arquivo de backup é tratado como não confiável: automações novas chegam pausadas, automações existentes nunca são alteradas (no máximo, pausadas), e o modelo, os limites, o modo de demonstração, a memória automática e as configurações do histórico da memória são mantidos como estão (o resultado da importação lista o que foi ignorado).
+
+---
+
+## 🔄 Atualização
+
+No seu diretório `talorys/`:
+
+```bash
+npx create-talorys@latest update
+```
+
+Isso reimplanta a versão mais recente do Worker e do frontend nos **mesmos** recursos. O namespace do Durable Object nunca é recriado (as migrações só acrescentam), a senha do dono e as sessões são mantidas, e as migrações de schema rodam automaticamente, em transação, na primeira requisição.
+
+Também disponíveis: `status` e `doctor`.
+
+---
+
+## 🩺 Solução de problemas
+
+| Problema | Solução |
+| --- | --- |
+| O instalador parou no meio | Rode o mesmo comando de novo; ele continua de onde parou. |
+| "did not pass its health checks yet" | Sites `pages.dev` novos podem levar alguns minutos. Rode de novo. |
+| Erros de permissão | Use uma conta em que você possa editar Workers e Pages, ou um token com as [permissões acima](#-implantação). |
+| O chat diz que a cota de IA acabou | Espere a renovação diária, ou ative o **Modo demonstração** em **Configurações → IA**. |
+| Bloqueado depois de logins com erro | Espere 15 minutos ou redefina a senha pela CLI. |
+
+```bash
+npx create-talorys@latest doctor   # verifica tudo automaticamente
+```
+
+Mais em [docs/troubleshooting.md](docs/troubleshooting.md).
+
+---
+
+## 🛠️ Desenvolvimento local
+
+Requisito: **Node.js 22+**.
 
 ```bash
 git clone https://github.com/rociiu/talorys.git
@@ -204,85 +339,59 @@ npm install
 npm run dev
 ```
 
-`npm run dev` starts the agent Worker (`wrangler dev`, port 8787), the Pages
-Function proxy with its service binding (`wrangler pages dev`, port 8788) and
-the Vite UI (http://localhost:5173) in one terminal. It creates
-`apps/agent/.dev.vars` with a local password (`talorys-dev-password`, override
-with `TALORYS_DEV_PASSWORD`) and uses the deterministic mock AI provider, so no
-Cloudflare login is needed. State persists in `.wrangler/state`.
+`npm run dev` inicia tudo num único terminal:
 
-Other scripts: `npm run build`, `npm test`, `npm run test:e2e`, `npm run test:pack`,
-`npm run typecheck`, `npm run lint`. See [docs/development.md](docs/development.md).
-
-## 9. Back up your data
-
-**Settings → Privacy → Download backup** produces `talorys-backup.json` with
-conversations, memories, tasks, notes, projects, settings and automations
-(never sessions or credentials). **Import** validates the file and merges it in
-one transaction; importing the same backup twice is harmless, and a memory,
-task, note or project you edited locally after the backup was made is not
-overwritten. Memory history (current vs. past facts) is included. Older backups import as before. Settings include
-the effective installer defaults. If an imported timezone changes, retained
-local automations are also rescheduled in that timezone. A backup file is
-treated as untrusted: new automations arrive paused, existing automations are
-never changed except to pause them, and the model, limits, demo mode,
-auto-memory and memory history settings are kept as they are (the import
-result lists any it skipped).
-
-## 10. Update
-
-From your `talorys/` directory:
-
-```bash
-npx create-talorys@latest update
-```
-
-This redeploys the latest Worker and frontend to the **same** resources. The
-Durable Object namespace is never recreated (migrations are append-only), the
-owner password and sessions are kept, and schema migrations run automatically
-and transactionally on first request. Also available: `status` and `doctor`.
-
-## 11. Troubleshooting
-
-| Problem | Fix |
+| Processo | Porta |
 | --- | --- |
-| Installer stopped midway | Re-run the same command; it resumes. |
-| "did not pass its health checks yet" | New `pages.dev` sites can take a few minutes. Re-run. |
-| Permission errors | Use an account where you can edit Workers and Pages, or a token with the permissions above. |
-| Chat says the AI allocation is used up | Wait for the daily reset; or enable Demo mode in Settings → AI. |
-| Locked out after failed logins | Wait 15 minutes, or reset the password with the CLI. |
+| Worker do agente (`wrangler dev`) | 8787 |
+| Proxy da Pages Function com o service binding (`wrangler pages dev`) | 8788 |
+| Interface Vite | [localhost:5173](http://localhost:5173) |
 
-`npx create-talorys@latest doctor` checks everything automatically. More in
-[docs/troubleshooting.md](docs/troubleshooting.md).
+Ele cria `apps/agent/.dev.vars` com uma senha local (`talorys-dev-password`, que pode ser trocada com `TALORYS_DEV_PASSWORD`) e usa o provedor de IA simulado e determinístico, então não é preciso fazer login na Cloudflare. O estado fica salvo em `.wrangler/state`.
 
-## Repository layout
+| Script | |
+| --- | --- |
+| `npm run build` | Compila todos os workspaces |
+| `npm test` | Testes unitários |
+| `npm run test:e2e` | Testes de interface com Playwright |
+| `npm run test:pack` | Teste do pacote do instalador |
+| `npm run typecheck` | Verificação de tipos do TypeScript |
+| `npm run lint` | Lint com Biome |
+
+Veja [docs/development.md](docs/development.md).
+
+---
+
+## 📁 Estrutura do repositório
 
 ```
-apps/agent              Private Worker: Hono API, TalorysAgent, tools, SQLite repositories
-apps/web                React + Vite app, Pages Function (functions/api/[[path]].ts)
-packages/shared         Zod schemas, types, recurrence/DST logic, password hashing
-packages/create-talorys The one-command installer (npm package)
-tests/e2e               Playwright UI tests
-tests/smoke             Optional real-account deployment test
-docs/                   Architecture, deployment, development, security, troubleshooting
+apps/agent              Worker privado: API Hono, TalorysAgent, ferramentas, repositórios SQLite
+apps/web                App React + Vite, Pages Function (functions/api/[[path]].ts)
+packages/shared         Schemas Zod, tipos, lógica de recorrência/horário de verão, hash de senha
+packages/create-talorys Instalador de um comando só (pacote npm)
+tests/e2e               Testes de interface com Playwright
+tests/smoke             Teste opcional de implantação numa conta real
+docs/                   Arquitetura, implantação, desenvolvimento, segurança, solução de problemas
 ```
 
-## Credits
+---
 
-Thanks to everyone who has contributed to Talorys:
+## 🙌 Créditos
 
-- [Roc Yu (@rociiu)](https://github.com/rociiu) — creator and maintainer
-- [Derek (@KrunchMuffin)](https://github.com/KrunchMuffin) — Node.js 22 requirement, task deletion and
-  cancelled-turn fixes, Windows build support
-- [Rudy Celekli (@rudycelekli)](https://github.com/rudycelekli) — automation lifecycle, deployment
-  verification, and portable backup settings fixes
-- [Andrew B (@who)](https://github.com/who) — opt-in semantic recall for memories
-- [Mendy Landa (@MendyLanda)](https://github.com/MendyLanda) — single-Worker deployment
-- [Michael Tuszynski (@michaeltuszynski)](https://github.com/michaeltuszynski) — untrusted backup import
-  handling, daily AI budget accounting, and approvals bound to what was shown
-- [김형준 (@wasuphj)](https://github.com/wasuphj) — password policy, recurrence date, and vector
-  guard fixes
+Obrigado a todos que contribuíram com o Talorys:
 
-## License
+| Contribuidor | Contribuição |
+| --- | --- |
+| [Roc Yu (@rociiu)](https://github.com/rociiu) | Criador e mantenedor |
+| [Derek (@KrunchMuffin)](https://github.com/KrunchMuffin) | Exigência do Node.js 22, correções na exclusão de tarefas e em turnos cancelados, suporte a build no Windows |
+| [Rudy Celekli (@rudycelekli)](https://github.com/rudycelekli) | Ciclo de vida das automações, verificação da implantação e correções nas configurações portáteis do backup |
+| [Andrew B (@who)](https://github.com/who) | Busca semântica opcional para memórias |
+| [Mendy Landa (@MendyLanda)](https://github.com/MendyLanda) | Implantação em um único Worker |
+| [Michael Tuszynski (@michaeltuszynski)](https://github.com/michaeltuszynski) | Tratamento de importação de backup não confiável, contabilidade do orçamento diário de IA e aprovações vinculadas ao que foi mostrado |
+| [김형준 (@wasuphj)](https://github.com/wasuphj) | Correções na política de senhas, nas datas de recorrência e na proteção de vetores |
 
-[MIT](LICENSE)
+---
+
+## 📄 Licença
+
+Distribuído sob a [Licença MIT](LICENSE).

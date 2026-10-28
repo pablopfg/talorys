@@ -8,10 +8,6 @@ import { api } from "../lib/api";
 import { relativeTime } from "../lib/utils";
 import { useI18n } from "../lib/i18n";
 
-const DESCRIPTION =
-  "Create personal access tokens so scripts and other apps can use your Talorys data over HTTPS.";
-const SUSPENDED_HINT = "Tokens stay suspended until you turn this back on.";
-const WRITE_HINT = "Write can create, update, and delete tasks, notes, reminders, and memories.";
 const DOCS_URL = `${GITHUB_URL}/blob/main/docs/remote-access.md`;
 
 /** A ready-to-run request for the once-only panel, against this install. */
@@ -34,6 +30,7 @@ function Row({ label, hint, children }: { label: ReactNode; hint?: ReactNode; ch
 /** Settings card for personal access tokens: the on/off switch, a generate form, the once-only plaintext and the token list. */
 export function RemoteAccessCard() {
   const i18n = useI18n();
+  const { t } = i18n;
   const toast = useToast();
   const status = useRemoteStatus();
   const tokens = useRemoteTokens();
@@ -47,7 +44,7 @@ export function RemoteAccessCard() {
 
   const toggle = useApiMutation((on: boolean) => api<{ enabled: boolean }>("/remote/status", { method: "PATCH", body: { enabled: on } }), {
     invalidate: [keys.remoteStatus],
-    success: (r) => (r.enabled ? "Remote access turned on" : "Remote access turned off"),
+    success: (r) => (r.enabled ? t("remote.turnedOn") : t("remote.turnedOff")),
   });
   const create = useApiMutation(
     async (input: { name: string; scope: RemoteScope }) => {
@@ -55,31 +52,31 @@ export function RemoteAccessCard() {
       setPlaintext(r.token.token);
       return r.token.name;
     },
-    { invalidate: [keys.remoteTokens], success: (n) => `Created access token "${n}"`, onSuccess: () => setName("") },
+    { invalidate: [keys.remoteTokens], success: (n) => t("remote.created", { name: n }), onSuccess: () => setName("") },
   );
-  const revoke = useApiMutation((t: RemoteTokenInfo) => api(`/remote/tokens/${t.id}`, { method: "DELETE" }), {
+  const revoke = useApiMutation((token: RemoteTokenInfo) => api(`/remote/tokens/${token.id}`, { method: "DELETE" }), {
     invalidate: [keys.remoteTokens],
-    success: "Access token revoked",
+    success: t("remote.revoked"),
   });
   const revokeAll = useApiMutation(() => api<{ revoked: number }>("/remote/tokens", { method: "DELETE" }), {
     invalidate: [keys.remoteTokens],
-    success: (r) => `Revoked ${r.revoked} access token(s)`,
+    success: (r) => t("remote.revokedCount", { count: r.revoked }),
     onSuccess: () => setConfirmAll(false),
   });
 
-  async function copy(text: string, done = "Token copied") {
+  async function copy(text: string, done = t("remote.tokenCopied")) {
     try {
       await navigator.clipboard.writeText(text);
       toast(done);
     } catch {
-      toast("Could not copy the token. Select it and copy it by hand.", "error");
+      toast(t("remote.copyFailed"), "error");
     }
   }
 
   const error = status.error ?? tokens.error;
   return (
     <section className="space-y-2">
-      <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-fg-subtle">Remote access</h2>
+      <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-fg-subtle">{t("remote.title")}</h2>
       <Card>
         <div className="divide-y divide-border">
           {error ? (
@@ -91,25 +88,25 @@ export function RemoteAccessCard() {
               <Row
                 label={
                   <span className="flex items-center gap-2">
-                    Remote access {!enabled && <Badge tone="warning">Suspended</Badge>}
+                    {t("remote.title")} {!enabled && <Badge tone="warning">{t("remote.suspended")}</Badge>}
                   </span>
                 }
                 hint={
                   <>
-                    {DESCRIPTION}{" "}
+                    {t("remote.description")}{" "}
                     <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                      How to use access tokens
+                      {t("remote.howTo")}
                     </a>
                     {!enabled && (
                       <>
                         {" "}
-                        {SUSPENDED_HINT}
+                        {t("remote.suspendedHint")}
                       </>
                     )}
                   </>
                 }
               >
-                <Switch checked={enabled} onChange={(on) => toggle.mutate(on)} label="Remote access" disabled={toggle.isPending} />
+                <Switch checked={enabled} onChange={(on) => toggle.mutate(on)} label={t("remote.title")} disabled={toggle.isPending} />
               </Row>
               <form
                 className="space-y-3 px-5 py-4"
@@ -120,32 +117,32 @@ export function RemoteAccessCard() {
               >
                 <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
                   <div>
-                    <Label htmlFor="remote-token-name">Token name</Label>
-                    <Input id="remote-token-name" value={name} maxLength={64} placeholder="e.g. Home server" onChange={(e) => setName(e.target.value)} />
+                    <Label htmlFor="remote-token-name">{t("remote.tokenName")}</Label>
+                    <Input id="remote-token-name" value={name} maxLength={64} placeholder={t("remote.tokenNamePlaceholder")} onChange={(e) => setName(e.target.value)} />
                   </div>
                   <div>
-                    <Label htmlFor="remote-token-scope">Scope</Label>
+                    <Label htmlFor="remote-token-scope">{t("remote.scope")}</Label>
                     <Select id="remote-token-scope" value={scope} onChange={(e) => setScope(e.target.value as RemoteScope)}>
                       <option value="read">read</option>
                       <option value="write">write</option>
                     </Select>
                   </div>
                 </div>
-                {scope === "write" && <p className="text-xs leading-5 text-warning">{WRITE_HINT}</p>}
+                {scope === "write" && <p className="text-xs leading-5 text-warning">{t("remote.writeHint")}</p>}
                 <div className="flex justify-end">
                   <Button type="submit" loading={create.isPending} disabled={!enabled || !name.trim()}>
-                    <KeyRound className="h-4 w-4" /> Generate token
+                    <KeyRound className="h-4 w-4" /> {t("remote.generate")}
                   </Button>
                 </div>
               </form>
               {plaintext && (
-                <div className="space-y-3 bg-subtle px-5 py-4" role="region" aria-label="New access token">
-                  <p className="text-sm font-medium text-warning">Copy this token now. It will not be shown again.</p>
+                <div className="space-y-3 bg-subtle px-5 py-4" role="region" aria-label={t("remote.newToken")}>
+                  <p className="text-sm font-medium text-warning">{t("remote.copyNow")}</p>
                   <code className="block break-all rounded-lg border border-border bg-surface px-3 py-2 font-mono text-sm">{plaintext}</code>
                   <p className="text-xs leading-5 text-fg-subtle">
-                    Use it as a Bearer token.{" "}
+                    {t("remote.useAsBearer")}{" "}
                     <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                      Docs
+                      {t("remote.docs")}
                     </a>
                   </p>
                   <code
@@ -156,30 +153,33 @@ export function RemoteAccessCard() {
                   </code>
                   <div className="flex flex-wrap justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => void copy(plaintext)}>
-                      <Copy className="h-3.5 w-3.5" /> Copy
+                      <Copy className="h-3.5 w-3.5" /> {t("chat.copy")}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => void copy(curlExample(plaintext), "Example copied")}>
-                      <Copy className="h-3.5 w-3.5" /> Copy example
+                    <Button variant="outline" size="sm" onClick={() => void copy(curlExample(plaintext), t("remote.exampleCopied"))}>
+                      <Copy className="h-3.5 w-3.5" /> {t("remote.copyExample")}
                     </Button>
                     <Button variant="secondary" size="sm" onClick={() => setPlaintext(null)}>
-                      Done
+                      {t("memory.done")}
                     </Button>
                   </div>
                 </div>
               )}
               {list.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-fg-subtle">No access tokens yet.</p>
+                <p className="px-5 py-4 text-sm text-fg-subtle">{t("remote.empty")}</p>
               ) : (
-                list.map((t) => (
+                list.map((token) => (
                   <Row
-                    key={t.id}
-                    label={t.name}
-                    hint={`${REMOTE_TOKEN_PREFIX}…${t.hint} · created ${relativeTime(t.created_at, i18n)} · last used ${t.last_used_at ? relativeTime(t.last_used_at, i18n) : "Never"}`}
+                    key={token.id}
+                    label={token.name}
+                    hint={`${REMOTE_TOKEN_PREFIX}…${token.hint} · ${t("remote.tokenTimes", {
+                      created: relativeTime(token.created_at, i18n),
+                      used: token.last_used_at ? relativeTime(token.last_used_at, i18n) : t("remote.never"),
+                    })}`}
                   >
                     <div className="flex items-center gap-2">
-                      <Badge tone={t.scope === "write" ? "warning" : "neutral"}>{t.scope}</Badge>
-                      <Button variant="ghost" size="sm" aria-label={`Revoke ${t.name}`} onClick={() => revoke.mutate(t)} disabled={revoke.isPending}>
-                        Revoke
+                      <Badge tone={token.scope === "write" ? "warning" : "neutral"}>{token.scope}</Badge>
+                      <Button variant="ghost" size="sm" aria-label={t("remote.revokeNamed", { name: token.name })} onClick={() => revoke.mutate(token)} disabled={revoke.isPending}>
+                        {t("remote.revoke")}
                       </Button>
                     </div>
                   </Row>
@@ -187,10 +187,10 @@ export function RemoteAccessCard() {
               )}
               <div className="flex justify-between gap-2 px-5 py-3">
                 <p className="self-center text-xs text-fg-subtle">
-                  {list.length} of {status.data.max_tokens} tokens.
+                  {t("remote.count", { count: list.length, max: status.data.max_tokens })}
                 </p>
                 <Button variant="outline" size="sm" className="text-danger" onClick={() => setConfirmAll(true)} disabled={list.length === 0}>
-                  Revoke all
+                  {t("remote.revokeAll")}
                 </Button>
               </div>
             </>
@@ -199,9 +199,9 @@ export function RemoteAccessCard() {
       </Card>
       <ConfirmDialog
         open={confirmAll}
-        title="Revoke all access tokens?"
-        message="Every machine client using a token loses access at once. This cannot be undone."
-        confirmLabel="Revoke all"
+        title={t("remote.revokeAllTitle")}
+        message={t("remote.revokeAllMessage")}
+        confirmLabel={t("remote.revokeAll")}
         onCancel={() => setConfirmAll(false)}
         onConfirm={() => revokeAll.mutate(undefined)}
         loading={revokeAll.isPending}

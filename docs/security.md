@@ -77,9 +77,25 @@ the Worker for every route except `GET /api/health`, `POST /api/auth/login` and
   runs in one transaction at most once. Expired, cancelled and outdated drafts
   are refused. Plan routes are not reachable with remote access tokens.
 - The agent cannot erase text on its own: `update_note` only renames a note or
-  appends to it, and `update_memory` saves the new wording as a new memory while
-  the old one is kept as a past fact.
-- Scheduled AI runs get read-only tools plus `notify_owner`.
+  appends to it (up to 50,000 characters), `update_task` only adds a
+  description to a task that has none (`replace_task_description` is a
+  proposal; titles can still change without approval), and `update_memory`
+  saves the new wording as a new memory while the old one is kept as a past
+  fact. `complete_task` runs at most 3 times a turn.
+- AI routines (`agent_prompt` automations) run unattended, so the agent can only
+  propose one (`propose_ai_routine`): the card shows the full prompt and
+  schedule, and nothing is scheduled until the owner approves. A note, memory or
+  tool result that tells the model to set one up can't schedule it on its own.
+  The agent can't repeat any schedule more often than hourly, and at most 50
+  automations can be active at once.
+- Memories and the conversation summary enter the system prompt inside
+  `<data>` blocks, one memory per line, with anything shaped like the block's
+  own tags defused, so stored text can't close the block and pose as rules.
+- A conversation restored from a backup is shown to the model as past
+  conversation, not as the owner's instructions.
+- Scheduled AI runs get read-only tools plus `notify_owner`, which exists only
+  there. Its title always starts with the routine's name, and links in it, and
+  in the run's reply, are shown as plain text that can't be clicked.
 - Per-request limits: tool calls, per-tool caps, duplicate-call detection,
   reasoning steps, output and context tokens; daily caps on AI requests and
   scheduled AI runs. Every model call (each tool-loop step and each history
