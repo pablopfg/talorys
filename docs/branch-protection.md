@@ -47,6 +47,20 @@ ruleset**, and pick each JSON file.
 Rulesets on private repositories need a paid GitHub plan; on public
 repositories they are free.
 
+## CI
+
+The CI workflow runs once for each commit pushed to a pull request, and not
+again when the pull request is merged: the rules above mean `main` and
+`develop` only change through pull requests, so a run after the merge would
+repeat tests on code already tested. A pull request into `main` must also be up
+to date with `main`, so its run tests exactly what lands there. A new commit
+cancels the run still going for the same pull request.
+
+Lint, typecheck, build and the package test run in one job; the unit tests
+(the agent suite split in three) and the browser tests run in parallel jobs.
+The `test` job passes only when all of them pass, and it is the one check the
+rules require.
+
 ## A pull request waits forever for `test`
 
 The required `test` check only exists once the CI workflow has run on the pull
