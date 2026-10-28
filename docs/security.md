@@ -77,6 +77,9 @@ for the owner. The agent instance name is fixed server-side.
   secret, as RFC 8291 requires.
 - The service worker (`/sw.js`) only shows push notifications and caches
   nothing; a notification click can only open a path on the app's own origin.
+- Notification bodies render every link, in any Markdown form, as plain code
+  next to its label: a reminder, digest or routine can't plant a clickable link
+  the owner might trust as Talorys' own.
 - No secrets or bindings exist in browser code (the build checks for this).
 
 ## Prompt injection and tool safety
