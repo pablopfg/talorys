@@ -1,4 +1,4 @@
-import { MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
+import { type Language, localizeServerText, MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
 import { clip } from "../services/text";
 import { encryptPayload } from "./ece";
 import { fromB64url } from "./encoding";
@@ -47,6 +47,8 @@ export class PushService {
     readonly subscriptions: PushSubscriptionRepository,
     private readonly env: PushEnv,
     private readonly background: (work: Promise<unknown>) => void,
+    /** The owner's language: notifications are written in English and translated when sent. */
+    private readonly language: () => Language = () => "en",
   ) {}
 
   configured(): boolean {
@@ -66,7 +68,9 @@ export class PushService {
   /** Called for every new notification. Returns at once; delivery continues in the background. */
   notify(n: Notification): void {
     if (!this.configured() || this.subscriptions.all().length === 0) return;
-    const work: Promise<void> = this.sendToAll(toPushMessage(n))
+    const language = this.language();
+    const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
+    const work: Promise<void> = this.sendToAll(toPushMessage(localized))
       .then(() => undefined)
       .catch((error) => console.warn("Push delivery failed", error instanceof Error ? error.message : String(error)))
       .finally(() => this.pending.delete(work));

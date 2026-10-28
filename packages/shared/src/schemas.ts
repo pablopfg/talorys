@@ -324,7 +324,7 @@ export const memoryHistorySettingsSchema = z.object({
 });
 export type MemoryHistorySettings = z.infer<typeof memoryHistorySettingsSchema>;
 
-/** UI language. "system" follows the browser and falls back to English. */
+/** UI language. "system" follows the browser and falls back to DEFAULT_LANGUAGE. */
 export const languagePreferenceSchema = z.enum(["system", ...LANGUAGES]);
 
 export const settingsSchema = z.object({

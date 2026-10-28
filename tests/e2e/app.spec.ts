@@ -270,14 +270,17 @@ test.describe("Talorys owner experience", () => {
     await login(page);
     await page.getByRole("link", { name: "Settings" }).first().click();
     const language = page.getByRole("combobox", { name: "Language" });
-    await expect(language).toHaveValue("system");
+    await expect(language).toHaveValue("en");
     await expect(language.getByRole("option", { name: "Browser default (English)" })).toHaveCount(1);
-    await language.selectOption("en");
-    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await language.selectOption("pt-BR");
+    await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
     await page.reload();
-    await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
-    await page.getByRole("combobox", { name: "Language" }).selectOption("system");
+    await expect(page.getByRole("combobox", { name: "Idioma" })).toHaveValue("pt-BR");
+    await expect(page.getByRole("link", { name: "Configurações" }).first()).toBeVisible();
+    await page.getByRole("combobox", { name: "Idioma" }).selectOption("system");
     await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("system");
+    await page.getByRole("combobox", { name: "Language" }).selectOption("en");
+    await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
   });
 
   test("lock signs out", async ({ page }) => {

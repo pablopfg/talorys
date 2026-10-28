@@ -36,6 +36,10 @@ http://localhost:5173 and sign in with `talorys-dev-password`. See
 
 ## Before opening a pull request
 
+Open pull requests against `develop`; `main` only receives releases from
+`develop` (see [docs/branch-protection.md](docs/branch-protection.md)).
+
+
 ```bash
 npm run typecheck
 npm run lint
@@ -48,6 +52,14 @@ If you changed the installer, also run `npm run test:pack`.
 - Add or update tests for behaviour changes.
 - Update the docs when you change user-facing behaviour.
 - Keep pull requests focused, with a clear description of what and why.
+
+## Changelog and releases
+
+Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat(chat): …`, `fix: …`). Describe user-facing changes under
+"Não lançado" in [CHANGELOG.md](CHANGELOG.md), or add the `sem-changelog`
+label. Versions and GitHub releases are created by workflows; see
+[docs/releases.md](docs/releases.md).
 
 ## Reporting bugs
 

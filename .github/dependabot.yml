@@ -1,25 +1,20 @@
+# Keeps the SHA-pinned GitHub Actions up to date. npm dependencies are
+# reviewed by hand (see SECURITY.md).
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
-    target-branch: develop
-    schedule:
-      interval: weekly
-    # New releases wait a week before a PR is opened, so a compromised or broken
-    # version is usually caught and yanked before it reaches the lockfile.
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 10
-    groups:
-      minor-and-patch:
-        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     target-branch: develop
     schedule:
       interval: weekly
+    # A new release waits a week before a PR is opened, so a compromised or
+    # broken version is usually caught and pulled before it reaches us.
     cooldown:
       default-days: 7
+    labels: [sem-changelog]
+    commit-message:
+      prefix: ci
+      include: scope
     groups:
       actions:
         patterns: ["*"]

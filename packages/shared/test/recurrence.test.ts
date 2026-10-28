@@ -144,3 +144,15 @@ describe("upcomingRuns", () => {
     expect(upcomingRuns({ type: "once", at: "2026-03-05T10:00" }, "UTC", after, 3)).toHaveLength(1);
   });
 });
+
+describe("describeSchedule in Brazilian Portuguese", () => {
+  it("describes every kind of schedule", () => {
+    expect(describeSchedule({ type: "once", at: "2026-11-03T09:30" }, "pt-BR")).toBe("Uma vez em 03/11/2026 às 09:30");
+    expect(describeSchedule({ type: "daily", time: "08:00" }, "pt-BR")).toBe("Todos os dias às 08:00");
+    expect(describeSchedule({ type: "weekly", days: [1, 2, 3, 4, 5], time: "09:00" }, "pt-BR")).toBe("Todo dia útil às 09:00");
+    expect(describeSchedule({ type: "weekly", days: [5, 1, 3], time: "08:30" }, "pt-BR")).toBe("Toda semana (segunda, quarta e sexta) às 08:30");
+    expect(describeSchedule({ type: "monthly", day: 31, time: "09:00" }, "pt-BR")).toBe("Todo mês no dia 31 às 09:00, ou no último dia dos meses mais curtos");
+    expect(describeSchedule({ type: "interval", minutes: 90 }, "pt-BR")).toBe("A cada 1 h 30 min");
+    expect(describeSchedule({ type: "interval", minutes: 120 }, "pt-BR")).toBe("A cada 2 horas");
+  });
+});

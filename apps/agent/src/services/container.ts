@@ -1,3 +1,4 @@
+import { languagePreferenceSchema, type Settings } from "@talorys/shared";
 import type { Env } from "../env";
 import { Database } from "../db/database";
 import { TaskRepository } from "../db/repositories/tasks";
@@ -52,9 +53,10 @@ export function createServices(
   const settings = new SettingsService(db, {
     ...(env.TALORYS_DEFAULT_TIMEZONE ? { timezone: env.TALORYS_DEFAULT_TIMEZONE } : {}),
     ...(env.TALORYS_AGENT_NAME ? { agentName: env.TALORYS_AGENT_NAME } : {}),
+    ...(languagePreferenceSchema.safeParse(env.TALORYS_DEFAULT_LANGUAGE).success ? { language: env.TALORYS_DEFAULT_LANGUAGE as Settings["language"] } : {}),
   });
   const automationsRepo = new AutomationRepository(db);
-  const push = new PushService(new PushSubscriptionRepository(db), env, background);
+  const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
   const notifications = new NotificationRepository(db, (n) => push.notify(n));
   const activity = new ActivityLog(db);
   const memories = new MemoryRepository(db);
