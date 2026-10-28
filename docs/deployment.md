@@ -57,6 +57,9 @@ refers to it.
 
 ## One Worker, without Pages
 
+To publish this build automatically on every merge into `main`, see
+[Automatic deploy from GitHub](deploy-github-actions.md).
+
 `apps/agent/wrangler.standalone.jsonc` deploys the agent Worker with the web UI
 as static assets, so one Worker serves both. Use it with tools that deploy a
 single Worker:

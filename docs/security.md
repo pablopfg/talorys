@@ -76,9 +76,12 @@ the Worker for every route except `GET /api/health`, `POST /api/auth/login` and
   conversation and revision, re-validates the final plan on the server, and
   runs in one transaction at most once. Expired, cancelled and outdated drafts
   are refused. Plan routes are not reachable with remote access tokens.
-- The agent cannot erase text on its own: `update_note` only renames a note or
-  appends to it, and `update_memory` saves the new wording as a new memory while
-  the old one is kept as a past fact.
+- The agent cannot erase notes or memories on its own: `update_note` only renames
+  a note or appends to it, and `update_memory` saves the new wording as a new
+  memory while the old one is kept as a past fact. `update_task` can still
+  rewrite a task's title and description without approval.
+- A conversation restored from a backup is shown to the model as past
+  conversation, not as the owner's instructions.
 - Scheduled AI runs get read-only tools plus `notify_owner`.
 - Per-request limits: tool calls, per-tool caps, duplicate-call detection,
   reasoning steps, output and context tokens; daily caps on AI requests and

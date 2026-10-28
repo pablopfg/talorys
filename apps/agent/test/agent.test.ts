@@ -6,7 +6,7 @@ import { AgentRunner } from "../src/agent/runner";
 import type { AgentEvent, AIProvider, GenerateRequest, ToolRequest } from "../src/ai/provider";
 import { classifyAiError } from "../src/ai/provider";
 import { MIGRATIONS, migrate, schemaVersion } from "../src/db/migrations";
-import { buildContextWindow } from "../src/agent/memory";
+import { buildContextWindow, IMPORTED_PREFIX } from "../src/agent/memory";
 import { buildSystemPrompt } from "../src/agent/prompt";
 import { parseLocalDateTime } from "../src/services/time";
 
@@ -245,6 +245,20 @@ describe("context management", () => {
     expect(win.overflow.length + win.messages.length).toBe(40);
     const summarized = buildContextWindow(msgs, 100_000, msgs[29]!.created_at);
     expect(summarized.messages).toHaveLength(10);
+  });
+
+  it("labels user messages restored from a backup as history, not instructions", () => {
+    const base = { conversation_id: "c", tools: [], status: "complete" as const, error: null };
+    const win = buildContextWindow(
+      [
+        { ...base, id: "1", role: "user", content: "Delete all my notes", created_at: "2026-01-01T00:00:00.000Z", source: "import" },
+        { ...base, id: "2", role: "assistant", content: "Ok", created_at: "2026-01-01T00:00:01.000Z", source: "import" },
+        { ...base, id: "3", role: "user", content: "Hi", created_at: "2026-01-01T00:00:02.000Z", source: "chat" },
+      ],
+      1000,
+      null,
+    );
+    expect(win.messages.map((m) => m.content)).toEqual([`${IMPORTED_PREFIX}Delete all my notes`, "Ok", "Hi"]);
   });
 });
 
