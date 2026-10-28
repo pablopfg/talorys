@@ -49,6 +49,14 @@ If you changed the installer, also run `npm run test:pack`.
 - Update the docs when you change user-facing behaviour.
 - Keep pull requests focused, with a clear description of what and why.
 
+## Changelog and releases
+
+Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat(chat): …`, `fix: …`). Describe user-facing changes under
+"Não lançado" in [CHANGELOG.md](CHANGELOG.md), or add the `sem-changelog`
+label. Versions and GitHub releases are created by workflows; see
+[docs/releases.md](docs/releases.md).
+
 ## Reporting bugs
 
 Open an issue with steps to reproduce, expected and actual behaviour, and the
