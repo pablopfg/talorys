@@ -89,8 +89,16 @@ O repositório é público, então os workflows seguem estas regras:
 - **Nenhum segredo:** apenas o `GITHUB_TOKEN` temporário de cada execução.
   Nenhum token pessoal, nem da Cloudflare ou do npm.
 - **Actions fixadas por SHA** do commit, com a versão em comentário. O
-  [Dependabot](../.github/dependabot.yml) abre um PR semanal para a `develop`
-  com as atualizações.
+  [Dependabot](../.github/dependabot.yml) verifica todo dia e abre um PR
+  para a `develop` com as atualizações.
+- **Dependências npm atualizadas todo dia:** o Dependabot verifica às 6h
+  (horário de Brasília) os pacotes de todos os workspaces. Atualizações minor
+  e patch chegam agrupadas (no máximo um PR de produção e um de
+  desenvolvimento por dia); cada major vem num PR próprio. Uma versão nova
+  espera alguns dias antes do PR (3 para patch, 7 para minor, 14 para major;
+  7 para as Actions), para que um pacote comprometido ou quebrado seja
+  descoberto antes de chegar aqui. Correções de segurança ignoram essa
+  espera. Os PRs passam pelo CI completo como qualquer outro.
 - **`persist-credentials: false`** em todo checkout: o token não fica salvo
   no `.git` para os passos seguintes.
 - **Sem injeção de comandos:** textos vindos do PR (como o título) chegam aos
