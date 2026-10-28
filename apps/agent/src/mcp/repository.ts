@@ -181,14 +181,18 @@ export class McpRepository {
     return this.db.one<{ n: number }>(`SELECT COUNT(*) AS n FROM tal_mcp_tools WHERE enabled = 1 AND status = 'available'`)?.n ?? 0;
   }
 
-  /** Enabling records the definition the owner reviewed; a later change hides the tool until reviewed again. */
+  /**
+   * Enabling records the definition the owner reviewed; a later change hides the tool until reviewed again.
+   * Only turning the tool on counts as a review: changing its policy alone keeps the reviewed definition.
+   */
   updateTool(serverId: string, name: string, patch: { enabled?: boolean; policy?: McpToolPolicy }): void {
     const t = this.db.one<StoredTool>(`SELECT * FROM tal_mcp_tools WHERE server_id = ? AND name = ?`, serverId, name);
     if (!t) return;
     const enabled = patch.enabled ?? t.enabled === 1;
+    const reviewed = !enabled ? null : patch.enabled === true ? t.schema_hash : t.reviewed_hash;
     this.db.run(
       `UPDATE tal_mcp_tools SET enabled = ?, policy = ?, reviewed_hash = ?, updated_at = ? WHERE server_id = ? AND name = ?`,
-      enabled, patch.policy ?? t.policy, enabled ? t.schema_hash : null, now(), serverId, name,
+      enabled, patch.policy ?? t.policy, reviewed, now(), serverId, name,
     );
   }
 
