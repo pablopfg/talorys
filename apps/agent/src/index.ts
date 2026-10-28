@@ -3,6 +3,9 @@ import { AGENT_INSTANCE_NAME } from "@talorys/shared";
 import type { Env } from "./env";
 import { AppError, errorResponse } from "./api/errors";
 import { AccessMisconfigured, accessConfig, verifyAccessToken } from "./auth/access";
+import { allowedHosts } from "./hosts";
+
+export { allowedHosts };
 
 export { TalorysAgent } from "./agent/talorys-agent";
 
@@ -40,15 +43,6 @@ export default {
     return withoutRawErrors(await agent.fetch(withoutInternalHeaders(request)));
   },
 } satisfies ExportedHandler<Env>;
-
-/** The hosts this deploy answers on, or null when every host is accepted (no setting). */
-export function allowedHosts(env: Pick<Env, "TALORYS_ALLOWED_HOSTS">): Set<string> | null {
-  const hosts = (env.TALORYS_ALLOWED_HOSTS ?? "")
-    .split(",")
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean);
-  return hosts.length > 0 ? new Set(hosts) : null;
-}
 
 /**
  * With Cloudflare Access configured, a request without a valid Access token is refused here,

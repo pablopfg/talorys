@@ -111,6 +111,28 @@ is the contact push services see. It defaults to the app's own URL as recorded
 when each device subscribed. Set it with `npx wrangler secret put VAPID_SUBJECT`;
 a plain variable would be dropped when an update regenerates the Worker config.
 
+## Your own domain
+
+```bash
+npx create-talorys@latest update --domain talorys.example.com
+```
+
+`--domain` makes the installer use that address for everything: the health
+checks, `status`, `doctor` and the URL it prints. It also sets
+`TALORYS_ALLOWED_HOSTS` on the Worker, so the API answers only on that domain
+and the project's `*.pages.dev` addresses (old deployments included) stop
+working. The domain is recorded in `talorys.json`; later updates keep it, and
+`--domain none` goes back to `pages.dev`.
+
+Wrangler cannot attach a domain to a Pages project, so do that once in the
+dashboard: Workers & Pages → your project → **Custom domains** → *Set up a
+custom domain*. Until the certificate is active the health check fails; re-run
+the same command a few minutes later.
+
+Push subscriptions belong to the address a device subscribed on. After a move,
+devices from the old address are dropped the next time a notification is sent
+or Settings is opened; turn push on again on the new address.
+
 ## Idempotency and recovery
 
 - The manifest records the installation id; re-runs reuse the same names.

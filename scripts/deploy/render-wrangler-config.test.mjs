@@ -69,6 +69,15 @@ describe("renderConfig", () => {
     }
   });
 
+  it("passes the push contact through when it is an e-mail or https URL", () => {
+    const ok = { TALORYS_WORKER_NAME: "talorys" };
+    assert.equal(renderConfig(base(), { ...ok, TALORYS_VAPID_SUBJECT: "mailto:me@example.com" }).vars.VAPID_SUBJECT, "mailto:me@example.com");
+    assert.equal(renderConfig(base(), { ...ok, TALORYS_VAPID_SUBJECT: "https://example.com/contact" }).vars.VAPID_SUBJECT, "https://example.com/contact");
+    for (const bad of ["me@example.com", "http://example.com", "mailto:nobody", "mailto:a@b.c d"]) {
+      assert.throws(() => renderConfig(base(), { ...ok, TALORYS_VAPID_SUBJECT: bad }), ConfigError, bad);
+    }
+  });
+
   it("passes Cloudflare Access settings through only as a valid pair", () => {
     const aud = "a".repeat(64);
     const config = renderConfig(base(), {

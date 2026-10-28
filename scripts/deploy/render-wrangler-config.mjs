@@ -9,7 +9,7 @@
 //
 // Usage: node scripts/deploy/render-wrangler-config.mjs <base.jsonc> <out.json>
 // Reads TALORYS_WORKER_NAME (required), TALORYS_CUSTOM_DOMAIN, TALORYS_PUBLIC_URL,
-// TALORYS_ACCESS_TEAM_DOMAIN, TALORYS_ACCESS_AUD, TALORYS_DEFAULT_TIMEZONE, TALORYS_AGENT_NAME
+// TALORYS_ACCESS_TEAM_DOMAIN, TALORYS_ACCESS_AUD, TALORYS_VAPID_SUBJECT, TALORYS_DEFAULT_TIMEZONE, TALORYS_AGENT_NAME
 // and TALORYS_DEPLOYED_VERSION from the environment.
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -26,6 +26,8 @@ const VERSION = /^[A-Za-z0-9._+-]{1,64}$/;
 // The Zero Trust team domain and the Access application's AUD tag (both public identifiers).
 const ACCESS_TEAM = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$/;
 const ACCESS_AUD = /^[0-9a-f]{64}$/;
+// The contact push services may use about this sender (RFC 8292): an e-mail or an https URL.
+const VAPID_SUBJECT = /^(?:mailto:[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+|https:\/\/[^\s<>"]+)$/;
 
 /** The host of an https:// URL with nothing else in it, or undefined when unset. */
 function publicHost(value) {
@@ -88,6 +90,7 @@ export function renderConfig(base, env) {
   const version = optional(env.TALORYS_DEPLOYED_VERSION, VERSION, "TALORYS_DEPLOYED_VERSION");
   const publicUrlHost = publicHost(env.TALORYS_PUBLIC_URL);
   const accessTeam = optional(env.TALORYS_ACCESS_TEAM_DOMAIN?.toLowerCase(), ACCESS_TEAM, "TALORYS_ACCESS_TEAM_DOMAIN");
+  const vapidSubject = optional(env.TALORYS_VAPID_SUBJECT, VAPID_SUBJECT, "TALORYS_VAPID_SUBJECT");
   const accessAud = optional(env.TALORYS_ACCESS_AUD?.toLowerCase(), ACCESS_AUD, "TALORYS_ACCESS_AUD");
   if (!accessTeam !== !accessAud) {
     throw new ConfigError("Set both TALORYS_ACCESS_TEAM_DOMAIN and TALORYS_ACCESS_AUD to use Cloudflare Access, or neither.");
@@ -122,6 +125,7 @@ export function renderConfig(base, env) {
   // given for the health check. With neither, every host is accepted, as before.
   const allowedHost = domain ?? publicUrlHost;
   if (allowedHost) vars.TALORYS_ALLOWED_HOSTS = allowedHost;
+  if (vapidSubject) vars.VAPID_SUBJECT = vapidSubject;
   if (accessTeam) {
     vars.TALORYS_ACCESS_TEAM_DOMAIN = accessTeam;
     vars.TALORYS_ACCESS_AUD = accessAud;

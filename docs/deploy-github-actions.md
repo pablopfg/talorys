@@ -115,6 +115,7 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_PUBLIC_URL` | sem domínio | `https://talorys.<sub>.workers.dev` | Para o health check quando ainda não há domínio. A API passa a responder só nesse endereço. |
 | `TALORYS_DEFAULT_TIMEZONE` | não | `America/Sao_Paulo` | Fuso padrão do agente. |
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
+| `TALORYS_VAPID_SUBJECT` | não | `mailto:voce@exemplo.com.br` | Contato que os serviços de push (Google, Apple, Mozilla) podem usar. Sem ela, vai o endereço do app. Não crie também um segredo `VAPID_SUBJECT` no Worker. |
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
