@@ -9,7 +9,7 @@ import { createApi } from "../api/app";
 import { CloudflareWorkersAIProvider } from "../ai/workers-ai";
 import { MockAIProvider } from "../ai/mock";
 import { FallbackProvider } from "../ai/fallback";
-import { PaidAIProvider } from "../ai/paid";
+import { type PaidBudget, PaidAIProvider } from "../ai/paid";
 import type { AIProvider } from "../ai/provider";
 import { localDayBounds, formatLocal } from "../services/time";
 import { defangLinks } from "../services/text";
@@ -173,8 +173,23 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     const key = id === "anthropic" ? this.env.ANTHROPIC_API_KEY : this.env.OPENAI_API_KEY;
     if (!key) return null;
     const model = id === "anthropic" ? settings.anthropicModel : settings.openaiModel;
-    return new PaidAIProvider(id, key, model, () => this.services.usage.canUsePaidAi(this.services.settings.get().limits));
+    return new PaidAIProvider(id, key, model, this.paidBudget);
   }
+
+  /** Worst-case cost of the paid calls in progress, shared by every turn (see PaidBudget). */
+  private paidInFlightUsd = 0;
+  private readonly paidBudget: PaidBudget = {
+    allows: () => this.services.usage.paidCostToday() + this.paidInFlightUsd < this.services.settings.get().limits.maxPaidAiUsdPerDay,
+    hold: (usd) => {
+      this.paidInFlightUsd += usd;
+      let held = true;
+      return () => {
+        if (!held) return;
+        held = false;
+        this.paidInFlightUsd = Math.max(0, this.paidInFlightUsd - usd);
+      };
+    },
+  };
 
   /** Which paid providers have their key set on the Worker (never the keys themselves). */
   paidAiKeys(): Record<PaidAiProviderId, boolean> {

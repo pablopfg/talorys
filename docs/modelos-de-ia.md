@@ -79,7 +79,11 @@ como fallback.
 
 - O teto em US$ é conferido antes de cada chamada e antes de cada passo de uma
   resposta com ferramentas, então uma resposta longa para assim que o teto é
-  atingido.
+  atingido. Uma chamada em andamento conta pelo custo máximo dela até o uso
+  real ser registrado, então conversas ao mesmo tempo (app, Telegram, rotinas)
+  não passam juntas do teto.
+- Com um modelo pago ligado, trocar o fuso horário pede a senha recente: o dia
+  do teto segue o seu fuso.
 - Os limites de pedidos e de tokens do Talorys continuam valendo para todos os
   provedores.
 - O gasto estimado aparece em **Configurações → IA → Uso**.

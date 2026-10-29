@@ -64,7 +64,10 @@ systemRoutes.patch("/settings", async (c) => {
     || (patch.anthropicModel !== undefined && patch.anthropicModel !== before.anthropicModel)
     || (patch.openaiModel !== undefined && patch.openaiModel !== before.openaiModel)
     || (patch.limits?.maxPaidAiUsdPerDay ?? 0) > before.limits.maxPaidAiUsdPerDay;
-  if (longer || newInstructions || newName || newPaid) requireRecentAuth(c);
+  // The US$ cap is per day in the owner's timezone: moving the timezone would start a new day early.
+  const paidActive = before.aiProvider !== "workers-ai" || (before.aiFallback !== "none" && before.aiFallback !== "workers-ai");
+  const newDay = paidActive && patch.timezone !== undefined && patch.timezone !== before.timezone;
+  if (longer || newInstructions || newName || newPaid || newDay) requireRecentAuth(c);
   const settings = s.settings.update(patch);
   if (settings.aiProvider !== before.aiProvider || settings.aiFallback !== before.aiFallback) {
     s.activity.record("settings.ai_provider", `Chat model: ${settings.aiProvider}, fallback: ${settings.aiFallback}`);

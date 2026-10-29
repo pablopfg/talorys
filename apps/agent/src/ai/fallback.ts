@@ -34,6 +34,8 @@ export class FallbackProvider implements AIProvider {
       if (!shouldFallBack(error, req.signal)) throw error;
       const usage = usageOfFailure(error);
       if (usage) this.recordFailure(usage);
+      // The fallback is one more model call: it needs room in the day's request budget.
+      if (req.reserveNextStep && !req.reserveNextStep()) throw error;
       this.onFallback(this.primary, this.fallback, error as AppError);
       return this.fallback.generate(req);
     }

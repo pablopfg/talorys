@@ -144,11 +144,6 @@ export class UsageService {
     return row?.cost ?? 0;
   }
 
-  /** Whether a paid model may be called now: today's spend is under the owner's cap in US$. */
-  canUsePaidAi(limits: Limits): boolean {
-    return this.paidCostToday() < limits.maxPaidAiUsdPerDay;
-  }
-
   canUseAi(limits: Limits): boolean {
     return this.requestsToday() < limits.maxAiRequestsPerDay;
   }

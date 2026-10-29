@@ -9,10 +9,24 @@ import { estimateTokens, modelUsage, tokenCount, tokens, withUsage } from "./pro
 /** Longest a paid call may take before it is abandoned (the turn then fails or falls back). */
 const TIMEOUT_MS = 90_000;
 
+/** The providers' own API hosts. Passed explicitly so no environment variable can point the key elsewhere. */
+const BASE_URL: Record<PaidAiProviderId, string> = { anthropic: "https://api.anthropic.com/v1", openai: "https://api.openai.com/v1" };
+
+/**
+ * Today's US$ cap for the paid models, shared by every turn in the agent. Spend is recorded only
+ * after a call ends, so a call in progress holds its worst-case cost until its usage is recorded:
+ * concurrent turns, and the step that just ended, are counted before the next call starts.
+ */
+export interface PaidBudget {
+  /** Whether recorded spend plus the calls in progress are still under the cap. */
+  allows(): boolean;
+  /** Holds `usd` as in progress; the returned function releases it (more than once is harmless). */
+  hold(usd: number): () => void;
+}
+
 /**
  * Anthropic and OpenAI through the AI SDK's official providers, with the owner's own API key.
- * `allowed()` is asked before every model call: it says whether today's spend is still under the
- * owner's cap in US$, so a long turn stops as soon as the cap is reached.
+ * The budget is asked before every model call, so a long turn stops as soon as the cap is reached.
  */
 export class PaidAIProvider implements AIProvider {
   readonly billable = true;
@@ -23,7 +37,7 @@ export class PaidAIProvider implements AIProvider {
     readonly id: PaidAiProviderId,
     private readonly apiKey: string,
     modelId: string,
-    private readonly allowed: () => boolean,
+    private readonly budget: PaidBudget,
   ) {
     this.model = paidModelKey(id, modelId);
     const info = paidModel(this.model);
@@ -33,9 +47,10 @@ export class PaidAIProvider implements AIProvider {
   }
 
   private languageModel(): LanguageModel {
-    // fetch is passed explicitly so the Worker's own (never a polyfill) is used; no other base URL is accepted.
-    if (this.id === "anthropic") return createAnthropic({ apiKey: this.apiKey, fetch: (i, init) => fetch(i, init) })(this.info.id);
-    return createOpenAI({ apiKey: this.apiKey, fetch: (i, init) => fetch(i, init) })(this.info.id);
+    // fetch is passed explicitly so the Worker's own (never a polyfill) is used.
+    const options = { apiKey: this.apiKey, baseURL: BASE_URL[this.id], fetch: (i: RequestInfo | URL, init?: RequestInit) => fetch(i, init) };
+    if (this.id === "anthropic") return createAnthropic(options)(this.info.id);
+    return createOpenAI(options)(this.info.id);
   }
 
   private signal(signal?: AbortSignal): AbortSignal {
@@ -55,13 +70,20 @@ export class PaidAIProvider implements AIProvider {
     );
   }
 
+  /** The most one call can cost: its prompt at the full input rate and the whole output allowance. */
+  private worstCase(inputChars: number, maxOutputTokens: number): number {
+    const { input, output } = this.info.usdPerMillion;
+    return (estimateTokens(inputChars) * input + maxOutputTokens * output) / 1_000_000;
+  }
+
   private ensureAllowed(): void {
-    if (!this.allowed()) throw new AppError("AI_LIMIT_REACHED", "Talorys reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.");
+    if (!this.budget.allows()) throw new AppError("AI_LIMIT_REACHED", "Talorys reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.");
   }
 
   async generate(req: GenerateRequest) {
     this.ensureAllowed();
     const inputChars = promptChars(req);
+    const release = this.budget.hold(this.worstCase(inputChars, req.maxOutputTokens));
     try {
       const result = await generateText({
         model: this.languageModel(),
@@ -77,6 +99,8 @@ export class PaidAIProvider implements AIProvider {
     } catch (error) {
       // A call that reached the provider may be billed even when it fails: count the prompt.
       throw withUsage(classifyPaidError(this.id, error), this.usage(undefined, inputChars, 0));
+    } finally {
+      release();
     }
   }
 
@@ -99,6 +123,10 @@ export class PaidAIProvider implements AIProvider {
     let outputChars = 0;
     let stepOpen = false;
     let streamError: unknown = null;
+    // One hold per call started, released once that call's usage has been passed on (and recorded).
+    const holds: (() => void)[] = [];
+    const holdStep = () => holds.push(this.budget.hold(this.worstCase(inputChars, req.maxOutputTokens)));
+    holdStep();
     const result = streamText({
       model: this.languageModel(),
       instructions: req.system,
@@ -111,8 +139,11 @@ export class PaidAIProvider implements AIProvider {
         ? {
             tools,
             // Every further step is another paid call: stop at the step cap, the daily request budget or the US$ cap.
-            stopWhen: ({ steps }: { steps: unknown[] }) =>
-              steps.length >= req.maxIterations || !this.allowed() || (req.reserveNextStep ? !req.reserveNextStep() : false),
+            stopWhen: ({ steps }: { steps: unknown[] }) => {
+              if (steps.length >= req.maxIterations || !this.budget.allows() || (req.reserveNextStep && !req.reserveNextStep())) return true;
+              holdStep();
+              return false;
+            },
             prepareStep: ({ stepNumber }: { stepNumber: number }) =>
               stepNumber >= req.maxIterations - 1 || req.toolBudgetExhausted() ? { toolChoice: "none" as const } : {},
           }
@@ -124,56 +155,61 @@ export class PaidAIProvider implements AIProvider {
 
     let failure: unknown = null;
     try {
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case "start-step":
-            stepOpen = true;
-            break;
-          case "reasoning-delta":
-            outputChars += part.text.length;
-            break;
-          case "text-delta":
-            outputChars += part.text.length;
-            if (part.text) yield { type: "text", delta: part.text };
-            break;
-          case "tool-call":
-            outputChars += JSON.stringify({ name: part.toolName, input: part.input }).length;
-            yield { type: "tool-start", id: part.toolCallId, name: part.toolName, input: part.input };
-            break;
-          case "tool-result": {
-            const output = JSON.stringify(part.output ?? null);
-            // The result is sent back as input on the next step.
-            inputChars += output?.length ?? 0;
-            yield { type: "tool-end", id: part.toolCallId, name: part.toolName, output: part.output };
-            break;
+      try {
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case "start-step":
+              stepOpen = true;
+              break;
+            case "reasoning-delta":
+              outputChars += part.text.length;
+              break;
+            case "text-delta":
+              outputChars += part.text.length;
+              if (part.text) yield { type: "text", delta: part.text };
+              break;
+            case "tool-call":
+              outputChars += JSON.stringify({ name: part.toolName, input: part.input }).length;
+              yield { type: "tool-start", id: part.toolCallId, name: part.toolName, input: part.input };
+              break;
+            case "tool-result": {
+              const output = JSON.stringify(part.output ?? null);
+              // The result is sent back as input on the next step.
+              inputChars += output?.length ?? 0;
+              yield { type: "tool-end", id: part.toolCallId, name: part.toolName, output: part.output };
+              break;
+            }
+            case "tool-error":
+              yield {
+                type: "tool-end",
+                id: part.toolCallId,
+                name: part.toolName,
+                output: null,
+                error: part.error instanceof Error ? part.error.message : String(part.error),
+              };
+              break;
+            case "finish-step":
+              stepOpen = false;
+              yield { type: "usage", usage: this.usage(part.usage, inputChars, outputChars) };
+              holds.shift()?.();
+              outputChars = 0;
+              break;
+            case "error":
+              throw part.error;
+            default:
+              break;
           }
-          case "tool-error":
-            yield {
-              type: "tool-end",
-              id: part.toolCallId,
-              name: part.toolName,
-              output: null,
-              error: part.error instanceof Error ? part.error.message : String(part.error),
-            };
-            break;
-          case "finish-step":
-            yield { type: "usage", usage: this.usage(part.usage, inputChars, outputChars) };
-            stepOpen = false;
-            outputChars = 0;
-            break;
-          case "error":
-            throw part.error;
-          default:
-            break;
         }
+      } catch (error) {
+        failure = error;
       }
-    } catch (error) {
-      failure = error;
+      failure ??= streamError;
+      // A step that started but never finished (abort, error) may still be billed: count it by estimate.
+      if (stepOpen) yield { type: "usage", usage: this.usage(undefined, inputChars, outputChars) };
+      if (failure) throw classifyPaidError(this.id, failure);
+    } finally {
+      for (const release of holds) release();
     }
-    failure ??= streamError;
-    // A step that started but never finished (abort, error) may still be billed: count it by estimate.
-    if (stepOpen) yield { type: "usage", usage: this.usage(undefined, inputChars, outputChars) };
-    if (failure) throw classifyPaidError(this.id, failure);
   }
 }
 

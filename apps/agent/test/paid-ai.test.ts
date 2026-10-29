@@ -2,7 +2,7 @@ import { DEFAULT_LIMITS, paidModel } from "@talorys/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "../src/api/errors";
 import { FallbackProvider } from "../src/ai/fallback";
-import { classifyPaidError, PaidAIProvider } from "../src/ai/paid";
+import { classifyPaidError, PaidAIProvider, type PaidBudget } from "../src/ai/paid";
 import { estimateConsumption } from "../src/ai/pricing";
 import { type AgentEvent, type AIProvider, type GenerateRequest, modelUsage, type ToolRequest, tokens, type Usage, withUsage } from "../src/ai/provider";
 import { inAgent, loggedIn } from "./helpers";
@@ -53,6 +53,27 @@ function fake(model: string, opts: { error?: unknown; before?: AgentEvent[]; tex
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** A budget with a cap in US$ and nothing recorded yet; `inFlight` shows what is held. */
+function budget(capUsd: number) {
+  const state = { inFlight: 0, holds: 0 };
+  const b: PaidBudget & { state: typeof state } = {
+    state,
+    allows: () => state.inFlight < capUsd,
+    hold: (usd) => {
+      state.inFlight += usd;
+      state.holds++;
+      let held = true;
+      return () => {
+        if (held) state.inFlight -= usd;
+        held = false;
+      };
+    },
+  };
+  return b;
+}
+const open = () => budget(Number.POSITIVE_INFINITY);
+const closed = () => budget(0);
+
 describe("paid model pricing", () => {
   it("prices Anthropic and OpenAI calls in US$ per token, with cached input at its own rate", () => {
     const usage = (model: string, input: number, output: number, cached = 0): Usage => modelUsage(model, true, tokens(input, 0), tokens(output, 0), cached);
@@ -65,7 +86,7 @@ describe("paid model pricing", () => {
     expect(paidModel("/claude-opus-5-5")).toBeNull();
   });
 
-  it("adds paid spend to today's total and stops paid calls at the cap", async () => {
+  it("adds paid spend to today's total and counts calls in progress against the cap", async () => {
     await inAgent((agent) => {
       const s = agent.services;
       const before = s.usage.paidCostToday();
@@ -74,9 +95,22 @@ describe("paid model pricing", () => {
       // Workers AI spend is not counted against the paid cap.
       s.usage.record(modelUsage("@cf/meta/llama-3.1-8b-instruct", true, tokens(100_000, 0), tokens(0, 0)));
       expect(s.usage.paidCostToday()).toBeCloseTo(before + 0.4);
-      expect(s.usage.canUsePaidAi({ ...DEFAULT_LIMITS, maxPaidAiUsdPerDay: before + 0.5 })).toBe(true);
-      expect(s.usage.canUsePaidAi({ ...DEFAULT_LIMITS, maxPaidAiUsdPerDay: before + 0.4 })).toBe(false);
-      expect(s.usage.canUsePaidAi({ ...DEFAULT_LIMITS, maxPaidAiUsdPerDay: 0 })).toBe(false);
+      const shared = (agent as unknown as { paidBudget: PaidBudget }).paidBudget;
+      const original = s.settings.get().limits;
+      try {
+        s.settings.update({ limits: { ...original, maxPaidAiUsdPerDay: Math.ceil(before + 1) } });
+        expect(shared.allows()).toBe(true);
+        // Another turn's call in progress holds its worst case until its usage is recorded.
+        const release = shared.hold(1);
+        expect(shared.allows()).toBe(false);
+        release();
+        release();
+        expect(shared.allows()).toBe(true);
+        s.settings.update({ limits: { ...original, maxPaidAiUsdPerDay: 0 } });
+        expect(shared.allows()).toBe(false);
+      } finally {
+        s.settings.update({ limits: original });
+      }
     });
   });
 });
@@ -84,12 +118,14 @@ describe("paid model pricing", () => {
 describe("paid provider", () => {
   it("answers through Anthropic with the owner's key and reports the provider's token counts", async () => {
     const seen: { url: string; key: string | null; body: Record<string, unknown> }[] = [];
+    const b = open();
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(b.state.inFlight).toBeGreaterThan(0);
       const headers = new Headers(init?.headers);
       seen.push({ url: String(input), key: headers.get("x-api-key"), body: JSON.parse(String(init?.body)) });
       return anthropicReply("Olá!");
     });
-    const provider = new PaidAIProvider("anthropic", KEY, "claude-opus-5-5", () => true);
+    const provider = new PaidAIProvider("anthropic", KEY, "claude-opus-5-5", b);
     const result = await provider.generate({ ...request, temperature: 0.7 });
     expect(result.text).toBe("Olá!");
     expect(result.usage).toMatchObject({ model: "anthropic/claude-opus-5-5", billable: true, inputTokens: { reported: 1000 }, outputTokens: { reported: 200 } });
@@ -99,24 +135,27 @@ describe("paid provider", () => {
     expect(seen[0]!.body.model).toBe("claude-opus-5-5");
     // The newest models reject sampling parameters: it is never sent.
     expect(seen[0]!.body).not.toHaveProperty("temperature");
+    // The hold ends with the call.
+    expect(b.state).toEqual({ inFlight: 0, holds: 1 });
   });
 
   it("refuses before calling the provider once today's US$ cap is reached", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    const provider = new PaidAIProvider("openai", KEY, "gpt-6.1-sol", () => false);
+    const provider = new PaidAIProvider("openai", KEY, "gpt-6.1-sol", closed());
     await expect(provider.generate(request)).rejects.toMatchObject({ code: "AI_LIMIT_REACHED" });
     await expect(collect(provider.generateWithTools(toolRequest()))).rejects.toMatchObject({ code: "AI_LIMIT_REACHED" });
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it("never accepts a model outside the priced list", () => {
-    expect(() => new PaidAIProvider("anthropic", KEY, "claude-unpriced", () => true)).toThrow(AppError);
+    expect(() => new PaidAIProvider("anthropic", KEY, "claude-unpriced", open())).toThrow(AppError);
   });
 
   it("turns provider failures into stable messages without the provider's text, and counts a failed call's prompt", async () => {
     vi.stubGlobal("fetch", async () => errorReply(401, `invalid x-api-key ${KEY}`));
-    const provider = new PaidAIProvider("anthropic", KEY, "claude-sonnet-5-5", () => true);
+    const b = open();
+    const provider = new PaidAIProvider("anthropic", KEY, "claude-sonnet-5-5", b);
     const error = await provider.generate(request).catch((e: unknown) => e);
     expect(error).toMatchObject({ code: "AI_UNAVAILABLE", message: "Anthropic refused the API key. Check the key set on the Worker." });
     expect(JSON.stringify(error)).not.toContain(KEY);
@@ -124,6 +163,7 @@ describe("paid provider", () => {
     vi.stubGlobal("fetch", async () => errorReply(529, "Overloaded"));
     const busy = await collect(provider.generateWithTools(toolRequest())).catch((e: unknown) => e);
     expect(busy).toMatchObject({ code: "AI_UNAVAILABLE", message: "Anthropic is busy right now. Please try again in a moment." });
+    expect(b.state.inFlight).toBe(0);
   });
 
   it("classifies statuses by provider", () => {
@@ -190,7 +230,11 @@ describe("main model with fallback", () => {
     const fallback = fake("b");
     const provider = new FallbackProvider(fake("a", { error: down() }), fallback, () => {});
     await expect(collect(provider.generateWithTools(toolRequest({ reserveNextStep: () => false })))).rejects.toMatchObject({ code: "AI_UNAVAILABLE" });
+    await expect(provider.generate({ ...request, reserveNextStep: () => false })).rejects.toMatchObject({ code: "AI_UNAVAILABLE" });
     expect(fallback.calls).toBe(0);
+    let reserved = 0;
+    await provider.generate({ ...request, reserveNextStep: () => ++reserved > 0 });
+    expect([reserved, fallback.calls]).toEqual([1, 1]);
   });
 });
 
@@ -229,9 +273,16 @@ describe("paid model settings", () => {
       expect(settings).toMatchObject({ aiProvider: "workers-ai", aiFallback: "none" });
       expect(settings.limits.maxPaidAiUsdPerDay).toBe(DEFAULT_LIMITS.maxPaidAiUsdPerDay);
       expect((await c.call("/api/settings", { method: "PATCH", body: { aiProvider: "workers-ai", limits: { maxPaidAiUsdPerDay: 1 } } })).status).toBe(200);
+      // With a paid model on, moving the timezone (which starts a new day for the cap) needs it too.
+      const timezone = settings.timezone === "UTC" ? "Asia/Tokyo" : "UTC";
+      expect((await c.call("/api/settings", { method: "PATCH", body: { timezone } })).status).toBe(200);
+      await inAgent((a) => a.services.settings.update({ aiFallback: "openai" }));
+      const moved = await c.call("/api/settings", { method: "PATCH", body: { timezone: settings.timezone } });
+      expect(moved.status).toBe(403);
+      await inAgent((a) => a.services.settings.update({ aiFallback: "none", timezone: settings.timezone }));
     } finally {
       await confirmedAt(new Date().toISOString());
-      await c.json("/api/settings", { method: "PATCH", body: { limits: { maxPaidAiUsdPerDay: DEFAULT_LIMITS.maxPaidAiUsdPerDay } } });
+      await c.json("/api/settings", { method: "PATCH", body: { aiFallback: "none", limits: { maxPaidAiUsdPerDay: DEFAULT_LIMITS.maxPaidAiUsdPerDay } } });
     }
   });
 });
