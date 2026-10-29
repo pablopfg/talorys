@@ -56,6 +56,28 @@ test.describe("Alerts", () => {
     await page.request.delete(`/api/automations/${automation.id}`, { headers: CSRF });
   });
 
+  test("sets the daily summary time and turns the watchers off and on", async ({ page }) => {
+    await login(page);
+    await page.goto("/settings?tab=Alerts");
+    await expect(page.getByText("Daily summary", { exact: true })).toBeVisible();
+    const time = page.getByLabel("Daily summary time");
+    await expect(time).toHaveValue("07:30");
+    await time.fill("06:45");
+    await time.blur();
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences.digest).toEqual({ enabled: true, time: "06:45" });
+    const summary = page.getByRole("switch", { name: "Send the daily summary" });
+    await summary.click();
+    await expect(summary).toHaveAttribute("aria-checked", "false");
+    await expect(time).toBeDisabled();
+    const watchers = page.getByRole("switch", { name: "Turn the watchers on" });
+    await expect(watchers).toHaveAttribute("aria-checked", "true");
+    await watchers.click();
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences).toMatchObject({
+      digest: { enabled: false, time: "06:45" },
+      watchers: false,
+    });
+  });
+
   test("shows the Telegram card and saves which categories send their full text", async ({ page }) => {
     await login(page);
     await page.goto("/settings?tab=Alerts");

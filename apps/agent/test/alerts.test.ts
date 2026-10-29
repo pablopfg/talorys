@@ -241,6 +241,8 @@ describe("alert preferences", () => {
         routes: { ...DEFAULT_ALERT_PREFERENCES.routes, reminder: [] },
         limits: { perHour: 3, perDay: 30 },
         fullText: [],
+        digest: { enabled: true, time: "07:30" },
+        watchers: true,
       });
       s.settings.setJson("alerts.preferences", { routes: { reminder: ["fax"] }, limits: { perHour: -1 } });
       expect(s.alerts.preferences()).toEqual(DEFAULT_ALERT_PREFERENCES);
@@ -275,8 +277,10 @@ describe("alert API", () => {
     const c = await loggedIn();
     const next = { routes: { ...DEFAULT_ALERT_PREFERENCES.routes, system: [] }, limits: { perHour: 10, perDay: 100 }, fullText: ["reminder"] };
     const saved = await c.json("/api/alerts/preferences", { method: "PUT", body: next });
-    expect(saved.preferences).toEqual(next);
-    expect((await c.json("/api/alerts")).preferences).toEqual(next);
+    // Saved before the summary and the watchers existed: both come on with their defaults.
+    const withDefaults = { ...next, digest: { enabled: true, time: "07:30" }, watchers: true };
+    expect(saved.preferences).toEqual(withDefaults);
+    expect((await c.json("/api/alerts")).preferences).toEqual(withDefaults);
     for (const bad of [
       { ...next, limits: { perHour: 0, perDay: 100 } },
       { ...next, limits: { perHour: 10, perDay: 501 } },
@@ -287,7 +291,7 @@ describe("alert API", () => {
       const res = await c.call("/api/alerts/preferences", { method: "PUT", body: bad });
       expect(res.status).toBe(400);
     }
-    expect((await c.json("/api/alerts")).preferences).toEqual(next);
+    expect((await c.json("/api/alerts")).preferences).toEqual(withDefaults);
   });
 
   it("changes a notification's priority", async () => {

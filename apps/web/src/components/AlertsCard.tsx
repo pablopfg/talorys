@@ -123,17 +123,32 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
     const current = prefs.routes[category];
     const routes = { ...prefs.routes, [category]: on ? [...current, channel] : current.filter((c) => c !== channel) };
     setPrefs({ ...prefs, routes });
-    save.mutate({ routes, limits: overview.preferences.limits, fullText: prefs.fullText });
+    save.mutate({ ...prefs, routes, limits: overview.preferences.limits, digest: overview.preferences.digest });
   };
   const toggleFullText = (category: AlertCategory, on: boolean) => {
     const fullText = on ? [...prefs.fullText, category] : prefs.fullText.filter((c) => c !== category);
     setPrefs({ ...prefs, fullText });
-    save.mutate({ routes: prefs.routes, limits: overview.preferences.limits, fullText });
+    save.mutate({ ...prefs, limits: overview.preferences.limits, fullText, digest: overview.preferences.digest });
+  };
+  // Switches and the summary time save at once, with the saved limits.
+  const saveNow = (patch: Partial<AlertPreferences>) => {
+    // A summary time still being typed is never sent with another switch.
+    const next = { ...prefs, digest: overview.preferences.digest, ...patch };
+    setPrefs(next);
+    save.mutate({ ...next, limits: overview.preferences.limits });
   };
   // A refused save puts the switches back to what the server has.
   useEffect(() => {
-    if (save.isError) setPrefs((p) => ({ ...p, routes: overview.preferences.routes, fullText: overview.preferences.fullText }));
-  }, [save.isError, overview.preferences.routes, overview.preferences.fullText]);
+    if (save.isError) {
+      setPrefs((p) => ({
+        ...p,
+        routes: overview.preferences.routes,
+        fullText: overview.preferences.fullText,
+        digest: overview.preferences.digest,
+        watchers: overview.preferences.watchers,
+      }));
+    }
+  }, [save.isError, overview.preferences.routes, overview.preferences.fullText, overview.preferences.digest, overview.preferences.watchers]);
   const limitsChanged = prefs.limits.perHour !== overview.preferences.limits.perHour || prefs.limits.perDay !== overview.preferences.limits.perDay;
   const limitsValid =
     Number.isInteger(prefs.limits.perHour) && prefs.limits.perHour >= ALERT_LIMIT_BOUNDS.perHour.min && prefs.limits.perHour <= ALERT_LIMIT_BOUNDS.perHour.max &&
@@ -166,6 +181,34 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
         </Row>
       ))}
       <p className="px-5 py-4 text-xs leading-5 text-fg-subtle">{t("alerts.fullTextHint")}</p>
+      <Row label={t("alerts.digestTitle")} hint={t("alerts.digestHint")}>
+        <Input
+          id="alerts-digest-time"
+          type="time"
+          className="h-9 w-28"
+          aria-label={t("alerts.digestTime")}
+          value={prefs.digest.time}
+          disabled={!prefs.digest.enabled || save.isPending}
+          onChange={(e) => setPrefs({ ...prefs, digest: { ...prefs.digest, time: e.target.value } })}
+          onBlur={(e) => {
+            if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.target.value)) {
+              // Cleared or half typed: back to the saved time.
+              setPrefs({ ...prefs, digest: overview.preferences.digest });
+            } else if (e.target.value !== overview.preferences.digest.time) {
+              saveNow({ digest: { ...prefs.digest, time: e.target.value } });
+            }
+          }}
+        />
+        <Switch
+          checked={prefs.digest.enabled}
+          onChange={(on) => saveNow({ digest: { ...overview.preferences.digest, enabled: on } })}
+          label={t("alerts.digestAria")}
+          disabled={save.isPending}
+        />
+      </Row>
+      <Row label={t("alerts.watchersTitle")} hint={t("alerts.watchersHint")}>
+        <Switch checked={prefs.watchers} onChange={(on) => saveNow({ watchers: on })} label={t("alerts.watchersAria")} disabled={save.isPending} />
+      </Row>
       <Row label={t("alerts.limitsTitle")} hint={t("alerts.limitsHint")}>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           {t("alerts.perHour")}
@@ -193,7 +236,7 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
             onChange={(e) => setPrefs({ ...prefs, limits: { ...prefs.limits, perDay: e.target.valueAsNumber } })}
           />
         </label>
-        <Button variant="outline" onClick={() => save.mutate(prefs)} disabled={!limitsChanged || !limitsValid || save.isPending}>
+        <Button variant="outline" onClick={() => save.mutate({ ...prefs, digest: overview.preferences.digest })} disabled={!limitsChanged || !limitsValid || save.isPending}>
           {t("common.save")}
         </Button>
       </Row>

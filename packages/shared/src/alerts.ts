@@ -49,6 +49,13 @@ export const alertPreferencesSchema = z.object({
    * the title and category only, with the full text kept in the app.
    */
   fullText: z.array(alertCategorySchema).max(ALERT_CATEGORIES.length).default([]),
+  /**
+   * The daily summary: what is overdue, due and scheduled today, the low alerts that stayed in the
+   * app, and on Fridays what the priority learned. Local time, HH:MM.
+   */
+  digest: z.object({ enabled: z.boolean(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }).default({ enabled: true, time: "07:30" }),
+  /** The watchers: deadlines, failing routines, MCP servers, AI budget, push, backup and updates. */
+  watchers: z.boolean().default(true),
 });
 export type AlertPreferences = z.infer<typeof alertPreferencesSchema>;
 
@@ -56,7 +63,39 @@ export const DEFAULT_ALERT_PREFERENCES: AlertPreferences = {
   routes: Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, ["push", "telegram"]])) as AlertPreferences["routes"],
   limits: { perHour: 6, perDay: 30 },
   fullText: [],
+  digest: { enabled: true, time: "07:30" },
+  watchers: true,
 };
+
+/**
+ * The watchers run every WATCH.everyMinutes and raise an alert only when something needs the
+ * owner; finding nothing sends nothing.
+ */
+export const WATCH = {
+  everyMinutes: 15,
+  /** Open tasks due within this many hours get a heads-up, and again within dueNowMinutes. */
+  dueSoonHours: 24,
+  dueNowMinutes: 60,
+  /**
+   * Overdue tasks are alerted once a local day (after the summary's time) for this many days, High
+   * on the first; after that only the summary lists them.
+   */
+  overdueDays: 7,
+  /** A task in progress with no change for this many days is stalled. */
+  stalledDays: 7,
+  /** Most task alerts one round raises; the rest wait for the next round and the summary. */
+  maxTaskAlerts: 5,
+  /** Most task alerts in 24 hours, however many tasks are late: the summary lists the rest. */
+  maxTaskAlertsPerDay: 20,
+  /** Share of the daily AI requests that warns first. */
+  budgetWarnPercent: 80,
+  /** Days without a backup export before a reminder. */
+  backupDays: 30,
+  /** Failed sends in a row after which a push device counts as not working. */
+  pushFailures: 3,
+  /** The summary still goes out this many hours after its time (the Worker was busy, or the time just changed). */
+  digestGraceHours: 3,
+} as const;
 
 /** What happened when an alert met a channel. Pending: the send is still running in the background. */
 export const ALERT_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped"] as const;
