@@ -80,7 +80,9 @@ export function createServices(
       passwordHash: env.OWNER_PASSWORD_HASH,
       password: env.OWNER_PASSWORD,
       sessionSecret: env.SESSION_SECRET,
-    }, (title, body) => notifications.create({ title, body })),
+    }, (title, body) => notifications.create({ title, body }), (reason) =>
+      activity.record("auth.session_ended", reason === "idle" ? "Signed out: no use" : reason === "presence" ? "Signed out: no open tab" : "Signed out: maximum session length"),
+    ),
     automations: new AutomationService(automationsRepo, settings, activity, scheduler),
     memoryHistory: new MemoryHistoryService(db, memories, settings, usage, activity, memoryHooks),
     push,

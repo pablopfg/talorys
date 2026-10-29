@@ -27,6 +27,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Segurança
 
+- **A sessão termina sozinha.** Depois de 15 minutos sem uso, 5 minutos sem nenhuma aba aberta ou 12 horas no total, o servidor encerra a sessão. O navegador avisa 2 minutos antes, com a opção de continuar, sai de todas as abas ao mesmo tempo e o cookie some ao fechar o navegador. Os tempos podem ser ajustados em Configurações → Segurança; aumentar qualquer um deles pede a senha de novo. Antes, a sessão durava até 30 dias. Veja [docs/security.md](docs/security.md).
 - **Cloudflare Access opcional, conferido dentro do Worker.** Com `TALORYS_ACCESS_TEAM_DOMAIN` e `TALORYS_ACCESS_AUD`, toda requisição precisa do token assinado pelo Access para a sua aplicação. Um endereço fora do Access (como um `*.workers.dev` esquecido) não serve de atalho. Só o health check anônimo fica aberto, para o deploy se conferir. Veja o passo 6 de [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
 - **A API responde só no seu endereço.** Com `TALORYS_ALLOWED_HOSTS`, preenchida pelo deploy do GitHub com o domínio próprio, qualquer outro host recebe 404.
 - **Um ataque de senha vindo de muitas redes não bloqueia mais você.** Antes, 25 falhas em 15 minutos travavam o login de qualquer rede nova. Agora, cada rede desconhecida tem uma tentativa por janela (nenhuma, depois de 100 falhas, para que muitos endereços não comprem mais palpites), as suas redes recentes seguem normais, e você recebe uma notificação quando isso começa.

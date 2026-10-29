@@ -1,4 +1,4 @@
-import { CSRF_HEADER, DEV_SESSION_COOKIE, SESSION_COOKIE } from "@talorys/shared";
+import { ACTIVITY_HEADER, CSRF_HEADER, DEV_SESSION_COOKIE, SESSION_COOKIE } from "@talorys/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import type { z } from "zod";
 import type { AppEnv } from "./app";
@@ -90,15 +90,14 @@ export function readSessionToken(c: Context<AppEnv>): string | null {
   return null;
 }
 
-export function sessionCookie(c: Context<AppEnv>, token: string, expires: Date | null): string {
+/**
+ * The session cookie, or with a null token the one that clears it. It has no Expires or Max-Age,
+ * so the browser drops it when it closes; the server's deadlines are what actually end a session.
+ */
+export function sessionCookie(c: Context<AppEnv>, token: string | null): string {
   const secure = sessionCookieName(c) === SESSION_COOKIE;
-  const attrs = [
-    `${sessionCookieName(c)}=${expires ? encodeURIComponent(token) : ""}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    expires ? `Expires=${expires.toUTCString()}` : "Max-Age=0",
-  ];
+  const attrs = [`${sessionCookieName(c)}=${token ? encodeURIComponent(token) : ""}`, "Path=/", "HttpOnly", "SameSite=Strict"];
+  if (!token) attrs.push("Max-Age=0");
   if (secure) attrs.push("Secure");
   return attrs.join("; ");
 }
@@ -110,7 +109,8 @@ export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   const route = `${c.req.method} ${new URL(c.req.url).pathname.replace(/\/$/, "")}`;
   const token = readSessionToken(c);
-  const sessionId = token ? await c.env.agent.services.auth.validate(token) : null;
+  const activity = c.req.header(ACTIVITY_HEADER) === "1";
+  const sessionId = token ? await c.env.agent.services.auth.validate(token, { activity }) : null;
   c.set("sessionId", sessionId);
   if (!sessionId && !PUBLIC_ROUTES.has(route)) {
     throw new AppError("UNAUTHORIZED", "Please sign in.");

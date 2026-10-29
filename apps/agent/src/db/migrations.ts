@@ -416,6 +416,14 @@ export const MIGRATIONS: Migration[] = [
       `UPDATE tal_remote_tokens SET expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days') WHERE expires_at IS NULL`,
     ],
   },
+  {
+    version: 15,
+    name: "session presence",
+    statements: [
+      // When an open tab last answered (heartbeat or any request); last_seen_at stays the owner's last use.
+      `ALTER TABLE tal_sessions ADD COLUMN last_presence_at TEXT`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

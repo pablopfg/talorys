@@ -1,5 +1,6 @@
 import {
   type SessionInfo,
+  type SessionTimeouts,
   checkPasswordStrength,
   hashPassword,
   hmacSha256Hex,
@@ -13,9 +14,8 @@ import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
 import { AppError, ValidationError } from "../api/errors";
 
-export const SESSION_TTL_MS = 30 * 24 * 3600_000; // absolute lifetime
-export const SESSION_IDLE_MS = 14 * 24 * 3600_000; // idle timeout
-const TOUCH_INTERVAL_MS = 5 * 60_000;
+/** A session's use and presence are written at most this often (writes on the Free plan are counted). */
+export const TOUCH_INTERVAL_MS = 60_000;
 /** Sensitive actions need the password typed within this window: at sign-in or with confirm(). */
 export const STEP_UP_WINDOW_MS = 15 * 60_000;
 
@@ -39,11 +39,27 @@ const ATTACK_ALERT_KEY = "auth.attack_alerted_at";
 /** Tells the owner something about their account (a notification). */
 export type OwnerAlert = (title: string, body: string) => void;
 
+/** Why a session ended on its own; recorded in the activity log. */
+export type SessionEnd = "idle" | "presence" | "max";
+
+/** When each of the session's three deadlines falls, and the timeouts behind them. */
+export interface SessionDeadlines {
+  /** The server's clock when this was computed, so a browser with a wrong clock can still count down. */
+  now: string;
+  idle_at: string;
+  presence_at: string;
+  max_at: string;
+  timeouts: SessionTimeouts;
+}
+
 interface SessionRow {
   id: string;
   created_at: string;
   confirmed_at: string | null;
+  /** Last time the owner used the app (a request their own input started). */
   last_seen_at: string;
+  /** Last time an open tab answered; null for sessions from before presence existed. */
+  last_presence_at: string | null;
   expires_at: string;
   user_agent: string;
 }
@@ -73,7 +89,23 @@ export class AuthService {
     private readonly settings: SettingsService,
     private readonly secrets: AuthSecrets,
     private readonly alert: OwnerAlert = () => {},
+    private readonly ended: (reason: SessionEnd) => void = () => {},
   ) {}
+
+  private timeouts(): SessionTimeouts {
+    return this.settings.get().session;
+  }
+
+  /** The three deadlines (section 17 of the plan), whichever comes first ends the session. */
+  private deadlines(row: SessionRow, t = this.timeouts()): { idle: number; presence: number; max: number } {
+    const seen = Date.parse(row.last_seen_at);
+    return {
+      idle: seen + t.idleMinutes * 60_000,
+      presence: Date.parse(row.last_presence_at ?? row.last_seen_at) + t.presenceMinutes * 60_000,
+      // expires_at keeps a stricter limit set at sign-in; a lower maximum applies to open sessions too.
+      max: Math.min(Date.parse(row.expires_at), Date.parse(row.created_at) + t.maxHours * 3600_000),
+    };
+  }
 
   private secretHash(): string | null {
     return isPasswordHash(this.secrets.passwordHash) ? this.secrets.passwordHash! : null;
@@ -230,32 +262,76 @@ export class AuthService {
     const token = randomToken(32);
     const id = await this.sessionId(token);
     const ts = new Date();
-    const expiresAt = new Date(ts.getTime() + SESSION_TTL_MS);
+    const expiresAt = new Date(ts.getTime() + this.timeouts().maxHours * 3600_000);
     this.db.run(
-      `INSERT INTO tal_sessions (id, created_at, last_seen_at, expires_at, user_agent, confirmed_at) VALUES (?, ?, ?, ?, ?, ?)`,
-      id, ts.toISOString(), ts.toISOString(), expiresAt.toISOString(), userAgent.slice(0, 300), ts.toISOString(),
+      `INSERT INTO tal_sessions (id, created_at, last_seen_at, last_presence_at, expires_at, user_agent, confirmed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, ts.toISOString(), ts.toISOString(), ts.toISOString(), expiresAt.toISOString(), userAgent.slice(0, 300), ts.toISOString(),
     );
     // Cap concurrent sessions; drop the least recently used beyond 20.
     this.db.run(`DELETE FROM tal_sessions WHERE id NOT IN (SELECT id FROM tal_sessions ORDER BY last_seen_at DESC LIMIT 20)`);
     return { token, expiresAt };
   }
 
-  /** Returns the session id when the token is valid; otherwise null. */
-  async validate(token: string | undefined | null): Promise<string | null> {
+  /**
+   * Returns the session id when the token is valid; otherwise null. The server decides: a session
+   * past any of its three deadlines is deleted here, whatever the browser thinks.
+   *
+   * Every request shows a tab is open (presence). Only `activity` requests, which the owner's own
+   * input started, count as use: background polling alone never keeps a session alive.
+   */
+  async validate(token: string | undefined | null, opts: { activity?: boolean } = {}): Promise<string | null> {
     if (!token || token.length > 200 || !this.isConfigured()) return null;
     await this.syncSecretFingerprint();
     const id = await this.sessionId(token);
     const row = this.db.one<SessionRow>(`SELECT * FROM tal_sessions WHERE id = ?`, id);
     if (!row) return null;
-    const nowMs = Date.now();
-    if (Date.parse(row.expires_at) <= nowMs || Date.parse(row.last_seen_at) + SESSION_IDLE_MS <= nowMs) {
-      this.db.run(`DELETE FROM tal_sessions WHERE id = ?`, id);
-      return null;
-    }
-    if (nowMs - Date.parse(row.last_seen_at) > TOUCH_INTERVAL_MS) {
-      this.db.run(`UPDATE tal_sessions SET last_seen_at = ? WHERE id = ?`, new Date(nowMs).toISOString(), id);
-    }
+    if (this.endIfExpired(row)) return null;
+    this.touch(row, opts.activity === true, false);
     return id;
+  }
+
+  /** Deletes a session past a deadline and records why. True when it ended. */
+  private endIfExpired(row: SessionRow): boolean {
+    const nowMs = Date.now();
+    const d = this.deadlines(row);
+    const reason: SessionEnd | null = nowMs >= d.max ? "max" : nowMs >= d.idle ? "idle" : nowMs >= d.presence ? "presence" : null;
+    if (!reason) return false;
+    this.db.run(`DELETE FROM tal_sessions WHERE id = ?`, row.id);
+    this.ended(reason);
+    return true;
+  }
+
+  /** Renews presence, and use when `activity`; at most one write a minute unless `force`. */
+  private touch(row: SessionRow, activity: boolean, force: boolean): void {
+    const nowMs = Date.now();
+    const at = new Date(nowMs).toISOString();
+    const stale = (iso: string | null) => force || !iso || nowMs - Date.parse(iso) >= TOUCH_INTERVAL_MS;
+    if (activity && stale(row.last_seen_at)) {
+      this.db.run(`UPDATE tal_sessions SET last_seen_at = ?, last_presence_at = ? WHERE id = ?`, at, at, row.id);
+    } else if (stale(row.last_presence_at)) {
+      this.db.run(`UPDATE tal_sessions SET last_presence_at = ? WHERE id = ?`, at, row.id);
+    }
+  }
+
+  /**
+   * The open app's signal (POST /api/auth/heartbeat): always renews presence, renews use only when
+   * the owner used some tab since the last one. Answers with the deadlines, so the browser's
+   * warning follows the server's clock instead of guessing.
+   */
+  heartbeat(sessionId: string, active: boolean): SessionDeadlines {
+    const row = this.db.one<SessionRow>(`SELECT * FROM tal_sessions WHERE id = ?`, sessionId);
+    if (!row || this.endIfExpired(row)) throw new AppError("UNAUTHORIZED", "Please sign in.");
+    this.touch(row, active, true);
+    return this.sessionDeadlines(sessionId)!;
+  }
+
+  sessionDeadlines(sessionId: string): SessionDeadlines | null {
+    const row = this.db.one<SessionRow>(`SELECT * FROM tal_sessions WHERE id = ?`, sessionId);
+    if (!row) return null;
+    const timeouts = this.timeouts();
+    const d = this.deadlines(row, timeouts);
+    const iso = (ms: number) => new Date(ms).toISOString();
+    return { now: iso(Date.now()), idle_at: iso(Math.min(d.idle, d.max)), presence_at: iso(Math.min(d.presence, d.max)), max_at: iso(d.max), timeouts };
   }
 
   revoke(sessionId: string): void {
@@ -290,7 +366,7 @@ export class AuthService {
   listSessions(currentId: string | null): SessionInfo[] {
     return this.db
       .all<SessionRow>(`SELECT * FROM tal_sessions ORDER BY last_seen_at DESC`)
-      .map(({ confirmed_at: _, ...s }) => ({ ...s, id: s.id.slice(0, 16), current: s.id === currentId }));
+      .map(({ confirmed_at: _, last_presence_at: __, ...s }) => ({ ...s, id: s.id.slice(0, 16), current: s.id === currentId }));
   }
 
   /** Revokes a session by the shortened public id shown in the UI. */

@@ -11,7 +11,6 @@ import {
 import type { z } from "zod";
 import { type Database, newId } from "../db/database";
 import { AppError, ValidationError } from "../api/errors";
-import { SESSION_IDLE_MS } from "../auth/auth-service";
 import type { SettingsService } from "../services/settings";
 
 /** Internal settings key, outside the exported Settings object, so a backup can neither carry nor set it. */
@@ -126,12 +125,10 @@ export class RemoteTokenService {
 
   private sessionCurrent(sessionId: string | null): boolean {
     if (!sessionId) return false;
-    const row = this.db.one<{ expires_at: string; last_seen_at: string }>(
-      `SELECT expires_at, last_seen_at FROM tal_sessions WHERE id = ?`,
-      sessionId,
-    );
-    const nowMs = Date.now();
-    return !!row && Date.parse(row.expires_at) > nowMs && Date.parse(row.last_seen_at) + SESSION_IDLE_MS > nowMs;
+    // The request validated this session moments ago (all three deadlines); this only catches a
+    // sign-out or revocation that landed in between.
+    const row = this.db.one<{ expires_at: string }>(`SELECT expires_at FROM tal_sessions WHERE id = ?`, sessionId);
+    return !!row && Date.parse(row.expires_at) > Date.now();
   }
 
   /** The token's identity when remote access is on and the token exists; otherwise null. */
