@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import { type Automation, TRANSCRIPTION_LIMITS } from "@talorys/shared";
+import { type Automation, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
 import type { Env } from "../env";
 import { migrate } from "../db/migrations";
 import { createServices, type Services } from "../services/container";
@@ -17,6 +17,7 @@ import { semanticNeighbors } from "../semantic/neighbors";
 import { CLEF_MODEL, type ClefRun } from "../memory/conflict";
 import { createTranscriber, type Transcription } from "../ai/transcription";
 import { classifyAiError } from "../ai/provider";
+import { runWatchers } from "../alerts/watchers";
 
 interface AgentState {
   /** Unread notifications, kept in agent state for cheap polling. */
@@ -102,6 +103,19 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     } catch (error) {
       console.error("Alert retry reconciliation failed", error);
     }
+    try {
+      // Every 15 minutes (UTC clock), the watchers and the daily summary. A cron schedule is
+      // idempotent: waking up again never adds a second one.
+      await this.schedule(`*/${WATCH.everyMinutes} * * * *`, "watch");
+    } catch (error) {
+      console.error("Watcher schedule failed", error);
+    }
+  }
+
+  /** Scheduled callback (cron): deadlines, system health and the daily summary. */
+  async watch(): Promise<void> {
+    await runWatchers(this.services);
+    this.refreshUnread();
   }
 
   override async onRequest(request: Request): Promise<Response> {

@@ -346,6 +346,8 @@ export class AlertService {
       routes: Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, route(c)])),
       limits: { ...DEFAULT_ALERT_PREFERENCES.limits, ...(stored.limits ?? {}) },
       fullText: stored.fullText ?? DEFAULT_ALERT_PREFERENCES.fullText,
+      digest: { ...DEFAULT_ALERT_PREFERENCES.digest, ...(stored.digest ?? {}) },
+      watchers: stored.watchers ?? DEFAULT_ALERT_PREFERENCES.watchers,
     };
     const parsed = alertPreferencesSchema.safeParse(merged);
     return parsed.success ? parsed.data : structuredClone(DEFAULT_ALERT_PREFERENCES);
@@ -356,7 +358,13 @@ export class AlertService {
     if (!parsed.success) throw ValidationError.fromZod(parsed.error);
     // A channel listed twice would send twice.
     const routes = Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, [...new Set(parsed.data.routes[c])]]));
-    const next = { routes, limits: parsed.data.limits, fullText: [...new Set(parsed.data.fullText)] } as AlertPreferences;
+    const next = {
+      routes,
+      limits: parsed.data.limits,
+      fullText: [...new Set(parsed.data.fullText)],
+      digest: parsed.data.digest,
+      watchers: parsed.data.watchers,
+    } as AlertPreferences;
     this.settings.setJson(PREFERENCES_KEY, next);
     return next;
   }
@@ -380,6 +388,11 @@ export class AlertService {
       return this.notifications.get(n.id);
     }
     return n;
+  }
+
+  /** Profiles whose level moved since `since` (ISO time), for the Friday summary. */
+  learnedSince(since: string): AlertProfile[] {
+    return this.deps.learning?.changedSince(since) ?? [];
   }
 
   /** The owner's latest corrections of reminder priorities, for the agent. */

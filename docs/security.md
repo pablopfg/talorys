@@ -223,6 +223,12 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   refused. Learning can't make any alert critical, and events from outside
   Talorys stay at most high. The owner's corrections reach the model only as a
   data block (tags defused), never as instructions.
+- The watchers (every 15 minutes) are deterministic SQL checks with no AI and
+  no outbound calls, except the npm update check once a day when the owner
+  turned it on. Task titles, routine and MCP server names go into alert text
+  with links defanged; each round raises at most 5 task alerts, and dedupe keys
+  keep a finding from repeating. Insistent overdue-task alerts count toward the
+  cap of 20 alerts insisting at once.
 - Push notification buttons (Done, Snooze, Mute) call
   `POST /api/notifications/:id/action` from the service worker with the session
   cookie and the CSRF header, like the app; remote access tokens can't reach it.

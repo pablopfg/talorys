@@ -72,7 +72,7 @@ gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a m
    | Adiou | leve para cima (+0,2) |
    | Silenciou | para baixo (−0,6) |
    | Deixou sem ler por 24 horas | forte para baixo (−0,8) |
-   | Concluiu a tarefa do aviso em até 1 hora (avisos de tarefa, que chegam com os vigias) | forte para cima (+0,8) |
+   | Concluiu a tarefa do aviso em até 1 hora (avisos dos vigias de tarefa) | forte para cima (+0,8) |
 
    Corrigir a prioridade é o sinal mais forte (+1 ou −1, com peso dobrado) e vale além do
    sinal do aviso. Os sinais formam uma média móvel; quando ela passa de **0,5** (ou de
@@ -103,9 +103,8 @@ gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a m
     aviso dele sai nessa prioridade (as regras fixas continuam valendo);
   - **Aprender sozinho** volta a aprender a partir de onde está;
   - **Zerar** esquece tudo o que o perfil aprendeu, inclusive as correções.
-- Cada mudança de nível fica no **Registro de atividade** ("Prioridade aprendida: …"). O
-  resumo de sexta-feira, que chega com os vigias e o resumo do dia, vai contar o que mudou
-  na semana.
+- Cada mudança de nível fica no **Registro de atividade** ("Prioridade aprendida: …"), e o
+  [resumo do dia](#vigias-e-resumo-do-dia) de sexta-feira conta o que mudou na semana.
 - O aprendizado não entra no backup: depois de restaurar, o Talorys aprende de novo.
 
 **No Telegram:** todo aviso, menos os de segurança, traz o botão **Corrigir prioridade**.
@@ -211,6 +210,57 @@ em duas etapas, por exemplo, confirme o aviso no Telegram para ele parar.
   correções mostram que lembretes parecidos devem ser Alta, e só lembretes únicos; um
   lembrete recorrente insistente é criado no app.
 - A prioridade **Crítica** fica reservada para os alertas de segurança.
+
+## Vigias e resumo do dia
+
+A cada **15 minutos** o Talorys roda os vigias: checagens sem IA (custo zero) que só
+geram um aviso quando algo precisa de você. Um vigia que não encontrou nada não manda
+"tudo certo". A chave de repetição de cada aviso impede que o mesmo aviso saia de novo.
+
+| Vigia | Quando avisa | Prioridade | Repete |
+| --- | --- | --- | --- |
+| Tarefa vence em 24 horas | Tarefa aberta com prazo nas próximas 24 h | Normal | Uma vez |
+| Tarefa vence na próxima hora | Prazo em até 60 min | Normal | Uma vez |
+| Tarefa atrasada | Prazo passou há até 7 dias | **Alta** (insiste) no primeiro dia, Normal depois | 1 vez por dia, só depois do horário do resumo (nunca de madrugada); depois de 7 dias só aparece no resumo |
+| Tarefa parada | Em andamento sem mudança há 7 dias | Normal | A cada 7 dias |
+| Rotina falhando | As 2 últimas execuções de uma automação ligada deram erro | Normal | 1 vez por dia |
+| Servidor MCP precisa de atenção | Servidor ligado que perdeu o login ou está com erro | Normal | 1 vez por dia |
+| Orçamento de IA quase no fim / esgotado | 80% / 100% dos pedidos de IA do dia | Normal / **Alta** | 1 vez por dia |
+| Notificações push não estão chegando | Todo aparelho inscrito falhou 3 vezes seguidas | Normal | 1 vez por semana |
+| Hora de fazer um backup | Nenhuma exportação há 30 dias (contando do primeiro dia do vigia, se nunca houve) | Baixa | A cada 30 dias |
+| Atualização disponível | Versão nova publicada (só com a checagem de atualização ligada em Configurações) | Baixa | Uma vez por versão |
+
+- Cada rodada gera **no máximo 5 avisos de tarefa** e, em 24 horas, no máximo **20**,
+  nesta ordem: o que vence na próxima hora, as atrasadas mais recentes, o que vence em 24
+  horas e por fim as tarefas paradas. O resto sai nas rodadas seguintes ou só no resumo.
+- O "dia" de uma tarefa atrasada começa no horário do resumo (07:30 por padrão), mesmo com o
+  resumo desligado.
+- A prioridade de cada tipo também **aprende** (veja [Prioridade que aprende](#prioridade-que-aprende)):
+  se você ignora "Tarefa parada", ele baixa; concluir a tarefa até 1 hora depois do aviso
+  conta como sinal de que valeu a pena. Dá para fixar cada tipo em Configurações → Avisos.
+- Títulos de tarefas, rotinas e servidores entram no texto do aviso sem links clicáveis.
+- A checagem de atualização chama o npm uma vez por dia, junto com o resumo, e só se
+  estiver ligada em Configurações.
+
+**Resumo do dia** (padrão ligado, às **07:30** no seu fuso horário): um aviso da categoria
+Resumos com
+
+- tarefas atrasadas;
+- tarefas que vencem hoje;
+- o que está agendado para hoje (lembretes e automações ligadas);
+- os avisos de prioridade baixa das últimas 24 horas que ficaram no app sem ler;
+- às **sextas-feiras**, o que a prioridade aprendeu na semana.
+
+Cada seção lista até 10 itens. Sem nada para contar, o resumo não sai. Ele sai uma vez por
+dia, até 3 horas depois do horário (se o Worker estava ocupado ou você acabou de mudar o
+horário), inclusive para um horário perto da meia-noite; depois disso espera o dia
+seguinte. A data do último backup exportado fica guardada à parte, para o vigia de backup
+não depender do registro de atividade. No Telegram, o resumo segue o modo discreto
+da categoria **Resumos**: ligue **Texto completo** nela para ler o resumo inteiro no grupo.
+
+Em **Configurações → Avisos**: **Resumo do dia** (horário e liga/desliga) e **Vigias**
+(liga/desliga todos). O resumo de tarefas antigo (automação do tipo "Resumo de tarefas")
+continua existindo para quem quiser outro horário ou outra frequência.
 
 ## Telegram
 
@@ -418,7 +468,9 @@ salvo as preferências antes do Telegram existir ganha o Telegram ligado em toda
 que já saía do app; as que estavam só no app continuam só no app. A migração 20 acrescenta às
 notificações o estado da insistência (`escalation`, `attempts`, `next_attempt_at`) e às
 automações a prioridade (`priority`); as automações existentes ficam como Normal, então
-nada passa a insistir sozinho. A migração 21 acrescenta às notificações o perfil
+nada passa a insistir sozinho. Os vigias e o resumo do dia não pedem migração nem variável: o agendamento de 15 minutos é
+criado sozinho na primeira requisição depois do deploy, e as preferências salvas antes
+ganham o resumo às 07:30 e os vigias ligados. A migração 21 acrescenta às notificações o perfil
 (`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
 as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
 100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
@@ -442,7 +494,7 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | Método e rota | Corpo | Resposta |
 | --- | --- | --- |
 | `GET /api/alerts` | — | `{ preferences, deliveries, channels }` |
-| `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...] }` (todas as categorias, até 8 KB; `fullText` opcional, padrão vazio) | `{ preferences }`; 400 se inválido |
+| `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...], digest: { enabled, time: "HH:MM" }, watchers }` (todas as categorias, até 8 KB; `fullText`, `digest` e `watchers` opcionais, padrão vazio, `{ enabled: true, time: "07:30" }` e `true`) | `{ preferences }`; 400 se inválido |
 | `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }` com `priority_reason: "corrected"`; o perfil do aviso aprende com a correção; 400 para baixar um alerta de segurança; 404 se não existir |
 | `GET /api/notifications` | — | Cada notificação traz `priority`, `category`, `escalation` (`null`, `"active"`, `"acknowledged"`, `"muted"` ou `"unacknowledged"`), `attempts`, `next_attempt_at`, `profile` (chave do perfil; `null` em segurança) e `priority_reason` (`"default"`, `"rule"`, `"raised"`, `"lowered"`, `"pinned"`, `"corrected"` ou `null` nos avisos de antes) |
 | `POST /api/notifications/read` | `{ id? }` | Ler um aviso conta como sinal (rapidez); sem `id` marca todos, sem sinal |
@@ -473,6 +525,11 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   marca `unacknowledged`, e não faz nada se o aviso já foi lido, silenciado, apagado ou
   rebaixado. `AlertService.respond()` trata Feito, Adiar e Silenciar para o Telegram, o
   push (`apps/web/public/sw.js`) e a central. `reconcile()` roda no `onStart`.
+- Os vigias e o resumo do dia ficam em `apps/agent/src/alerts/watchers.ts`
+  (`runWatchers()`, chamado pelo cron `*/15 * * * *` de `TalorysAgent.watch`, agendado no
+  `onStart`; agendamentos cron do Agents SDK não duplicam). As constantes ficam em `WATCH`
+  (`packages/shared/src/alerts.ts`). Um vigia novo deve ser determinístico, usar uma chave
+  de repetição e só chamar `raise()` quando houver algo a fazer.
 - A prioridade que aprende fica em `apps/agent/src/alerts/learning.ts` (`AlertLearning`):
   `profileKey()` monta o perfil, `decide()` aplica regras, fixação e o nível aprendido no
   `raise()`, e `observe()`, `read()`, `corrected()`, `taskCompleted()` e `sweepIgnored()`
@@ -488,6 +545,7 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 - Testes: `apps/agent/test/alerts.test.ts` (regras, preferências, API),
   `apps/agent/test/escalation.test.ts` (escada, confirmação, respostas, push com botões),
   `apps/agent/test/learning.test.ts` (regras fixas, perfis, sinais, travas, fixar e zerar,
-  API, correções no contexto do agente),
+  API, correções no contexto do agente), `apps/agent/test/watchers.test.ts` (cada vigia,
+  limite por rodada, resumo do dia com fuso, tradução e agendamento),
   `apps/agent/test/telegram.test.ts` (Bot API falsa: vinculação, envio, tópicos, botões,
   webhook, Access) e `tests/e2e/alerts.spec.ts` (tela).

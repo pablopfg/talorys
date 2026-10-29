@@ -1,4 +1,5 @@
 import { type HealthReport, TALORYS_VERSION, type UsageReport, settingsUpdateSchema } from "@talorys/shared";
+import { BACKUP_KEY } from "../../alerts/watchers";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app";
@@ -104,6 +105,7 @@ systemRoutes.get("/export", (c) => {
   requireRecentAuth(c);
   const backup = exportData(c.env.agent.services);
   c.env.agent.services.activity.record("data.exported", "Exported a backup");
+  c.env.agent.services.settings.setJson(BACKUP_KEY, new Date().toISOString());
   return new Response(JSON.stringify(backup, null, 2), {
     headers: {
       "content-type": "application/json; charset=utf-8",
