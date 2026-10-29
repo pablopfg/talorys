@@ -9,7 +9,7 @@ import { chromium } from "@playwright/test";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "docs/screenshots");
 const BASE = "http://localhost:5173";
-const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
 mkdirSync(out, { recursive: true });
 
 const server = spawn("sh", ["-c", "node scripts/dev-setup.mjs && node scripts/ensure-dist.mjs && node scripts/e2e-server.mjs"], {

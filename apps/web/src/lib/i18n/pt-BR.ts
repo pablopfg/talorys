@@ -38,6 +38,8 @@ export const ptBR = {
 
   "login.tagline": "Seu agente de IA pessoal. Na sua própria nuvem.",
   "login.notConfigured": "Esta instalação ainda não tem uma senha de proprietário. Execute {command} novamente para concluir a configuração.",
+  "login.email": "E-mail",
+  "login.emailPlaceholder": "Seu e-mail",
   "login.password": "Senha",
   "login.passwordPlaceholder": "Senha do proprietário",
   "login.showPassword": "Mostrar senha",
@@ -260,6 +262,8 @@ export const ptBR = {
   "settings.saved": "Configurações salvas",
   "settings.agentName": "Nome do agente",
   "settings.agentNameHint": "Como seu assistente se apresenta.",
+  "passwordRequired.title": "Escolha uma senha mais forte",
+  "passwordRequired.body": "Sua senha atual não atende mais ao mínimo: 15 caracteres difíceis de adivinhar e que não apareceram em vazamentos conhecidos. Troque-a para continuar usando o Talorys. Algumas palavras sem relação entre si formam uma senha longa e fácil de lembrar.",
   "settings.timezone": "Fuso horário",
   "settings.useDeviceTimezone": "Usar o fuso horário deste dispositivo ({timezone})",
   "settings.timezoneHint": "Usado em prazos e agendamentos. Alterá-lo reagenda as automações.",

@@ -7,6 +7,7 @@ import { MANIFEST_FILE, readManifest } from "./manifest";
 import { checkNodeVersion, detectGlobalClis } from "./requirements";
 import { readTemplateInfo } from "./scaffold";
 import { PUSH_SECRETS, REQUIRED_SECRETS } from "./secrets";
+import { isBreachedPassword } from "@talorys/shared/password-policy";
 import { ClackUi } from "./ui";
 import { runChecks } from "./verify";
 import { Wrangler } from "./wrangler";
@@ -163,7 +164,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   }
 
   const ui = new ClackUi();
-  const deps: Deps = { ui, wrangler: new Wrangler() };
+  const deps: Deps = { ui, wrangler: new Wrangler(), breached: (password) => isBreachedPassword(password) };
   const password = process.env.TALORYS_OWNER_PASSWORD;
   // Wrangler and any other child process inherit the environment; the plaintext must not go with it.
   delete process.env.TALORYS_OWNER_PASSWORD;

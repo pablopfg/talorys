@@ -6,7 +6,7 @@ import { COMPATIBILITY_DATE, detectTimezone, generateInstallationId, normalizeDo
 import { type Manifest, markStep, readManifest, writeManifest } from "./manifest";
 import { checkNodeVersion, detectGlobalClis } from "./requirements";
 import { assertSafeTarget, readTemplateInfo, scaffoldProject, templatesDir } from "./scaffold";
-import { buildOwnerSecrets, generatePushKeys, generateSessionSecret, MCP_SECRET, PASSWORD_SECRET, PUSH_SECRETS, REQUIRED_SECRETS, SESSION_SECRET, validatePassword } from "./secrets";
+import { buildOwnerSecrets, generatePushKeys, generateSessionSecret, MCP_SECRET, PASSWORD_SECRET, PEPPER_SECRET, PUSH_SECRETS, REQUIRED_SECRETS, SESSION_SECRET, validatePassword } from "./secrets";
 import type { Ui } from "./ui";
 import { type FetchLike, type CheckResult, verifyDeployment } from "./verify";
 import type { CloudflareAccount, Wrangler, WhoAmI } from "./wrangler";
@@ -34,6 +34,8 @@ export interface Deps {
   fetch?: FetchLike;
   exec?: Exec;
   templates?: string;
+  /** Checks a new password against known breaches (null: couldn't check). Off when not given. */
+  breached?: (password: string) => Promise<boolean | null>;
 }
 
 // ---------- Reusable steps ----------
@@ -95,10 +97,20 @@ export async function allocateNames(wrangler: Wrangler, attempts = 5, nextId: ()
   throw new CliError("Could not find unused resource names.", "Re-run the installer.");
 }
 
-async function askPassword(ui: Ui, provided?: string): Promise<string> {
+const BREACHED = "This password appeared in a known data breach (Have I Been Pwned). Choose another one.";
+const unchecked = () =>
+  new CliError(
+  "Couldn't check the password against known breaches (Have I Been Pwned).",
+  "Check your internet connection and run the installer again. A password is never set without this check.",
+);
+
+async function askPassword(ui: Ui, provided?: string, breached?: Deps["breached"]): Promise<string> {
   if (provided !== undefined) {
     const problem = validatePassword(provided);
     if (problem) throw new CliError(`TALORYS_OWNER_PASSWORD is too weak: ${problem}`);
+    const found = await breached?.(provided);
+    if (found === true) throw new CliError(`TALORYS_OWNER_PASSWORD can't be used. ${BREACHED}`);
+    if (found === null) throw unchecked();
     return provided;
   }
   if (!ui.interactive) {
@@ -107,8 +119,18 @@ async function askPassword(ui: Ui, provided?: string): Promise<string> {
   for (;;) {
     const password = await ui.password("Set your owner password", validatePassword);
     const again = await ui.password("Confirm your owner password");
-    if (password === again) return password;
-    ui.warn("The passwords did not match. Please try again.");
+    if (password !== again) {
+      ui.warn("The passwords did not match. Please try again.");
+      continue;
+    }
+    // Only the first 5 characters of the password's SHA-1 are sent.
+    const found = await breached?.(password);
+    if (found === null) throw unchecked();
+    if (found === true) {
+      ui.warn(BREACHED);
+      continue;
+    }
+    return password;
   }
 }
 
@@ -216,7 +238,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
   const needsPushKeys = PUSH_SECRETS.some((s) => !existingSecrets.includes(s));
   // Likewise the MCP credential key: replacing it would make every stored MCP token unreadable.
   const needsMcpKey = !existingSecrets.includes(MCP_SECRET);
-  const password = missingSecrets.includes(PASSWORD_SECRET) ? await askPassword(ui, opts.password) : null;
+  const password = missingSecrets.includes(PASSWORD_SECRET) ? await askPassword(ui, opts.password, deps.breached) : null;
 
   if (!opts.yes && ui.interactive) {
     ui.note(
@@ -303,7 +325,11 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     if (missingSecrets.length > 0) {
       await ui.step("Configuring authentication", async () => {
         const secrets = await buildOwnerSecrets(password ?? "", { includeSessionSecret: missingSecrets.includes(SESSION_SECRET) });
-        if (!missingSecrets.includes(PASSWORD_SECRET)) delete secrets[PASSWORD_SECRET];
+        if (!missingSecrets.includes(PASSWORD_SECRET)) {
+          // The pepper belongs to the hash: never one without the other.
+          delete secrets[PASSWORD_SECRET];
+          delete secrets[PEPPER_SECRET];
+        }
         await wrangler.putSecrets(names.workerName, { ...secrets, ...extraSecrets });
       }, () => "Authentication configured (password hashed locally; secrets stored as Cloudflare secrets)");
     } else {
@@ -381,7 +407,7 @@ export async function resetPassword(opts: { dir: string; password?: string }, de
   if (!(await wrangler.workerExists(manifest.worker_name))) {
     throw new CliError(`The Worker ${manifest.worker_name} was not found in ${account.name}.`, "Run `npx create-talorys@latest` to finish installation.");
   }
-  const password = await askPassword(ui, opts.password);
+  const password = await askPassword(ui, opts.password, deps.breached);
   await ui.step("Updating owner password", async () => {
     const secrets = await buildOwnerSecrets(password, { includeSessionSecret: false });
     await wrangler.putSecrets(manifest.worker_name, secrets);

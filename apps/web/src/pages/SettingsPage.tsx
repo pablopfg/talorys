@@ -1,8 +1,7 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  checkPasswordStrength,
   GITHUB_URL,
   LANGUAGES,
   LIMIT_CEILINGS,
@@ -14,16 +13,17 @@ import {
   TALORYS_VERSION,
 } from "@talorys/shared";
 import { Download, ExternalLink, LogOut, Monitor, Moon, Sun, Upload } from "lucide-react";
-import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch } from "../components/ui";
+import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, PageHeader, Select, Spinner, Switch } from "../components/ui";
 import { SemanticRecallCard } from "../components/SemanticRecallCard";
 import { PushNotificationsCard } from "../components/PushNotificationsCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
+import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
 import { UsageBreakdown, UsagePricingNote } from "../components/UsageBreakdown";
 import { keys, useApiMutation, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
 import { useSession } from "../hooks/session";
 import { useToast, errorMessage } from "../hooks/toast";
-import { api, ApiError } from "../lib/api";
+import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
 import { cn, relativeTime } from "../lib/utils";
 import { applyLanguage, browserLanguage, LANGUAGE_NAMES, type PlainMessageKey, useI18n } from "../lib/i18n";
@@ -485,7 +485,7 @@ function PrivacyTab() {
 const TIMEOUT_CHOICES: Record<keyof SessionTimeouts, number[]> = {
   idleMinutes: [5, 10, 15, 20, 30, 45, 60],
   presenceMinutes: [3, 5, 10, 15],
-  maxHours: [1, 2, 4, 8, 12, 24],
+  maxHours: [1, 2, 4, 6, 8, 12, 24],
 };
 
 function SessionTimeoutsSection({ settings }: { settings: Settings }) {
@@ -524,64 +524,16 @@ function SecurityTab({ settings }: { settings: Settings }) {
   const { t } = i18n;
   const { logout } = useSession();
   const sessions = useSessions();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirmNext, setConfirmNext] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const problem = next ? checkPasswordStrength(next) : null;
-  const strength = problem && i18n.serverText(problem);
-  const change = useApiMutation(() => api("/auth/password", { method: "POST", body: { current_password: current, new_password: next } }), {
-    invalidate: [keys.sessions],
-    success: t("settings.passwordChanged"),
-    onSuccess: () => {
-      setCurrent("");
-      setNext("");
-      setConfirmNext("");
-    },
-  });
   const revoke = useApiMutation((id: string) => api(`/auth/sessions/${id}`, { method: "DELETE" }), { invalidate: [keys.sessions], success: t("settings.sessionSignedOut") });
   const revokeOthers = useApiMutation(() => api("/auth/sessions/revoke-others", { method: "POST", body: {} }), {
     invalidate: [keys.sessions],
     success: t("settings.othersSignedOut"),
   });
-  useEffect(() => setFormError(change.error instanceof ApiError ? change.error.message : null), [change.error]);
 
   return (
     <>
       <Section title={t("settings.changePassword")}>
-        <form
-          className="space-y-4 px-5 py-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (next !== confirmNext) return setFormError(t("settings.passwordsMismatch"));
-            if (strength) return setFormError(strength);
-            setFormError(null);
-            change.mutate(undefined);
-          }}
-        >
-          <input type="text" autoComplete="username" value="owner" readOnly hidden />
-          <div>
-            <Label htmlFor="pw-current">{t("settings.currentPassword")}</Label>
-            <Input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="pw-new">{t("settings.newPassword")}</Label>
-              <Input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-              {next && <p className={cn("mt-1 text-xs", strength ? "text-warning" : "text-success")}>{strength ?? t("settings.strongEnough")}</p>}
-            </div>
-            <div>
-              <Label htmlFor="pw-confirm">{t("settings.confirmPassword")}</Label>
-              <Input id="pw-confirm" type="password" autoComplete="new-password" value={confirmNext} onChange={(e) => setConfirmNext(e.target.value)} />
-            </div>
-          </div>
-          {formError && <p className="text-sm text-danger">{formError}</p>}
-          <div className="flex justify-end">
-            <Button type="submit" loading={change.isPending} disabled={!current || !next || !confirmNext}>
-              {t("settings.changePassword")}
-            </Button>
-          </div>
-        </form>
+        <ChangePasswordForm agentName={settings.agentName} />
       </Section>
       <SessionTimeoutsSection settings={settings} />
       <Section title={t("settings.activeSessions")}>

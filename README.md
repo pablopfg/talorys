@@ -347,7 +347,7 @@ npm run dev
 | Proxy da Pages Function com o service binding (`wrangler pages dev`) | 8788 |
 | Interface Vite | [localhost:5173](http://localhost:5173) |
 
-Ele cria `apps/agent/.dev.vars` com uma senha local (`talorys-dev-password`, que pode ser trocada com `TALORYS_DEV_PASSWORD`) e usa o provedor de IA simulado e determinístico, então não é preciso fazer login na Cloudflare. O estado fica salvo em `.wrangler/state`.
+Ele cria `apps/agent/.dev.vars` com uma senha local (`dev-Owner-violeta-trem-81`, que pode ser trocada com `TALORYS_DEV_PASSWORD`) e usa o provedor de IA simulado e determinístico, então não é preciso fazer login na Cloudflare. O estado fica salvo em `.wrangler/state`.
 
 | Script | |
 | --- | --- |

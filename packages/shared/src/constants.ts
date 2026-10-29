@@ -44,12 +44,13 @@ export const DEFAULT_MEMORY_HISTORY = {
 
 /**
  * How long a browser session lasts (D9): ended after this much time without the owner using it,
- * without any open tab answering, or after this long in total, whichever comes first.
+ * without any open tab answering, or after this long in total, whichever comes first. While the
+ * owner keeps using an open tab, only the maximum ends it.
  */
 export const DEFAULT_SESSION_TIMEOUTS = {
-  idleMinutes: 15,
+  idleMinutes: 30,
   presenceMinutes: 5,
-  maxHours: 12,
+  maxHours: 6,
 } as const;
 
 /** The range the server enforces for each session timeout. */
@@ -58,6 +59,9 @@ export const SESSION_TIMEOUT_RANGES = {
   presenceMinutes: [3, 15],
   maxHours: [1, 24],
 } as const;
+
+/** The owner's timezone until they choose one (Settings → General) or the installer detects it. */
+export const DEFAULT_TIMEZONE = "America/Sao_Paulo";
 
 /** Header the app sends only on requests the owner's own input started; only those count as use. */
 export const ACTIVITY_HEADER = "x-talorys-activity";

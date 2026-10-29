@@ -1,14 +1,15 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { AtSign, Eye, EyeOff, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { Button } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 
-export function LoginPage({ configured, ended }: { configured: boolean; ended?: "idle" | "ended" }) {
+export function LoginPage({ configured, ended, emailRequired = false }: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,11 +29,11 @@ export function LoginPage({ configured, ended }: { configured: boolean; ended?: 
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!password || pending || waitSeconds > 0) return;
+    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0) return;
     setPending(true);
     setError(null);
     try {
-      await api("/auth/login", { method: "POST", body: { password } });
+      await api("/auth/login", { method: "POST", body: emailRequired ? { email, password } : { password } });
       setPassword("");
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
@@ -70,6 +71,28 @@ export function LoginPage({ configured, ended }: { configured: boolean; ended?: 
                 {endedReason === "idle" ? t("login.endedIdle") : t("login.ended")}
               </p>
             )}
+            {emailRequired && (
+              <>
+                <label htmlFor="email" className="sr-only">
+                  {t("login.email")}
+                </label>
+                <div className="relative">
+                  <AtSign className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    autoFocus
+                    placeholder={t("login.emailPlaceholder")}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={!!error}
+                    aria-describedby={error ? "login-error" : undefined}
+                    className="h-12 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] shadow-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  />
+                </div>
+              </>
+            )}
             <label htmlFor="password" className="sr-only">
               {t("login.password")}
             </label>
@@ -80,7 +103,7 @@ export function LoginPage({ configured, ended }: { configured: boolean; ended?: 
                 id="password"
                 type={show ? "text" : "password"}
                 autoComplete="current-password"
-                autoFocus
+                autoFocus={!emailRequired}
                 placeholder={t("login.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -97,7 +120,7 @@ export function LoginPage({ configured, ended }: { configured: boolean; ended?: 
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || waitSeconds > 0}>
+            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0}>
               {waitSeconds > 0 ? t("login.tryAgainIn", { seconds: waitSeconds }) : t("login.unlock")}
             </Button>
             {error && (

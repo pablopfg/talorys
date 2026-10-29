@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DEFAULT_TIMEZONE } from "@talorys/shared/constants";
 
 /** Compatibility date for generated Worker and Pages configs. */
 export const COMPATIBILITY_DATE = "2026-10-01";
@@ -107,8 +108,8 @@ export function toJsonc(config: Record<string, unknown>): string {
 
 export function detectTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
   } catch {
-    return "UTC";
+    return DEFAULT_TIMEZONE;
   }
 }

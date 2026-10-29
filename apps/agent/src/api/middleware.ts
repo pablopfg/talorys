@@ -7,6 +7,9 @@ import { AppError, ValidationError } from "./errors";
 /** Routes reachable without a session. Nothing here can claim ownership or read owner data. */
 const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "GET /api/auth/session"]);
 
+/** All a session can do while its password fails the current rules: change it, or leave. */
+const WEAK_PASSWORD_ROUTES = new Set([...PUBLIC_ROUTES, "POST /api/auth/password", "POST /api/auth/logout", "POST /api/auth/heartbeat"]);
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** API responses are data, never pages: nothing in them may load, run or be framed. */
@@ -114,6 +117,9 @@ export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.set("sessionId", sessionId);
   if (!sessionId && !PUBLIC_ROUTES.has(route)) {
     throw new AppError("UNAUTHORIZED", "Please sign in.");
+  }
+  if (sessionId && !WEAK_PASSWORD_ROUTES.has(route) && c.env.agent.services.auth.passwordChangeRequired()) {
+    throw new AppError("PASSWORD_CHANGE_REQUIRED", "Your password no longer meets the minimum requirements. Change it to continue.");
   }
   return next();
 };

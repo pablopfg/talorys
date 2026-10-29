@@ -20,12 +20,13 @@ Talorys is single-user. The threat model assumes the internet can reach your
   unprefixed one used by local development. The database stores only
   `HMAC(SESSION_SECRET, token)`; a storage leak cannot be replayed.
 - A session ends on the server, whichever comes first, after:
-  - **15 minutes without use** (a click, a key, the mouse wheel: only requests the
+  - **30 minutes without use** (a click, a key, the mouse wheel: only requests the
     owner started count, marked with the `x-talorys-activity` header, never
     background polling);
   - **5 minutes with no open tab** (one tab per browser sends a presence
     signal to `POST /api/auth/heartbeat` once a minute);
-  - **12 hours** in total, used or not.
+  - **6 hours** in total, used or not.
+  While the owner keeps using an open tab, only the maximum ends a session.
   The owner can change these in Settings → Security (5–60 minutes, 3–15
   minutes, 1–24 hours); making any of them longer asks for the password
   again. The browser warns 2 minutes before the end, signs every tab out at
@@ -51,7 +52,7 @@ Talorys is single-user. The threat model assumes the internet can reach your
 
 ## Brute force
 
-5 failed logins per client within 15 minutes lock that client. A client is the
+3 failed logins per client within 15 minutes lock that client. A client is the
 IP address from `CF-Connecting-IP` (outside development a request without it
 is refused, so it can't land in a shared bucket), or its whole /64 for IPv6, since one
 subscriber usually holds a /64 and could otherwise rotate addresses. When 25

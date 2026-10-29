@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
 
 async function login(page: Page) {
   await page.goto("/");

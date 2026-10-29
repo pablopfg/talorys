@@ -27,6 +27,13 @@ export function onUnauthorized(fn: Listener): () => void {
   return () => unauthorizedListeners.delete(fn);
 }
 
+/** The server now asks for a new password (PASSWORD_CHANGE_REQUIRED): the app reloads the session to show that screen. */
+const passwordChangeListeners = new Set<Listener>();
+export function onPasswordChangeRequired(fn: Listener): () => void {
+  passwordChangeListeners.add(fn);
+  return () => passwordChangeListeners.delete(fn);
+}
+
 /** Asks the owner for the password again; resolves true once confirmed, false if they cancel. */
 type ReauthHandler = () => Promise<boolean>;
 let reauthHandler: ReauthHandler | null = null;
@@ -78,6 +85,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   if (!res.ok) {
     const error = await toApiError(res);
     if (res.status === 401 && !path.startsWith("/auth/")) for (const fn of unauthorizedListeners) fn();
+    if (error.code === "PASSWORD_CHANGE_REQUIRED") for (const fn of passwordChangeListeners) fn();
     throw error;
   }
   return (await res.json()) as T;

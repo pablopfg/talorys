@@ -368,6 +368,8 @@ export const settingsUpdateSchema = settingsSchema
   });
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
+/** Signing in: the e-mail address is asked for only when OWNER_EMAIL is set. */
+export const signInSchema = loginSchema.extend({ email: z.string().max(254).optional() });
 export const heartbeatSchema = z.object({ active: z.boolean() });
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1).max(256),
@@ -423,6 +425,10 @@ export type ApiErrorCode =
   | "NOT_CONFIGURED"
   /** A sensitive action needs the password again (POST /api/auth/confirm), then a retry. */
   | "REAUTH_REQUIRED"
+  /** The password in use fails the current rules: only changing it (POST /api/auth/password) works. */
+  | "PASSWORD_CHANGE_REQUIRED"
+  /** A service the request depends on (such as the breach check) did not answer; retry later. */
+  | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {

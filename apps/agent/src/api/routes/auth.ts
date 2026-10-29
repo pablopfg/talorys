@@ -1,4 +1,4 @@
-import { changePasswordSchema, heartbeatSchema, loginSchema } from "@talorys/shared";
+import { changePasswordSchema, heartbeatSchema, loginSchema, signInSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../app";
 import { body, clientId, readSessionToken, sessionCookie } from "../middleware";
@@ -7,9 +7,9 @@ import { AppError } from "../errors";
 export const authRoutes = new Hono<AppEnv>();
 
 authRoutes.post("/login", async (c) => {
-  const { password } = await body(c, loginSchema, 4096);
+  const { password, email } = await body(c, signInSchema, 4096);
   const auth = c.env.agent.services.auth;
-  const { token, expiresAt } = await auth.login(password, clientId(c), c.req.header("user-agent") ?? "");
+  const { token, expiresAt } = await auth.login(password, clientId(c), c.req.header("user-agent") ?? "", email);
   // A session cookie this browser already had ends here, so a planted one can't outlive the sign-in.
   const previous = c.get("sessionId");
   if (previous) auth.revoke(previous);
@@ -36,6 +36,9 @@ authRoutes.get("/session", (c) => {
   return c.json({
     authenticated,
     configured: s.auth.isConfigured(),
+    // Only whether the sign-in form needs the field, never the address.
+    email_required: authenticated ? undefined : s.auth.emailRequired(),
+    password_change_required: authenticated ? s.auth.passwordChangeRequired() : undefined,
     agent_name: authenticated ? settings.agentName : undefined,
     theme: authenticated ? settings.theme : undefined,
     language: authenticated ? settings.language : undefined,

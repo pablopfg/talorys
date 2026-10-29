@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { client, freshIp, inAgent, password } from "./helpers";
 import { clientKey } from "../src/api/middleware";
+import { MAX_FAILURES_PER_CLIENT } from "../src/auth/auth-service";
 
 const DAY = 24 * 3600_000;
 const login = (ip: string, pw = password()) => client({ ip }).call("/api/auth/login", { method: "POST", body: { password: pw } });
@@ -20,7 +21,7 @@ afterEach(() => inAgent((a) => a.services.db.run(`DELETE FROM tal_login_attempts
 describe("login limits per client", () => {
   it("counts an IPv6 /64 as one client, so rotating addresses inside it does not reset the limit", async () => {
     const prefix = randomPrefix();
-    for (let i = 0; i < 5; i++) expect((await login(`${prefix}::${i + 1}`, `wrong-${i}`)).status).toBe(401);
+    for (let i = 0; i < MAX_FAILURES_PER_CLIENT; i++) expect((await login(`${prefix}::${i + 1}`, `wrong-${i}`)).status).toBe(401);
     expect((await login(`${prefix}:ffff::9`)).status).toBe(429);
     // Another /64 is a different client.
     expect((await login(`${randomPrefix()}::1`)).status).toBe(200);
@@ -99,14 +100,14 @@ describe("global limit and the owner's own networks (AUTH-02)", () => {
     const home = freshIp();
     await recordAttempt(home, 1, Date.now() - DAY);
     await tripGlobalLimit();
-    for (let i = 0; i < 4; i++) expect((await login(home, `wrong-${i}`)).status).toBe(401);
+    for (let i = 0; i < MAX_FAILURES_PER_CLIENT - 1; i++) expect((await login(home, `wrong-${i}`)).status).toBe(401);
     expect((await login(home)).status).toBe(200);
   });
 
   it("keeps the per-client limit for trusted networks", async () => {
     const home = freshIp();
     await recordAttempt(home, 1, Date.now() - DAY);
-    for (let i = 0; i < 5; i++) expect((await login(home, `wrong-${i}`)).status).toBe(401);
+    for (let i = 0; i < MAX_FAILURES_PER_CLIENT; i++) expect((await login(home, `wrong-${i}`)).status).toBe(401);
     expect((await login(home)).status).toBe(429);
   });
 });

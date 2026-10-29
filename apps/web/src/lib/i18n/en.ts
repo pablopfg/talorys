@@ -42,6 +42,8 @@ export const en = {
 
   "login.tagline": "Your personal AI agent. Your own cloud.",
   "login.notConfigured": "This deployment has no owner password configured yet. Run {command} again to finish setup.",
+  "login.email": "E-mail",
+  "login.emailPlaceholder": "Your e-mail",
   "login.password": "Password",
   "login.passwordPlaceholder": "Owner password",
   "login.showPassword": "Show password",
@@ -264,6 +266,8 @@ export const en = {
   "settings.saved": "Settings saved",
   "settings.agentName": "Agent name",
   "settings.agentNameHint": "How your assistant introduces itself.",
+  "passwordRequired.title": "Choose a stronger password",
+  "passwordRequired.body": "Your current password no longer meets the minimum: 15 characters that aren't easy to guess and haven't appeared in a known breach. Change it to keep using Talorys. A few unrelated words make a long password that is easy to remember.",
   "settings.timezone": "Timezone",
   "settings.useDeviceTimezone": "Use this device's timezone ({timezone})",
   "settings.timezoneHint": "Used for due dates and schedules. Changing it re-schedules automations.",

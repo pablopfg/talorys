@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, onUnauthorized } from "../lib/api";
+import { api, onPasswordChangeRequired, onUnauthorized } from "../lib/api";
 import { broadcast, type LocalDeadlines, onSessionMessage, type SessionDeadlines, toLocal } from "../lib/activity";
 import { applyTheme } from "../lib/theme";
 import { applyLanguage, type LanguagePreference } from "../lib/i18n";
@@ -17,6 +17,10 @@ interface SessionState {
   local?: LocalDeadlines;
   /** Why the last session ended here, for the sign-in screen. */
   ended?: "idle" | "ended";
+  /** The sign-in form asks for the owner's e-mail address too (OWNER_EMAIL is set). */
+  email_required?: boolean;
+  /** The password fails the current rules: the app shows only the change-password screen. */
+  password_change_required?: boolean;
 }
 
 /** idle: no use (or the owner chose to leave from the warning); ended: the server ended it; manual: Sign out. */
@@ -74,6 +78,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }),
     [qc, signOutHere],
   );
+
+  useEffect(() => onPasswordChangeRequired(() => void qc.invalidateQueries({ queryKey: ["session"] })), [qc]);
 
   // Signing out in one tab signs out every tab.
   useEffect(() => onSessionMessage((m) => m.type === "logout" && signOutHere(m.reason === "manual" ? "manual" : m.reason)), [signOutHere]);

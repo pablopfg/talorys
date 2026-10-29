@@ -5,9 +5,12 @@ import {
   hashPassword,
   hmacSha256Hex,
   isPasswordHash,
+  isPepperedHash,
+  meetsLegacyPolicy,
   randomToken,
   sha256Hex,
   timingSafeEqual,
+  usablePepper,
   verifyPassword,
 } from "@talorys/shared";
 import type { Database } from "../db/database";
@@ -20,7 +23,7 @@ export const TOUCH_INTERVAL_MS = 60_000;
 export const STEP_UP_WINDOW_MS = 15 * 60_000;
 
 export const LOGIN_WINDOW_MS = 15 * 60_000;
-export const MAX_FAILURES_PER_CLIENT = 5;
+export const MAX_FAILURES_PER_CLIENT = 3;
 export const MAX_FAILURES_GLOBAL = 25;
 /**
  * Past this many failures in the window, networks the owner hasn't used get no attempt at all,
@@ -35,6 +38,8 @@ export const ATTACK_ALERT_INTERVAL_MS = 6 * 3600_000;
 const OVERRIDE_KEY = "auth.password_override";
 const FINGERPRINT_KEY = "auth.secret_fingerprint";
 const ATTACK_ALERT_KEY = "auth.attack_alerted_at";
+/** Set while the owner signs in with a password the current rules refuse; cleared when it changes. */
+const WEAK_PASSWORD_KEY = "auth.password_change_required";
 
 /** Tells the owner something about their account (a notification). */
 export type OwnerAlert = (title: string, body: string) => void;
@@ -69,6 +74,15 @@ export interface AuthSecrets {
   /** Plain owner password, for deploys that cannot hash it ahead of time. Used only without a valid passwordHash. */
   password?: string;
   sessionSecret?: string;
+  /** PASSWORD_PEPPER: mixed into every new hash, kept only as a Worker secret (32+ characters). */
+  pepper?: string;
+  /** OWNER_EMAIL: when set, sign-in asks for it too. */
+  ownerEmail?: string;
+}
+
+export interface AuthChecks {
+  /** Whether a new password is in a known breach (null: unknown). Off when not given. */
+  breached?: (password: string) => Promise<boolean | null>;
 }
 
 /**
@@ -90,7 +104,21 @@ export class AuthService {
     private readonly secrets: AuthSecrets,
     private readonly alert: OwnerAlert = () => {},
     private readonly ended: (reason: SessionEnd) => void = () => {},
+    private readonly checks: AuthChecks = {},
   ) {}
+
+  private pepper(): string | undefined {
+    return usablePepper(this.secrets.pepper);
+  }
+
+  private ownerEmail(): string | undefined {
+    return normalizeEmail(this.secrets.ownerEmail) || undefined;
+  }
+
+  /** Whether the sign-in form must ask for the e-mail address. */
+  emailRequired(): boolean {
+    return !!this.ownerEmail();
+  }
 
   private timeouts(): SessionTimeouts {
     return this.settings.get().session;
@@ -114,7 +142,8 @@ export class AuthService {
   /** A valid hash, or a plain password that passes the same strength check as the installer. */
   passwordConfigured(): boolean {
     const { password } = this.secrets;
-    return this.secretHash() !== null || (!!password && checkPasswordStrength(password) === null);
+    // A plain password set under the previous rule (10+ characters) still works; signing in asks to lengthen it.
+    return this.secretHash() !== null || (!!password && meetsLegacyPolicy(password));
   }
 
   isConfigured(): boolean {
@@ -134,13 +163,18 @@ export class AuthService {
   /** Detects a CLI password reset (secret changed) and invalidates stale state, remote tokens included. */
   async syncSecretFingerprint(): Promise<void> {
     const { sessionSecret } = this.requireConfigured();
-    const secret = this.secretHash() ?? `plain$${await hmacSha256Hex(sessionSecret, this.secrets.password!)}`;
+    let secret = this.secretHash() ?? `plain$${await hmacSha256Hex(sessionSecret, this.secrets.password!)}`;
+    // A new or changed pepper also starts over: hashes made with another pepper can't be checked.
+    const pepper = this.pepper();
+    if (pepper) secret += `|pepper$${await hmacSha256Hex(sessionSecret, pepper)}`;
     const fingerprint = (await sha256Hex(secret)).slice(0, 32);
     const stored = this.settings.getJson<string>(FINGERPRINT_KEY);
     if (stored === fingerprint) return;
     this.db.transaction(() => {
       if (stored !== null) {
         this.settings.delete(OVERRIDE_KEY);
+        // A new secret is a new password; the next sign-in checks it again.
+        this.settings.delete(WEAK_PASSWORD_KEY);
         this.db.run(`DELETE FROM tal_sessions`);
         this.db.run(`DELETE FROM tal_remote_tokens`);
       }
@@ -150,7 +184,7 @@ export class AuthService {
 
   private async checkPassword(password: string): Promise<boolean> {
     const hash = this.settings.getJson<string>(OVERRIDE_KEY) ?? this.secretHash();
-    if (hash) return verifyPassword(password, hash);
+    if (hash) return verifyPassword(password, hash, this.pepper());
     const { sessionSecret } = this.requireConfigured();
     const encode = (value: string) => new TextEncoder().encode(value);
     const [given, expected] = await Promise.all([
@@ -158,6 +192,59 @@ export class AuthService {
       hmacSha256Hex(sessionSecret, this.secrets.password!.normalize("NFKC")),
     ]);
     return timingSafeEqual(encode(given), encode(expected));
+  }
+
+  /** Compares keyed hashes, so the time taken says nothing about how much of the address matched. */
+  private async checkEmail(email: string | undefined): Promise<boolean> {
+    const owner = this.ownerEmail();
+    if (!owner) return true;
+    const { sessionSecret } = this.requireConfigured();
+    const encode = (value: string) => new TextEncoder().encode(value);
+    const [given, expected] = await Promise.all([hmacSha256Hex(sessionSecret, normalizeEmail(email)), hmacSha256Hex(sessionSecret, owner)]);
+    return timingSafeEqual(encode(given), encode(expected));
+  }
+
+  /** A password changed in the app before the pepper existed gets a peppered hash at the next sign-in. */
+  private async upgradeHash(password: string): Promise<void> {
+    const pepper = this.pepper();
+    const override = this.settings.getJson<string>(OVERRIDE_KEY);
+    if (!pepper || !override || isPepperedHash(override)) return;
+    this.settings.setJson(OVERRIDE_KEY, await hashPassword(password, { pepper }));
+  }
+
+  /** Signing in from a network with no sign-in in 30 days tells the owner (not on the very first one). */
+  private alertNewNetwork(trusted: boolean): void {
+    if (trusted) return;
+    const known = this.db.one(`SELECT 1 AS x FROM tal_login_attempts WHERE success = 1 LIMIT 1`);
+    if (!known) return;
+    this.alert(
+      "New sign-in",
+      "Someone signed in to Talorys from a network not used in the last 30 days. If it wasn't you, change your password and sign out the other sessions in Settings → Security.",
+    );
+  }
+
+  /** What a new password must not lean on: the owner's e-mail address and the agent's name. */
+  private personalWords(): string[] {
+    return [this.secrets.ownerEmail ?? "", this.settings.get().agentName].filter(Boolean);
+  }
+
+  /** Problem with a new password under the current rules, or null. */
+  passwordProblem(password: string): string | null {
+    return checkPasswordStrength(password, this.personalWords());
+  }
+
+  /**
+   * A password from before the current rules still signs in, but nothing else works until it is
+   * changed (PASSWORD_CHANGE_REQUIRED): a weak password is never kept in use.
+   */
+  private notePasswordStrength(password: string): void {
+    if (this.passwordProblem(password) === null) this.settings.delete(WEAK_PASSWORD_KEY);
+    else this.settings.setJson(WEAK_PASSWORD_KEY, true);
+  }
+
+  /** True while the password in use fails the current rules; only a password change is allowed then. */
+  passwordChangeRequired(): boolean {
+    return this.settings.getJson<boolean>(WEAK_PASSWORD_KEY) === true;
   }
 
   // ---------- Rate limiting ----------
@@ -177,11 +264,11 @@ export class AuthService {
   }
 
   /**
-   * Throws RATE_LIMITED when the client has too many recent failures (5 in 15 minutes).
+   * Throws RATE_LIMITED when the client has too many recent failures (3 in 15 minutes).
    *
    * A distributed attack (25 failures in 15 minutes across all networks) does not lock anyone
    * out (AUTH-02): the owner's recent networks keep their normal allowance, and any other
-   * network gets a single attempt per window instead of five. Someone guessing from many
+   * network gets a single attempt per window instead of three. Someone guessing from many
    * addresses is slowed to one guess per address, and the owner on a new network can still
    * type the right password once. The owner is told when this starts. Past
    * MAX_FAILURES_GLOBAL_HARD, unknown networks get no attempt until the window clears, which caps
@@ -244,13 +331,21 @@ export class AuthService {
 
   // ---------- Login / sessions ----------
 
-  async login(password: string, client: string, userAgent: string): Promise<{ token: string; expiresAt: Date }> {
+  /**
+   * With OWNER_EMAIL set, the address must match too. Both are always checked (the PBKDF2 runs
+   * even for a wrong address) and a failure never says which one was wrong.
+   */
+  async login(password: string, client: string, userAgent: string, email?: string): Promise<{ token: string; expiresAt: Date }> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
-    const ok = await this.checkPassword(password);
-    if (!ok) throw new AppError("UNAUTHORIZED", "Incorrect password.");
+    const trusted = this.isTrustedClient(client);
+    const [passwordOk, emailOk] = await Promise.all([this.checkPassword(password), this.checkEmail(email)]);
+    if (!passwordOk || !emailOk) throw new AppError("UNAUTHORIZED", this.emailRequired() ? "Incorrect email or password." : "Incorrect password.");
+    this.alertNewNetwork(trusted);
     this.markAttemptSucceeded(attempt);
+    await this.upgradeHash(password);
+    this.notePasswordStrength(password);
     return this.createSession(userAgent);
   }
 
@@ -389,13 +484,26 @@ export class AuthService {
       throw new AppError("UNAUTHORIZED", "Current password is incorrect.");
     }
     this.markAttemptSucceeded(attempt);
-    const problem = checkPasswordStrength(next);
+    const problem = this.passwordProblem(next);
     if (problem) throw new ValidationError(problem);
-    const hash = await hashPassword(next);
+    if (next.normalize("NFKC") === current.normalize("NFKC")) throw new ValidationError("Choose a password different from the current one.");
+    if (this.checks.breached) {
+      // Unknown is refused too: a password is never accepted without the breach check.
+      const breached = await this.checks.breached(next);
+      if (breached === true) throw new ValidationError("This password appeared in a known data breach. Choose another one.");
+      if (breached === null) throw new AppError("SERVICE_UNAVAILABLE", "Couldn't check the password against known breaches right now. Try again in a minute.");
+    }
+    const hash = await hashPassword(next, { pepper: this.pepper() });
     this.db.transaction(() => {
       this.settings.setJson(OVERRIDE_KEY, hash);
+      this.settings.delete(WEAK_PASSWORD_KEY);
       this.db.run(`DELETE FROM tal_sessions`);
       this.db.run(`DELETE FROM tal_remote_tokens`);
     });
   }
+}
+
+/** E-mail addresses compare case-insensitively, without surrounding spaces. */
+function normalizeEmail(email: string | undefined | null): string {
+  return (email ?? "").trim().toLowerCase().normalize("NFKC");
 }

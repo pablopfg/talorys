@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_SESSION_TIMEOUTS } from "@talorys/shared";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { inAgent, loggedIn, type Client } from "./helpers";
 
 const MIN = 60_000;
@@ -21,7 +22,22 @@ async function only(): Promise<Client> {
   return loggedIn();
 }
 
-afterEach(() => inAgent((a) => a.services.settings.update({ session: { idleMinutes: 15, presenceMinutes: 5, maxHours: 12 } })));
+// These tests pin their own timeouts; the defaults have a test of their own below.
+const PINNED = { idleMinutes: 15, presenceMinutes: 5, maxHours: 12 };
+beforeEach(() => inAgent((a) => a.services.settings.update({ session: PINNED })));
+afterEach(() => inAgent((a) => a.services.settings.update({ session: { ...DEFAULT_SESSION_TIMEOUTS } })));
+
+describe("default timeouts", () => {
+  it("are 30 minutes without use, 5 minutes with no open tab and 6 hours in total", async () => {
+    await inAgent((a) => a.services.settings.update({ session: { ...DEFAULT_SESSION_TIMEOUTS } }));
+    expect(DEFAULT_SESSION_TIMEOUTS).toEqual({ idleMinutes: 30, presenceMinutes: 5, maxHours: 6 });
+    const c = await only();
+    await setSession({ last_seen_at: ago(29 * MIN), last_presence_at: ago(MIN) });
+    expect((await c.call("/api/tasks")).status).toBe(200);
+    await setSession({ last_seen_at: ago(31 * MIN), last_presence_at: ago(MIN) });
+    expect((await c.call("/api/tasks")).status).toBe(401);
+  });
+});
 
 describe("the three session deadlines (D9)", () => {
   it("ends a session nobody used for 15 minutes, even with a tab still polling", async () => {

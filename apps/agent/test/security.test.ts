@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentStub, BASE, client, freshIp, inAgent, loggedIn, password } from "./helpers";
+import { MAX_FAILURES_PER_CLIENT } from "../src/auth/auth-service";
 
 const PRIVATE_ROUTES: [string, string][] = [
   ["GET", "/api/conversations"],
@@ -99,7 +100,7 @@ describe("brute-force protection", () => {
   it("locks a client out after repeated failures, even for the right password", async () => {
     const ip = freshIp();
     const c = client({ ip });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < MAX_FAILURES_PER_CLIENT; i++) {
       expect((await c.call("/api/auth/login", { method: "POST", body: { password: `wrong-${i}` } })).status).toBe(401);
     }
     const blocked = await c.call("/api/auth/login", { method: "POST", body: { password: password() } });
@@ -115,8 +116,8 @@ describe("brute-force protection", () => {
       Array.from({ length: 12 }, (_, i) => c.call("/api/auth/login", { method: "POST", body: { password: `wrong-${i}` } })),
     );
     const statuses = results.map((r) => r.status);
-    expect(statuses.filter((s) => s === 401)).toHaveLength(5);
-    expect(statuses.filter((s) => s === 429)).toHaveLength(7);
+    expect(statuses.filter((s) => s === 401)).toHaveLength(MAX_FAILURES_PER_CLIENT);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(12 - MAX_FAILURES_PER_CLIENT);
     expect((await c.call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
   });
 
