@@ -1,7 +1,8 @@
 # create-talorys
 
-Deploy [Talorys](https://github.com/rociiu/talorys) — a private, single-user AI
-agent — into **your own Cloudflare account** with one command:
+Deploy **Axis** ("intelligent, integrated and autonomous"), a private,
+single-user AI agent based on [Talorys](https://github.com/rociiu/talorys),
+into **your own Cloudflare account** with one command:
 
 ```bash
 npx create-talorys@latest
