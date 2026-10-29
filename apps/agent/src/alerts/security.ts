@@ -55,6 +55,10 @@ export const SECURITY_EVENTS = {
     title: "Passkey removed",
     body: "A passkey was removed from your sign-in. If it wasn't you, change your password now and check Settings → Security.",
   },
+  calendar_connected: {
+    title: "Google Calendar connected",
+    body: "A Google account's calendars were connected to Talorys. If it wasn't you, disconnect it in Settings → Integrations, remove Talorys from your Google account's third-party access and change your password.",
+  },
   mcp_added: {
     title: "MCP server added",
     body: "A new MCP server was added: the agent can now use its tools. If it wasn't you, remove it in Settings → Integrations and change your password.",

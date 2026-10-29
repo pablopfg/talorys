@@ -125,8 +125,8 @@ function planTools(text: string): PlannedCall[] {
       },
     ];
   }
-  if ((m = text.match(/^call (mcp_\w+)(?:\s+(\{.*\}))?$/is))) {
-    // Exercises a remote MCP tool end to end: "call mcp_docs_search {"query":"x"}".
+  if ((m = text.match(/^call (mcp_\w+|\w+_calendar_\w+)(?:\s+(\{.*\}))?$/is))) {
+    // Exercises a remote MCP or calendar tool end to end: "call mcp_docs_search {"query":"x"}".
     let input: unknown = {};
     try {
       input = m[2] ? JSON.parse(m[2]) : {};

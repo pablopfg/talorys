@@ -17,6 +17,7 @@ const NotesPage = lazy(() => import("./pages/NotesPage"));
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const McpOAuthCallback = lazy(() => import("./components/McpServersCard").then((m) => ({ default: m.McpOAuthCallback })));
+const GoogleCalendarCallback = lazy(() => import("./components/GoogleCalendarCard").then((m) => ({ default: m.GoogleCalendarCallback })));
 
 function FullScreen({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-full flex-col items-center justify-center gap-6 p-6">{children}</div>;
@@ -89,6 +90,7 @@ export function App() {
           <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
           <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
           <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
+          <Route path="settings/google-calendar" element={<Lazy><GoogleCalendarCallback /></Lazy>} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>
       </Routes>

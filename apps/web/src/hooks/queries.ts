@@ -5,6 +5,7 @@ import type {
   AutomationRun,
   Conversation,
   ChatMessage,
+  GoogleCalendarStatus,
   McpServerInfo,
   McpToolInfo,
   MfaStatus,
@@ -49,6 +50,7 @@ export const keys = {
   remoteTokens: ["remote", "tokens"] as const,
   mcpServers: ["mcp", "servers"] as const,
   mcpTools: (id: string) => ["mcp", "tools", id] as const,
+  googleCalendar: ["calendar", "google"] as const,
 };
 
 export function useSettings() {
@@ -240,6 +242,10 @@ export interface McpOverview {
 
 export function useMcpServers() {
   return useQuery({ queryKey: keys.mcpServers, queryFn: () => api<McpOverview>("/mcp/servers") });
+}
+
+export function useGoogleCalendar() {
+  return useQuery({ queryKey: keys.googleCalendar, queryFn: () => api<GoogleCalendarStatus>("/calendar/google") });
 }
 
 export function useMcpTools(serverId: string | null) {
