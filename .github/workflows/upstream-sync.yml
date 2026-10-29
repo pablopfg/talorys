@@ -37,6 +37,10 @@ jobs:
       # Only git reads the original's code here: nothing from it is installed or run.
       - name: Compare with the original
         id: compare
+        env:
+          # A .gitattributes from the original can't make the merge download LFS objects.
+          GIT_LFS_SKIP_SMUDGE: "1"
+          LC_ALL: C.UTF-8
         run: |
           set -euo pipefail
           git fetch --no-tags --quiet "$UPSTREAM_URL" main:refs/remotes/upstream/main
@@ -46,13 +50,14 @@ jobs:
 
           # Text written by others goes inside code blocks, with backticks and @ neutralized,
           # so it can't break out, mention anyone or turn into links.
-          clean() { sed -e 's/`/ʼ/g' -e 's/@/＠/g' | cut -c1-160; }
+          clean() { sed -e 's/`/ʼ/g' -e 's/@/＠/g' | awk '{ print substr($0, 1, 160) }'; }
           git config user.name "upstream-sync"
           git config user.email "upstream-sync@users.noreply.github.com"
           if git merge --no-commit --no-ff --quiet upstream/main >/dev/null 2>&1; then
             conflicts=""
           else
             conflicts=$(git diff --name-only --diff-filter=U | awk 'NR <= 100' | clean)
+            [ -n "$conflicts" ] || conflicts="(a mesclagem falhou sem arquivos em conflito; veja o log da execução)"
           fi
           git merge --abort >/dev/null 2>&1 || true
 
@@ -93,6 +98,7 @@ jobs:
       - name: Open, update or close the issue
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           BEHIND: ${{ steps.compare.outputs.behind }}
         run: |
           set -euo pipefail
