@@ -63,6 +63,18 @@ const RATES: Readonly<Record<string, readonly [number, number, number?]>> = {
   "@cf/cloudflare/clef-flash": [3455, 0],
 };
 
+// Neurons per audio minute for speech-to-text models, from the same pricing page.
+const AUDIO_RATES: Readonly<Record<string, number>> = {
+  "@cf/openai/whisper-large-v3-turbo": 46.63,
+};
+
+/** Neurons and list cost of `seconds` of audio, or null for a model without a published rate. */
+export function estimateAudioConsumption(model: string, seconds: number): { neurons: number; costUsd: number } | null {
+  if (!Object.hasOwn(AUDIO_RATES, model)) return null;
+  const neurons = (seconds / 60) * AUDIO_RATES[model]!;
+  return { neurons, costUsd: neurons * WORKERS_AI_PRICING.usd_per_1000_neurons / 1000 };
+}
+
 export function estimateConsumption(usage: Usage): { neurons: number; costUsd: number } | null {
   if (!usage.billable || !Object.hasOwn(RATES, usage.model)) return null;
   const [inputRate, outputRate, cachedRate] = RATES[usage.model]!;

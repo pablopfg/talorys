@@ -75,6 +75,11 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   return (await res.json()) as T;
 }
 
+/** Turns one recorded clip into text for the composer. The audio is not stored. */
+export function transcribe(audio: string, context: string | undefined, signal?: AbortSignal): Promise<{ text: string; seconds: number }> {
+  return api("/transcribe", { method: "POST", body: { audio, ...(context ? { context: context.slice(-1000) } : {}) }, signal });
+}
+
 /**
  * POSTs a chat message and consumes the Server-Sent Events response incrementally.
  */

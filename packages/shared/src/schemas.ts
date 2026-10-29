@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, TASK_PRIORITIES } from "./constants";
+import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
 
@@ -290,6 +290,13 @@ export const chatRequestSchema = z.object({
   retry: z.boolean().optional(),
 });
 
+export const transcribeRequestSchema = z.object({
+  /** A recorded clip (WebM/Opus, Ogg or MP4/AAC, as the browser records it) as base64, at most TRANSCRIPTION_LIMITS.maxClipBytes once decoded. */
+  audio: z.string().min(1).max(Math.ceil(TRANSCRIPTION_LIMITS.maxClipBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, "Audio must be base64."),
+  /** Text already dictated, so a clip that continues a sentence keeps its spelling and context. */
+  context: z.string().max(1000).optional(),
+});
+
 export const automationCreateSchema = z.object({
   name: shortText(200),
   kind: z.enum(AUTOMATION_KINDS),
@@ -463,6 +470,8 @@ export interface UsageCounters {
   scheduled_ai_runs: number;
   ai_errors: number;
   embedding_requests: number;
+  /** Seconds of chat voice input transcribed. */
+  transcription_seconds: number;
   /** Priced-call subtotal, before free allocation; null when nothing could be priced. */
   neurons_estimate: number | null;
   cost_usd_estimate: number | null;

@@ -416,6 +416,14 @@ export const MIGRATIONS: Migration[] = [
       `UPDATE tal_remote_tokens SET expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days') WHERE expires_at IS NULL`,
     ],
   },
+  {
+    version: 15,
+    name: "chat voice input",
+    statements: [
+      // Audio seconds transcribed per day, capped by TRANSCRIPTION_LIMITS.maxSecondsPerDay.
+      `ALTER TABLE tal_usage_daily ADD COLUMN transcription_seconds INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

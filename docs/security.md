@@ -69,7 +69,12 @@ for the owner. The agent instance name is fixed server-side.
   model output are not loaded; links open with `noopener noreferrer`.
 - `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
   `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS and a
-  restrictive `Permissions-Policy`.
+  restrictive `Permissions-Policy` (camera, geolocation and payment off; the
+  microphone only for the app's own origin, for chat voice input).
+- Voice input sends one recorded clip (at most 60 s and 2 MB) to `POST
+  /api/transcribe`, which needs the owner session and is not open to remote
+  access tokens. The audio goes only to Workers AI and is never stored;
+  transcription has its own daily cap of audio minutes.
 - API responses carry their own `Content-Security-Policy: default-src 'none';
   frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer
   opened directly can't load anything or be framed.
