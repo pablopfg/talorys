@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import { type Automation, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
+import { type Automation, isSentinelNothing, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
 import type { Env } from "../env";
 import { migrate } from "../db/migrations";
 import { createServices, type Services } from "../services/container";
@@ -248,12 +248,14 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         if (!s.usage.canRunScheduledAi(settings.limits)) return skipForBudget(s, a);
         let text: string;
         try {
-          text = await this.runner().runScheduledPrompt(a.message, undefined, a.name);
+          text = await this.runner().runScheduledPrompt(a.message, undefined, a.name, { sentinel: a.sentinel });
         } catch (error) {
           // The budget ran out while this run waited (another run or chat took the last request).
           if (error instanceof AppError && error.code === "AI_LIMIT_REACHED") return skipForBudget(s, a);
           throw error;
         }
+        // A sentinel with nothing to say stays quiet: the run history is the only trace.
+        if (a.sentinel && isSentinelNothing(text)) return { status: "success", result: "Nothing needed your attention" };
         // The reply is model-written: links in it stay visible but can't be clicked.
         s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine", priority: a.priority, profileLabel: a.name });
         return { status: "success", result: text };

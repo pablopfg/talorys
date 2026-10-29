@@ -10,6 +10,9 @@ import { ValidationError } from "../api/errors";
  * after it fires we compute the following occurrence in the owner's timezone.
  * This keeps wall-clock rules correct across DST and timezone changes.
  */
+/** Only an AI routine can decide there is nothing to say. */
+const SENTINEL_ONLY_AI = "Only AI routines can stay quiet when there is nothing to report.";
+
 export interface Scheduler {
   schedule(at: Date, automationId: string): Promise<string>;
   cancel(scheduleId: string): Promise<void>;
@@ -48,8 +51,9 @@ export class AutomationService {
     return this.repo.get(id);
   }
 
-  async create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority }): Promise<Automation> {
+  async create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority; sentinel?: boolean }): Promise<Automation> {
     const schedule = scheduleSpecSchema.parse(input.schedule);
+    if (input.sentinel && input.kind !== "agent_prompt") throw new ValidationError(SENTINEL_ONLY_AI);
     if ((input.kind === "reminder" || input.kind === "agent_prompt") && !input.message.trim()) {
       throw new ValidationError(input.kind === "reminder" ? "A reminder needs a message." : "An AI automation needs a prompt.");
     }
@@ -63,9 +67,10 @@ export class AutomationService {
 
   async update(
     id: string,
-    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean; priority?: AutomationPriority },
+    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean; priority?: AutomationPriority; sentinel?: boolean },
   ): Promise<Automation> {
     const existing = this.repo.require(id);
+    if (patch.sentinel && existing.kind !== "agent_prompt") throw new ValidationError(SENTINEL_ONLY_AI);
     if (patch.message !== undefined && (existing.kind === "reminder" || existing.kind === "agent_prompt") && !patch.message.trim()) {
       throw new ValidationError(existing.kind === "reminder" ? "A reminder needs a message." : "An AI automation needs a prompt.");
     }
@@ -83,6 +88,7 @@ export class AutomationService {
       schedule: patch.schedule ? scheduleSpecSchema.parse(patch.schedule) : undefined,
       enabled: patch.enabled,
       priority: patch.priority,
+      sentinel: patch.sentinel,
     });
     if (timingChanged) {
       await this.disarm(next);

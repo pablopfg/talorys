@@ -557,6 +557,47 @@ desligado. Os logs do Worker mostram só o código do erro, nunca os endereços.
 Para desligar, apague a variável `TALORYS_ALERT_EMAIL_FROM` (ou o bloco `send_email`) e
 faça o deploy; o segredo `ALERT_EMAIL_TO` pode ser apagado com `wrangler secret delete`.
 
+## Sentinelas com IA
+
+Uma **sentinela** é uma rotina de IA que só fala quando há algo a fazer. Em vez de mandar
+"tudo certo" todo dia, ela olha suas tarefas, lembretes e notas e só cria um aviso quando
+algo precisa de você; quando não há nada, a execução termina em silêncio (aparece no
+histórico da rotina como "Nada precisava da sua atenção", não nos avisos).
+
+### Como criar
+
+1. Abra **Automações → Nova** e escolha **Rotina de IA**.
+2. Em **Começar de:**, toque num modelo (ou escreva o seu pedido):
+
+   | Modelo | Quando | O que faz |
+   | --- | --- | --- |
+   | Checagem da manhã | Todo dia às 07:00 | Diz só o que precisa de você hoje: o que vence ou está atrasado, o que está travado e o que preparar |
+   | Revisão da semana | Sextas às 17:00 | Aponta tarefas sem andamento, atrasadas e o que vence na semana seguinte e precisa de preparo agora |
+
+3. Confira o interruptor **Só me avisar quando algo precisar de mim** (o modelo já liga) e
+   ajuste nome, pedido, horário e prioridade como quiser. Toque em **Criar**.
+
+Também dá para pedir no chat ("todo dia de manhã, olhe minhas tarefas e só me avise se algo
+precisar de mim"): o agente propõe a rotina já como sentinela e você aprova no app, como toda
+rotina de IA.
+
+### Como funciona
+
+- Na execução, a IA recebe a regra: se nada precisa de você, responder exatamente `NOTHING`
+  e não chamar `notify_owner`. A resposta é comparada sem maiúsculas, espaços, pontuação ou
+  Markdown (`Nothing.` e `**NADA**` também contam); resposta vazia também é silêncio.
+- Qualquer outra resposta vira um aviso na categoria **Rotinas**, com a prioridade da rotina,
+  passando pela central como os outros (rotas, limites, insistência). Links ficam não
+  clicáveis, como em toda resposta da IA.
+- Cada execução gasta pedidos de IA do orçamento diário de rotinas
+  (**Configurações → IA**), com ou sem aviso; ao atingir o limite, a rotina é pulada com o
+  aviso de sempre. Uma ou duas sentinelas por dia cabem com folga no plano gratuito.
+- O interruptor só existe em rotinas de IA (lembretes e resumos de tarefas sempre avisam) e
+  pode ser ligado ou desligado depois, em **Editar**. Backups guardam o interruptor; uma
+  rotina importada chega pausada, como sempre.
+- Rotinas de IA criadas antes desta versão continuam avisando sempre (o interruptor começa
+  desligado).
+
 ## Eventos do n8n e de outras automações
 
 Um fluxo do n8n (ou qualquer script ou monitor) pode mandar um aviso para o Talorys: o
@@ -704,7 +745,8 @@ ganham o resumo às 07:30 e os vigias ligados. A migração 21 acrescenta às no
 (`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
 as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
 100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
-avisos. Não há variável nova. A migração 23 passa os tokens para uma tabela
+avisos. Não há variável nova. A migração 24 acrescenta `sentinel` a `tal_automations` (desligado nas rotinas que já
+existem). A migração 23 passa os tokens para uma tabela
 `tal_remote_tokens` nova, que aceita o escopo `events`, mantendo todos eles; a antiga fica
 vazia como `tal_remote_tokens_v8` (as migrações nunca apagam tabelas). A migração 22 acrescenta `last_seen_at` a
 `tal_push_subscriptions`, com a hora da migração nos aparelhos que já existem. Os alertas de segurança novos e o canal de e-mail não pedem
