@@ -29,7 +29,7 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 | Baixa | Não, fica só no app | — | (reservada para vigias e resumos futuros) |
 | Normal | Sim, nos canais da categoria | Sim | Lembretes, resumos, rotinas, avisos de sistema |
 | Alta | Sim | Sim | (lembretes insistentes, numa próxima entrega) |
-| Crítica | Sim, sempre | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
+| Crítica | Sim, **por todos os canais**, mesmo com a categoria desligada | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
 
 Você pode **mudar a prioridade de qualquer notificação** na própria central (o seletor
 embaixo de cada aviso). Essas correções são a base do aprendizado de prioridade, que
@@ -49,6 +49,10 @@ chega numa próxima entrega.
 
 Os padrões: todas as categorias ligadas no Push.
 
+A categoria **Segurança** não pode ser desligada: alertas de segurança e qualquer aviso
+crítico sempre saem por todos os canais disponíveis, ignorando os interruptores. Assim,
+alguém que entre na sua sessão não consegue calar os avisos sobre o que fizer em seguida.
+
 ## Regras anti-spam
 
 1. **Repetições descartadas.** Um aviso pode ter uma chave (por exemplo
@@ -58,7 +62,9 @@ Os padrões: todas as categorias ligadas no Push.
 2. **Limite por canal.** Cada canal manda no máximo **6 mensagens por hora e 30 por dia**
    (janelas móveis), ajustável de 1 a 60 por hora e de 1 a 500 por dia. Acima do limite o
    aviso fica só no app e aparece em "Entregas recentes" como *limite do canal atingido*.
-   Avisos críticos não contam e sempre saem.
+   **Lembretes**, alertas de **segurança** e avisos **críticos** não contam no limite e
+   sempre saem: você agendou o lembrete para aquele momento, e uma rotina movimentada não
+   pode tirar o lugar dele.
 3. **Prioridade baixa fica no app.** Aparece no histórico como *prioridade baixa fica só
    no app*.
 4. **Sem horário silencioso.** Por decisão do dono, tudo sai na hora; o volume é
@@ -68,7 +74,7 @@ Os padrões: todas as categorias ligadas no Push.
 
 | Situação | Motivo | Significado |
 | --- | --- | --- |
-| Enviando | — | O envio ainda está em andamento em segundo plano |
+| Enviando | — | O envio ainda está em andamento em segundo plano. Se não houver resposta em 5 minutos (por exemplo, o Worker reiniciou no meio), passa para *Falhou* e deixa de contar no limite |
 | Enviado | — | Pelo menos um aparelho recebeu |
 | Falhou | nenhum aparelho foi alcançado | Todos os envios falharam (aparelhos fora do ar ou inscrições expiradas) |
 | Não enviado | prioridade baixa fica só no app | Aviso de prioridade baixa |

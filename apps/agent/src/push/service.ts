@@ -94,7 +94,10 @@ export class PushService {
    * and `onDone` gets the outcome counts (all zero when the send itself threw).
    */
   notify(n: Pick<Notification, "id" | "title" | "body">, onDone?: (counts: Record<SendOutcome, number>) => void): void {
-    if (!this.configured() || this.subscriptions.all().length === 0) return;
+    if (!this.configured() || this.subscriptions.all().length === 0) {
+      onDone?.({ sent: 0, gone: 0, failed: 0 });
+      return;
+    }
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
     const work: Promise<void> = this.sendToAll(toPushMessage(localized))

@@ -1,7 +1,7 @@
 import { DEFAULT_ALERT_PREFERENCES, type Notification } from "@talorys/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { TalorysAgent } from "../src/agent/talorys-agent";
-import { AlertDeliveryRepository, DELIVERY_RETENTION_DAYS } from "../src/alerts/repository";
+import { AlertDeliveryRepository, DELIVERY_RETENTION_DAYS, PENDING_TIMEOUT_MS } from "../src/alerts/repository";
 import { type AlertChannelAdapter, AlertService } from "../src/alerts/service";
 import { b64url } from "../src/push/encoding";
 import { isRemoteAllowed } from "../src/remote/allowlist";
@@ -115,13 +115,13 @@ describe("alert center", () => {
       const fake = fakeChannel();
       const { alerts, deliveries } = service(agent, fake.channel);
       alerts.updatePreferences({ ...DEFAULT_ALERT_PREFERENCES, limits: { perHour: 2, perDay: 30 } });
-      for (let i = 0; i < 3; i++) alerts.raise({ title: `n${i}`, body: "b", category: "reminder" });
+      for (let i = 0; i < 3; i++) alerts.raise({ title: `n${i}`, body: "b", category: "routine" });
       alerts.raise({ title: "New sign-in", body: "b", category: "security", priority: "critical" });
       expect(fake.sent.map((n) => n.title)).toEqual(["n0", "n1", "New sign-in"]);
       expect(deliveries.list().find((d) => d.title === "n2")).toMatchObject({ status: "skipped", reason: "rate_limited" });
       // A critical send doesn't use up the room of the others: after an hour they flow again.
       agent.services.db.run(`UPDATE tal_alert_deliveries SET created_at = ?`, new Date(Date.now() - 3601_000).toISOString());
-      alerts.raise({ title: "n3", body: "b", category: "reminder" });
+      alerts.raise({ title: "n3", body: "b", category: "routine" });
       expect(fake.sent.at(-1)!.title).toBe("n3");
     });
   });
@@ -131,13 +131,56 @@ describe("alert center", () => {
       const fake = fakeChannel();
       const { alerts, deliveries } = service(agent, fake.channel);
       alerts.updatePreferences({ ...DEFAULT_ALERT_PREFERENCES, limits: { perHour: 60, perDay: 2 } });
-      alerts.raise({ title: "a", body: "b", category: "reminder" });
-      alerts.raise({ title: "b", body: "b", category: "reminder" });
+      alerts.raise({ title: "a", body: "b", category: "routine" });
+      alerts.raise({ title: "b", body: "b", category: "routine" });
       // Older than an hour but within the day: still counts for the daily cap.
       agent.services.db.run(`UPDATE tal_alert_deliveries SET created_at = ?`, new Date(Date.now() - 2 * 3600_000).toISOString());
-      alerts.raise({ title: "c", body: "b", category: "reminder" });
+      alerts.raise({ title: "c", body: "b", category: "routine" });
       expect(fake.sent.map((n) => n.title)).toEqual(["a", "b"]);
       expect(deliveries.list()[0]).toMatchObject({ title: "c", reason: "rate_limited" });
+    });
+  });
+
+  it("never holds back reminders, and doesn't count them against the limit", async () => {
+    await inAgent((agent) => {
+      const fake = fakeChannel();
+      const { alerts } = service(agent, fake.channel);
+      alerts.updatePreferences({ ...DEFAULT_ALERT_PREFERENCES, limits: { perHour: 1, perDay: 1 } });
+      for (let i = 0; i < 3; i++) alerts.raise({ title: `r${i}`, body: "b", category: "reminder" });
+      alerts.raise({ title: "routine", body: "b", category: "routine" });
+      alerts.raise({ title: "routine 2", body: "b", category: "routine" });
+      expect(fake.sent.map((n) => n.title)).toEqual(["r0", "r1", "r2", "routine"]);
+    });
+  });
+
+  it("always sends security and critical alerts to every channel, whatever the routes say", async () => {
+    await inAgent((agent) => {
+      const fake = fakeChannel();
+      const { alerts } = service(agent, fake.channel);
+      alerts.updatePreferences({
+        ...DEFAULT_ALERT_PREFERENCES,
+        routes: { ...DEFAULT_ALERT_PREFERENCES.routes, security: [], system: [] },
+      });
+      alerts.raise({ title: "Two-step sign-in off", body: "b", category: "security", priority: "critical" });
+      alerts.raise({ title: "Security, normal", body: "b", category: "security" });
+      alerts.raise({ title: "System, critical", body: "b", category: "system", priority: "critical" });
+      alerts.raise({ title: "System, normal", body: "b", category: "system" });
+      expect(fake.sent.map((n) => n.title)).toEqual(["Two-step sign-in off", "Security, normal", "System, critical"]);
+    });
+  });
+
+  it("marks a send that never reported back as failed, and stops counting it", async () => {
+    await inAgent((agent) => {
+      const s = agent.services;
+      const deliveries = new AlertDeliveryRepository(s.db);
+      const silent: AlertChannelAdapter = { id: "push", unavailable: () => null, send: () => {} };
+      const alerts = new AlertService(s.notifications, deliveries, s.settings, { push: silent });
+      alerts.raise({ title: "lost", body: "b", category: "routine" });
+      expect(deliveries.list()[0]).toMatchObject({ status: "pending" });
+      expect(deliveries.sentSince("push", new Date(Date.now() - 3600_000).toISOString())).toBe(1);
+      s.db.run(`UPDATE tal_alert_deliveries SET created_at = ?`, new Date(Date.now() - PENDING_TIMEOUT_MS - 1000).toISOString());
+      expect(deliveries.list()[0]).toMatchObject({ status: "failed", reason: "unreachable" });
+      expect(deliveries.sentSince("push", new Date(Date.now() - 3600_000).toISOString())).toBe(0);
     });
   });
 

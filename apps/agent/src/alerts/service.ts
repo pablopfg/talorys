@@ -1,5 +1,6 @@
 import {
   ALERT_CATEGORIES,
+  ALERT_CHANNELS,
   type AlertCategory,
   type AlertChannel,
   type AlertDeliveryReason,
@@ -14,6 +15,19 @@ import type { NotificationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
 import { ValidationError } from "../api/errors";
 import type { AlertDeliveryRepository } from "./repository";
+
+/** Alerts no route setting can keep in the app. */
+export function isAlwaysSent(n: Pick<Notification, "category" | "priority">): boolean {
+  return n.category === "security" || n.priority === "critical";
+}
+
+/**
+ * Alerts the channel limits never hold back: the always-sent ones, and reminders, which the owner
+ * scheduled for a moment and which a busy routine must not crowd out.
+ */
+export function isUnlimited(n: Pick<Notification, "category" | "priority">): boolean {
+  return isAlwaysSent(n) || n.category === "reminder";
+}
 
 /** A way to reach the owner outside the app. Sending runs in the background and reports how many it reached. */
 export interface AlertChannelAdapter {
@@ -73,7 +87,10 @@ export class AlertService {
 
   private dispatch(n: Notification): void {
     const prefs = this.preferences();
-    for (const channel of prefs.routes[n.category]) {
+    // Security and critical alerts always reach every channel: someone in the owner's session must
+    // not be able to switch off the warnings about what they do next.
+    const channels = isAlwaysSent(n) ? ALERT_CHANNELS : prefs.routes[n.category];
+    for (const channel of channels) {
       // A broken channel must never stop the others or the work that raised the alert.
       try {
         this.deliver(n, this.channels[channel], prefs);
@@ -94,7 +111,7 @@ export class AlertService {
       this.deliveries.record(n, channel.id, "skipped", unavailable);
       return;
     }
-    if (n.priority !== "critical" && this.overLimit(channel.id, prefs)) {
+    if (!isUnlimited(n) && this.overLimit(channel.id, prefs)) {
       this.deliveries.record(n, channel.id, "skipped", "rate_limited");
       return;
     }

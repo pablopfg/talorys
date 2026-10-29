@@ -859,10 +859,11 @@ export const ptBR = {
 
   "settings.tabAlerts": "Avisos",
   "alerts.routesTitle": "Para onde vão os avisos",
-  "alerts.routesHint": "Todo aviso sempre aparece no app. Escolha quais tipos também chegam a você fora dele. Avisos de prioridade baixa ficam só no app; os críticos nunca são segurados.",
+  "alerts.routesHint": "Todo aviso sempre aparece no app. Escolha quais tipos também chegam a você fora dele. Avisos de prioridade baixa ficam só no app; os de segurança e os críticos sempre saem por todos os canais e, como os lembretes, nunca são segurados pelos limites.",
+  "alerts.securityAlways": "Logins de aparelhos novos, mudanças na verificação em duas etapas, ataques. Sempre enviados por todos os canais; não dá para desligar.",
   "alerts.routeAria": "Enviar avisos de {category} por {channel}",
   "alerts.limitsTitle": "Limites por canal",
-  "alerts.limitsHint": "Máximo de mensagens que cada canal envia por hora e por dia (janelas móveis). Acima do limite, os avisos ficam só no app. Avisos críticos não contam e sempre saem.",
+  "alerts.limitsHint": "Máximo de mensagens que cada canal envia por hora e por dia (janelas móveis). Acima do limite, os avisos ficam só no app. Lembretes, avisos de segurança e críticos não contam e sempre saem.",
   "alerts.perHour": "Por hora",
   "alerts.perDay": "Por dia",
   "alerts.saved": "Preferências de avisos salvas",

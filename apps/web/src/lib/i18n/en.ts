@@ -863,10 +863,11 @@ export const en = {
 
   "settings.tabAlerts": "Alerts",
   "alerts.routesTitle": "Where alerts go",
-  "alerts.routesHint": "Every alert always shows in the app. Choose which kinds also reach you outside it. Low-priority alerts stay in the app; critical ones are never held back.",
+  "alerts.routesHint": "Every alert always shows in the app. Choose which kinds also reach you outside it. Low-priority alerts stay in the app; security and critical alerts always go to every channel and, like reminders, are never held back by the limits.",
+  "alerts.securityAlways": "Sign-ins from new devices, two-step changes, attacks. Always sent to every channel; this can't be turned off.",
   "alerts.routeAria": "Send {category} alerts by {channel}",
   "alerts.limitsTitle": "Limits per channel",
-  "alerts.limitsHint": "Most messages a channel sends per rolling hour and day. Over the limit, alerts stay in the app only. Critical alerts don't count and always go out.",
+  "alerts.limitsHint": "Most messages a channel sends per rolling hour and day. Over the limit, alerts stay in the app only. Reminders, security and critical alerts don't count and always go out.",
   "alerts.perHour": "Per hour",
   "alerts.perDay": "Per day",
   "alerts.saved": "Alert preferences saved",

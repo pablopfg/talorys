@@ -3,6 +3,8 @@ import { type Database, newId, now } from "../db/database";
 
 /** Delivery rows are kept this long, and never more than MAX_ROWS of them. */
 export const DELIVERY_RETENTION_DAYS = 90;
+/** A send still pending after this long never reported back (e.g. the Durable Object was evicted): it failed. */
+export const PENDING_TIMEOUT_MS = 5 * 60_000;
 const MAX_ROWS = 2000;
 
 /** One row per alert and channel: sent, held back or failed. Only metadata, never the body. */
@@ -42,21 +44,31 @@ export class AlertDeliveryRepository {
   }
 
   list(limit = 100): AlertDelivery[] {
+    this.closeStale();
     return this.db.all<AlertDelivery>(`SELECT * FROM tal_alert_deliveries ORDER BY created_at DESC, rowid DESC LIMIT ?`, limit);
   }
 
   /**
    * Messages a channel has sent, or is sending, since `since` (ISO time), for its limits.
-   * Critical alerts are not counted: they never wait, so they must not use up the others' room.
+   * Alerts the limits never hold back (security, critical, reminders) are not counted: they must
+   * not use up the others' room.
    */
   sentSince(channel: AlertChannel, since: string): number {
+    this.closeStale();
     return (
       this.db.one<{ n: number }>(
         `SELECT count(*) AS n FROM tal_alert_deliveries
-         WHERE channel = ? AND created_at >= ? AND status IN ('sent', 'pending') AND priority != 'critical'`,
+         WHERE channel = ? AND created_at >= ? AND status IN ('sent', 'pending')
+           AND priority != 'critical' AND category NOT IN ('security', 'reminder')`,
         channel, since,
       )?.n ?? 0
     );
+  }
+
+  /** Marks sends that never reported back as failed. */
+  closeStale(): void {
+    const cutoff = new Date(Date.now() - PENDING_TIMEOUT_MS).toISOString();
+    this.db.run(`UPDATE tal_alert_deliveries SET status = 'failed', reason = 'unreachable' WHERE status = 'pending' AND created_at < ?`, cutoff);
   }
 
   prune(): void {
