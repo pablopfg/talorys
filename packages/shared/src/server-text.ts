@@ -408,6 +408,20 @@ const PT_BR: Catalog = {
   "Schedule AI routine {title}": "Agendar a rotina de IA {title}",
   "Schedule quiet AI routine {title}": "Agendar a rotina de IA silenciosa {title}",
   "Run “{tool}” on {where}": "Executar “{tool}” em {where}",
+  "No passkey works on this address. Use the code from your authenticator app.": "Nenhuma passkey funciona neste endereço. Use o código do seu app autenticador.",
+  "Turn on two-step sign-in with an authenticator app first. Its recovery codes are the way back in if you lose your passkeys.":
+    "Ative primeiro a verificação em duas etapas com um app autenticador. Os códigos de recuperação dela são o caminho de volta se você perder suas passkeys.",
+  "You already have {max} passkeys. Remove one first.": "Você já tem {max} passkeys. Remova uma primeiro.",
+  "This passkey couldn't be checked, or the request expired. Try again.": "Não foi possível verificar esta passkey, ou o pedido expirou. Tente de novo.",
+  "This passkey wasn't accepted. Try again or use the code from your app.": "Esta passkey não foi aceita. Tente de novo ou use o código do app.",
+  "Passkey not found.": "Passkey não encontrada.",
+  "Passkey added": "Passkey adicionada",
+  "Passkey removed": "Passkey removida",
+  "A new passkey can now do the second sign-in step. If it wasn't you, remove it in Settings → Security and change your password.":
+    "Uma nova passkey agora pode fazer a segunda etapa do login. Se não foi você, remova-a em Configurações → Segurança e troque a senha.",
+  "A passkey was removed from your sign-in. If it wasn't you, change your password now and check Settings → Security.":
+    "Uma passkey foi removida do seu login. Se não foi você, troque a senha agora e confira Configurações → Segurança.",
+  "Invalid encoding.": "Codificação inválida.",
   "This MCP server isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).": "Este servidor MCP não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",
   "This server's sign-in address ({origin}) isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).":
     "O endereço de login deste servidor ({origin}) não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",

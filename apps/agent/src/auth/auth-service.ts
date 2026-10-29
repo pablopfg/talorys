@@ -20,7 +20,8 @@ import {
 import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
 import { AppError, ValidationError } from "../api/errors";
-import { type MfaFactor, MfaService } from "./mfa";
+import { type ChallengeRow, type MfaFactor, MfaService } from "./mfa";
+import { PasskeyService, type RelyingParty } from "./passkeys";
 import { type HumanCheck, TURNSTILE_RECOVERY_ACTION } from "./turnstile";
 
 /** A session's use and presence are written at most this often (writes on the Free plan are counted). */
@@ -110,6 +111,9 @@ export interface AuthSecrets {
   ownerEmail?: string;
 }
 
+/** Why a second step was refused, for the sign-in activity. */
+export type MfaFailure = "expired" | "wrong_code" | "too_many" | "rate_limited";
+
 /** A finished sign-in: the session to set as a cookie. */
 export interface SignedIn {
   token: string;
@@ -167,6 +171,8 @@ export interface HumanProof {
 export class AuthService {
   /** The second sign-in step (authenticator app, recovery codes). */
   readonly mfa: MfaService;
+  /** Passkeys, the other way to do the second step. */
+  readonly passkeys: PasskeyService;
 
   constructor(
     private readonly db: Database,
@@ -177,6 +183,7 @@ export class AuthService {
     private readonly checks: AuthChecks = {},
   ) {
     this.mfa = new MfaService(db, settings, () => this.requireConfigured().sessionSecret);
+    this.passkeys = new PasskeyService(db, settings, () => this.mfa.enabled());
   }
 
   private pepper(): string | undefined {
@@ -252,6 +259,8 @@ export class AuthService {
         // `reset-password` is also the way back in after losing the authenticator: it turns 2FA off.
         this.settings.delete("auth.mfa");
         this.settings.delete("auth.mfa_pending");
+        this.settings.delete("auth.passkey_pending");
+        this.db.run(`DELETE FROM tal_passkeys`);
         // A link asked for before the reset would otherwise still work, now without the second step.
         this.settings.delete(RECOVERY_KEY);
         this.db.run(`DELETE FROM tal_mfa_challenges`);
@@ -508,12 +517,48 @@ export class AuthService {
    * Five wrong codes end the challenge (the password is asked again); three wrong codes in a row,
    * across challenges, tell the owner.
    */
-  async completeMfa(
+  completeMfa(
     challengeToken: string | null,
     code: string,
     userAgent: string,
     client: string,
-    noteFailure: (reason: "expired" | "wrong_code" | "too_many" | "rate_limited") => void = () => {},
+    noteFailure: (reason: MfaFailure) => void = () => {},
+  ): Promise<SignedIn & { factor: MfaFactor }> {
+    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, "Incorrect code.", () => this.mfa.verify(code, { recovery: true }));
+  }
+
+  /** The second step with a passkey: its signed answer to the challenge sent for this sign-in. Wrong answers count like wrong codes. */
+  completePasskey(
+    challengeToken: string | null,
+    response: Parameters<PasskeyService["verify"]>[1],
+    rp: RelyingParty,
+    userAgent: string,
+    client: string,
+    noteFailure: (reason: MfaFailure) => void = () => {},
+  ): Promise<SignedIn & { factor: MfaFactor }> {
+    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, "This passkey wasn't accepted. Try again or use the code from your app.", async (row) => {
+      const ok = this.mfa.enabled() && (await this.passkeys.verify(row.id, response, rp));
+      // Wrong answers in a row count with wrong codes for the owner's alert; a right one ends the run.
+      this.mfa.noteResult(ok);
+      return ok ? "passkey" : null;
+    });
+  }
+
+  /** The live sign-in challenge for the cookie, for sending a passkey request. */
+  async passkeyChallenge(challengeToken: string | null): Promise<ChallengeRow> {
+    this.requireConfigured();
+    const row = await this.mfa.findChallenge(challengeToken);
+    if (row === null || row === "expired") throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
+    return row;
+  }
+
+  private async completeSecondStep(
+    challengeToken: string | null,
+    userAgent: string,
+    client: string,
+    noteFailure: (reason: MfaFailure) => void,
+    wrong: string,
+    check: (row: ChallengeRow) => Promise<MfaFactor | null>,
   ): Promise<SignedIn & { factor: MfaFactor }> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
@@ -533,14 +578,14 @@ export class AuthService {
       noteFailure("expired");
       throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
     }
-    const factor = await this.mfa.verify(code, { recovery: true });
+    const factor = await check(row);
     if (!factor) {
       this.noteWrongMfaCode();
       const left = Math.max(0, MFA_MAX_ATTEMPTS - attempts);
       if (left === 0) this.mfa.deleteChallenge(row.id);
       noteFailure(left === 0 ? "too_many" : "wrong_code");
       if (left === 0) throw new AppError("UNAUTHORIZED", "Too many wrong codes. Enter your password again.", { mfa: "expired" });
-      throw new AppError("UNAUTHORIZED", "Incorrect code.", { mfa: "retry", attempts_left: left });
+      throw new AppError("UNAUTHORIZED", wrong, { mfa: "retry", attempts_left: left });
     }
     this.mfa.deleteChallenge(row.id);
     if (row.login_attempt !== null) this.markAttemptSucceeded(row.login_attempt);

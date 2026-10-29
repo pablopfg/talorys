@@ -493,8 +493,12 @@ Em **Configurações → Segurança**:
 1. **Verificação em duas etapas → Ativar.** Leia o QR code com o app
    autenticador, digite o código e guarde os **10 códigos de recuperação** no
    gerenciador de senhas (eles aparecem uma vez só).
-2. Confira os tempos de sessão (padrão: 30 minutos sem uso, 6 horas no total).
-3. Veja a **Atividade de acesso**: o seu login deve ser a única linha.
+2. Opcional: **Passkeys → Adicionar passkey** em cada aparelho (celular,
+   computador ou chave de segurança). No login, depois da senha, **Usar uma
+   passkey** substitui o código. Faça isso já no seu domínio: a passkey só
+   funciona no endereço em que foi criada.
+3. Confira os tempos de sessão (padrão: 30 minutos sem uso, 6 horas no total).
+4. Veja a **Atividade de acesso**: o seu login deve ser a única linha.
 
 Em **Configurações → Privacidade**, baixe um primeiro **backup** e guarde num
 lugar seguro. Repita antes de cada atualização com migração de banco.

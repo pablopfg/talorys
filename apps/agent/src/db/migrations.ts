@@ -608,6 +608,26 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_automations ADD COLUMN sentinel INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    version: 25,
+    name: "passkeys",
+    statements: [
+      // A passkey's public key and signature counter; nothing here can sign in on its own.
+      `CREATE TABLE IF NOT EXISTS tal_passkeys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        public_key TEXT NOT NULL,
+        counter INTEGER NOT NULL DEFAULT 0,
+        transports TEXT NOT NULL DEFAULT '[]',
+        rp_id TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT
+      )`,
+      // The WebAuthn challenge sent for a sign-in waiting for its second step, used once.
+      `ALTER TABLE tal_mfa_challenges ADD COLUMN passkey_challenge TEXT`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

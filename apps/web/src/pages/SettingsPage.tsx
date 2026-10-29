@@ -24,8 +24,9 @@ import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
 import { AuthActivityCard } from "../components/AuthActivityCard";
 import { TwoFactorCard } from "../components/TwoFactorCard";
+import { PasskeysCard } from "../components/PasskeysCard";
 import { UsageBreakdown, UsagePricingNote } from "../components/UsageBreakdown";
-import { keys, useApiMutation, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
+import { keys, useApiMutation, useMfaStatus, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
 import { useSession } from "../hooks/session";
 import { useToast, errorMessage } from "../hooks/toast";
 import { api } from "../lib/api";
@@ -567,6 +568,7 @@ function SecurityTab({ settings }: { settings: Settings }) {
   const { t } = i18n;
   const { logout } = useSession();
   const sessions = useSessions();
+  const mfa = useMfaStatus();
   const revoke = useApiMutation((id: string) => api(`/auth/sessions/${id}`, { method: "DELETE" }), { invalidate: [keys.sessions], success: t("settings.sessionSignedOut") });
   const revokeOthers = useApiMutation(() => api("/auth/sessions/revoke-others", { method: "POST", body: {} }), {
     invalidate: [keys.sessions],
@@ -579,6 +581,7 @@ function SecurityTab({ settings }: { settings: Settings }) {
         <ChangePasswordForm agentName={settings.agentName} />
       </Section>
       <TwoFactorCard timezone={settings.timezone} />
+      {mfa.data?.enabled && <PasskeysCard timezone={settings.timezone} />}
       <SessionTimeoutsSection settings={settings} />
       <Section title={t("settings.activeSessions")}>
         {sessions.isLoading ? (
