@@ -1,5 +1,5 @@
 import { BellOff, Trash2 } from "lucide-react";
-import { ALERT_PRIORITIES, type AlertPriority } from "@talorys/shared";
+import { ALERT_PRIORITIES, type AlertPriority, ESCALATION } from "@talorys/shared";
 import { Badge, Button, Dialog, EmptyState, Spinner } from "./ui";
 import { Markdown } from "./Markdown";
 import { keys, useApiMutation, useNotifications } from "../hooks/queries";
@@ -18,6 +18,10 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
     invalidate: [keys.notifications],
   });
   const remove = useApiMutation((id: string) => api(`/notifications/${id}`, { method: "DELETE" }), { invalidate: [keys.notifications] });
+  const mute = useApiMutation((id: string) => api(`/notifications/${id}/action`, { method: "POST", body: { action: "mute" } }), {
+    invalidate: [keys.notifications],
+    success: t("notifications.muted"),
+  });
   const setPriority = useApiMutation(
     (v: { id: string; priority: AlertPriority }) => api(`/notifications/${v.id}`, { method: "PATCH", body: { priority: v.priority } }),
     { invalidate: [keys.notifications], success: t("alerts.priorityChanged") },
@@ -61,6 +65,28 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
                   {(n.priority === "high" || n.priority === "critical") && <Badge tone={PRIORITY_TONES[n.priority]}>{t(PRIORITY_LABELS[n.priority])}</Badge>}
                   <span>{t(CATEGORY_LABELS[n.category])}</span>
+                  {n.escalation === "active" && (
+                    <>
+                      <Badge tone="warning">{t("notifications.insisting", { attempt: n.attempts, max: ESCALATION.attempts })}</Badge>
+                      {n.category === "security" ? (
+                        <span>{t("notifications.confirmOnTelegram")}</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={mute.isPending && mute.variables === n.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            mute.mutate(n.id);
+                          }}
+                        >
+                          {t("notifications.mute")}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {n.escalation === "unacknowledged" && !n.read_at && <Badge tone="danger">{t("notifications.unacknowledged")}</Badge>}
+                  {n.escalation === "muted" && !n.read_at && <span>{t("notifications.mutedLabel")}</span>}
                   <select
                     className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-fg-muted"
                     value={n.priority}

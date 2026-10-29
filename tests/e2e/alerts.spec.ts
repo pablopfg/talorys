@@ -93,4 +93,24 @@ test.describe("Alerts", () => {
     await expect(item.locator("span").filter({ hasText: /^Critical$/ })).toBeVisible();
     await page.request.delete(`/api/automations/${automation.id}`, { headers: CSRF });
   });
+
+  test("schedules an insistent reminder with high priority", async ({ page }) => {
+    await login(page);
+    await page.getByRole("link", { name: "Automations" }).first().click();
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByLabel("Reminder message").fill("e2e insistent pill");
+    await expect(page.getByLabel("Alert priority")).toHaveValue("normal");
+    await page.getByLabel("Alert priority").selectOption("high");
+    await expect(page.getByText("Insists until you confirm")).toBeVisible();
+    await page.getByLabel("Repeat").selectOption("daily");
+    await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+    const row = page.getByRole("listitem").filter({ hasText: "e2e insistent pill" });
+    await expect(row.getByText("Insistent", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Edit e2e insistent pill/ }).click();
+    await expect(page.getByLabel("Alert priority")).toHaveValue("high");
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: /Delete e2e insistent pill/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByText("e2e insistent pill")).toHaveCount(0);
+  });
 });

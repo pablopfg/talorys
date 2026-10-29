@@ -7,7 +7,7 @@ export function pushChannel(push: PushService): AlertChannelAdapter {
   return {
     id: "push",
     unavailable: () => (!push.configured() ? "not_configured" : push.subscriptions.all().length === 0 ? "no_device" : null),
-    send: (n, done) => push.notify(n, (counts) => done(counts.sent)),
+    send: (n, done, attempt) => push.notify(n, (counts) => done(counts.sent), { attempt }),
   };
 }
 
@@ -19,6 +19,6 @@ export function telegramChannel(telegram: TelegramService, fullText: (n: Paramet
   return {
     id: "telegram",
     unavailable: () => (!telegram.configured() ? "not_configured" : telegram.target() === null ? "no_device" : null),
-    send: (n, done) => telegram.deliver(n, fullText(n), done),
+    send: (n, done, attempt) => telegram.deliver(n, fullText(n), done, attempt),
   };
 }

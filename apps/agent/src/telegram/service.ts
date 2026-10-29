@@ -2,22 +2,24 @@ import {
   type AlertCategory,
   type ChatStreamEvent,
   type AlertPriority,
+  ESCALATION,
+  isInsistent,
   type Language,
   localizeServerText,
   type Notification,
+  type NotificationAction,
+  type NotificationActionResult,
   sha256Hex,
   TELEGRAM_LINK_TTL_MS,
   type TelegramLinkCode,
   type TelegramStatus,
   timingSafeEqual,
 } from "@talorys/shared";
-import type { NotificationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
 import type { ActivityLog } from "../services/usage";
-import type { AutomationService } from "../agent/scheduling";
+import type { AlertAttempt } from "../alerts/service";
 import { AppError } from "../api/errors";
 import { clip } from "../services/text";
-import { toLocalMinute } from "../services/time";
 import { bytesToBase64, escapeHtml, TELEGRAM_WEBHOOK_PATH, TelegramClient, TelegramError, telegramWebhookSecret } from "./client";
 import { markdownToTelegramHtml, splitMessage } from "./format";
 
@@ -35,6 +37,12 @@ export interface TelegramChat {
   keepAliveWhile: <T>(work: () => Promise<T>) => Promise<T>;
   /** Transcribes a voice message within the app's voice-input limits (TalorysAgent.transcribeClip). */
   transcribe: (audio: string, opts: { seconds?: number; signal?: AbortSignal }) => Promise<{ text: string; seconds: number }>;
+}
+
+/** What the bot asks of the alert center: answering an alert's buttons, and confirming by a reply. */
+export interface TelegramAlerts {
+  respond(id: string, action: NotificationAction, opts: { outOfBand: true }): Promise<NotificationActionResult>;
+  acknowledgeAll(): boolean;
 }
 
 /** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
@@ -75,7 +83,6 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const START = /^\/start(?:@\w+)?\s+([A-Z2-9]{8})\s*$/;
 /** Longest alert body sent to Telegram (its limit is 4096 characters with markup). */
 const MAX_BODY = 3000;
-export const SNOOZE_MINUTES = 60;
 const SEEN_UPDATES = 100;
 /** Longest owner message passed to the agent, as in the app's chat. */
 const MAX_CHAT_MESSAGE = 16_000;
@@ -141,12 +148,10 @@ export class TelegramService {
     token: string | undefined,
     private readonly sessionSecret: string | undefined,
     private readonly settings: SettingsService,
-    private readonly notifications: NotificationRepository,
-    private readonly automations: AutomationService,
+    /** The alert center's answers to buttons and replies (AlertService). */
+    private readonly alerts: TelegramAlerts,
     private readonly activity: ActivityLog,
     private readonly background: (work: Promise<unknown>) => void,
-    /** Whether a category's full text may go to Telegram (the owner's preferences). */
-    private readonly fullText: (category: AlertCategory) => boolean = () => false,
   ) {
     this.client = token ? new TelegramClient(token) : null;
   }
@@ -285,8 +290,8 @@ export class TelegramService {
   }
 
   /** The alert channel's send: runs in the background and always reports how many chats it reached. */
-  deliver(n: Notification, fullText: boolean, done: (reached: number) => void): void {
-    this.track(this.send(n, fullText).then(done, () => done(0)));
+  deliver(n: Notification, fullText: boolean, done: (reached: number) => void, attempt?: AlertAttempt): void {
+    this.track(this.send(n, fullText, attempt).then(done, () => done(0)));
   }
 
   private track(work: Promise<unknown>): void {
@@ -367,6 +372,8 @@ export class TelegramService {
 
   /** The owner wrote in the private chat: a command, or a message for the agent. */
   private async onOwnerMessage(m: TgMessage, link: TelegramLink): Promise<void> {
+    // Any reply in the bot's chat shows the owner is there: alerts stop insisting.
+    this.alerts.acknowledgeAll();
     const text = (m.text ?? "").trim();
     const command = COMMAND.exec(text)?.[1]?.toLowerCase();
     if (command === "new") {
@@ -567,33 +574,25 @@ export class TelegramService {
       await answer(this.text("Only the owner can use these buttons."));
       return;
     }
-    const match = /^n:(done|snooze):([\w-]{1,64})$/.exec(q.data ?? "");
-    const n = match ? this.notifications.get(match[2]!) : null;
-    if (!match || !n) {
+    const match = /^n:(done|snooze|mute):([\w-]{1,64})$/.exec(q.data ?? "");
+    let result: NotificationActionResult | null = null;
+    if (match) {
+      try {
+        result = await this.alerts.respond(match[2]!, match[1] as NotificationAction, { outOfBand: true });
+      } catch (error) {
+        if (!(error instanceof AppError && error.code === "NOT_FOUND")) throw error;
+      }
+    }
+    if (!result) {
       await answer(this.text("This alert no longer exists."));
       return;
     }
     // A second press (two quick taps, or the button in another chat) does nothing twice.
-    if (n.read_at !== null) {
+    if (result === "already") {
       await answer(this.text("This alert was already handled."));
       return;
     }
-    this.notifications.markRead(n.id);
-    let reply: string;
-    if (match[1] === "snooze") {
-      // The reminder is sent as a reminder: it carries the text only if the alert's own category may.
-      const showText = n.category === "reminder" || this.fullText(n.category);
-      await this.automations.create({
-        name: clip(n.title, 120),
-        kind: "reminder",
-        message: showText ? n.body : "Snoozed alert. Its full text is in the notification center.",
-        schedule: { type: "once", at: toLocalMinute(new Date(Date.now() + SNOOZE_MINUTES * 60_000 + 59_000), this.settings.get().timezone) },
-        enabled: true,
-      });
-      reply = "Snoozed for 1 hour.";
-    } else {
-      reply = "Marked as done.";
-    }
+    const reply = result === "snoozed" ? "Snoozed for 1 hour." : result === "muted" ? "Muted. Talorys stops insisting on this alert." : "Marked as done.";
     await answer(this.text(reply));
     if (q.message) {
       await client.call("editMessageReplyMarkup", {
@@ -611,11 +610,12 @@ export class TelegramService {
   /** The buttons under an alert: Done and Snooze for loud alerts, and always a way to open the app. */
   private keyboard(n: Notification | null): { inline_keyboard: { text: string; callback_data?: string; url?: string }[][] } {
     const rows: { text: string; callback_data?: string; url?: string }[][] = [];
-    if (n && (n.priority === "high" || n.priority === "critical")) {
+    if (n && isInsistent(n.priority)) {
       rows.push([
         { text: this.text("Done"), callback_data: `n:done:${n.id}` },
         { text: this.text("Snooze 1 h"), callback_data: `n:snooze:${n.id}` },
       ]);
+      rows.push([{ text: this.text("Mute this alert"), callback_data: `n:mute:${n.id}` }]);
     }
     const url = this.link().appUrl;
     if (url) rows.push([{ text: this.text("Open Talorys"), url }]);
@@ -623,28 +623,31 @@ export class TelegramService {
   }
 
   /** The alert as Telegram HTML. Discreet categories show the title only. */
-  format(n: Notification, fullText: boolean): string {
+  format(n: Notification, fullText: boolean, attempt?: AlertAttempt): string {
     const title = escapeHtml(clip(this.text(n.title), 200));
     const body = fullText ? escapeHtml(clip(this.text(n.body), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
-    const footer = `${this.text(CATEGORY_TEXT[n.category])} · ${this.text(PRIORITY_TEXT[n.priority])}`;
-    return `${ICON[n.priority]} <b>${title}</b>\n${body}\n\n<i>${escapeHtml(footer)}</i>`;
+    const parts = [this.text(CATEGORY_TEXT[n.category]), this.text(PRIORITY_TEXT[n.priority])];
+    if (attempt) parts.push(this.text(`Try ${attempt.number} of ${ESCALATION.attempts}, not confirmed yet`));
+    return `${ICON[n.priority]} <b>${title}</b>\n${body}\n\n<i>${escapeHtml(parts.join(" · "))}</i>`;
   }
 
   /** Sends one alert. Resolves to the number of chats reached (0 or 1); never throws. */
-  async send(n: Notification, fullText: boolean): Promise<number> {
+  async send(n: Notification, fullText: boolean, attempt?: AlertAttempt): Promise<number> {
     const client = this.client;
-    const chatId = this.target();
+    // The last try of an insistent alert goes to the owner's private chat, where it is harder to miss.
+    const direct = !!attempt?.direct && this.link().chatId !== null;
+    const chatId = direct ? this.link().chatId : this.target();
     if (!client || chatId === null) return 0;
     const params: Record<string, unknown> = {
       chat_id: chatId,
-      text: this.format(n, fullText),
+      text: this.format(n, fullText, attempt),
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
       // Low and normal alerts arrive without a sound; high and critical ones ring.
       disable_notification: n.priority === "low" || n.priority === "normal",
       reply_markup: this.keyboard(n),
     };
-    const thread = await this.topic(n.category);
+    const thread = direct || chatId !== this.link().groupId ? null : await this.topic(n.category);
     try {
       await client.call("sendMessage", thread ? { ...params, message_thread_id: thread } : params);
       return 1;

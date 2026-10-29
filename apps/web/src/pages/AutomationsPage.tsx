@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { type Automation, type AutomationKind, type AutomationRun, type ScheduleSpec, describeSchedule, getZonedParts, scheduleSpecSchema, upcomingRuns } from "@talorys/shared";
+import { AUTOMATION_PRIORITIES, type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, describeSchedule, getZonedParts, scheduleSpecSchema, upcomingRuns } from "@talorys/shared";
 import { AlarmClock, Bell, Bot, CalendarClock, ChevronDown, History, ListChecks, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
 import { keys, useApiMutation, useAutomationRuns, useAutomations } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, formatDateTime, relativeTime } from "../lib/utils";
 import { type I18n, type PlainMessageKey, useI18n } from "../lib/i18n";
+import { PRIORITY_LABELS } from "../lib/alerts";
 
 const KIND_META: Record<AutomationKind, { label: PlainMessageKey; icon: typeof Bell; hint: PlainMessageKey }> = {
   reminder: { label: "automations.kindReminder", icon: Bell, hint: "automations.kindReminderHint" },
@@ -82,6 +83,7 @@ export default function AutomationsPage() {
             {a.status === "failed" && <Badge tone="danger">{t("automations.lastRunFailed")}</Badge>}
             {a.status === "completed" && <Badge>{t("automations.completed")}</Badge>}
             {a.status === "running" && <Badge tone="accent">{t("automations.running")}</Badge>}
+            {a.priority === "high" && <Badge tone="warning">{t("automations.insistent")}</Badge>}
           </div>
           <p className="mt-0.5 text-sm text-fg-muted">{describeSchedule(a.schedule, i18n.language)}</p>
           <p className="mt-0.5 text-xs text-fg-subtle">
@@ -381,6 +383,7 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const [kind, setKind] = useState<AutomationKind>(automation?.kind ?? "reminder");
   const [name, setName] = useState(automation?.name ?? "");
   const [message, setMessage] = useState(automation?.message ?? "");
+  const [priority, setPriority] = useState<AutomationPriority>(automation?.priority ?? "normal");
   const [type, setType] = useState<ScheduleSpec["type"]>(initial?.type ?? "once");
   const [at, setAt] = useState(initial?.type === "once" ? initial.at : tomorrowAt9(tz));
   const [time, setTime] = useState(initial && "time" in initial ? initial.time : "09:00");
@@ -418,10 +421,10 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const save = useApiMutation(
     () => {
       const finalName = name.trim() || message.trim().slice(0, 80) || t(KIND_META[kind].label);
-      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule } });
+      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule, priority } });
       // Saving a finished one-off with a new schedule brings it back to life.
       const revive = automation.status === "completed" ? { enabled: true } : {};
-      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, ...revive } });
+      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, priority, ...revive } });
     },
     {
       invalidate: [keys.automations],
@@ -491,6 +494,15 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
             />
           </div>
         )}
+        <div>
+          <Label htmlFor="auto-priority">{t("automations.priority")}</Label>
+          <Select id="auto-priority" value={priority} onChange={(e) => setPriority(e.target.value as AutomationPriority)}>
+            {AUTOMATION_PRIORITIES.map((p) => (
+              <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-fg-subtle">{t(priority === "high" ? "automations.priorityHighHint" : "automations.priorityHint")}</p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 sm:col-span-1">
             <Label htmlFor="auto-type">{t("automations.repeat")}</Label>

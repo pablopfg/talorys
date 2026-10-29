@@ -1,4 +1,10 @@
-import { automationCreateSchema, alertPreferencesSchema, automationUpdateSchema, notificationPriorityUpdateSchema } from "@talorys/shared";
+import {
+  automationCreateSchema,
+  alertPreferencesSchema,
+  automationUpdateSchema,
+  notificationActionSchema,
+  notificationPriorityUpdateSchema,
+} from "@talorys/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Context } from "hono";
@@ -83,9 +89,21 @@ automationRoutes.post("/notifications/read", async (c) => {
 });
 
 automationRoutes.delete("/notifications/:id", (c) => {
-  c.env.agent.services.notifications.delete(c.req.param("id"));
+  c.env.agent.services.alerts.delete(c.req.param("id"));
   c.env.agent.refreshUnread();
   return c.json({ deleted: true });
+});
+
+/**
+ * The owner answers an alert: Done, Snooze 1 h or Mute (stop insisting). The same answers as the
+ * Telegram buttons; the push notification's buttons call this from the service worker.
+ */
+automationRoutes.post("/notifications/:id/action", async (c) => {
+  const { action } = await body(c, notificationActionSchema, 1024);
+  const s = c.env.agent.services;
+  const result = await s.alerts.respond(c.req.param("id"), action);
+  c.env.agent.refreshUnread();
+  return c.json({ result, notification: s.notifications.get(c.req.param("id")), unread: s.notifications.unreadCount() });
 });
 
 /** The owner corrects how loud a notification is. */

@@ -1,4 +1,4 @@
-import { type Automation, type AutomationKind, type AutomationRun, type ScheduleSpec, computeNextRun, scheduleSpecSchema } from "@talorys/shared";
+import { type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, computeNextRun, scheduleSpecSchema } from "@talorys/shared";
 import type { AutomationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
 import type { ActivityLog } from "../services/usage";
@@ -14,6 +14,8 @@ export interface Scheduler {
   schedule(at: Date, automationId: string): Promise<string>;
   cancel(scheduleId: string): Promise<void>;
   exists(scheduleId: string): Promise<boolean>;
+  /** Wakes the alert center at `at` for an insistent alert's next try (AlertService.escalate). */
+  scheduleAlert?(at: Date, notificationId: string, step: number): Promise<void>;
 }
 
 export type AutomationExecutor = (automation: Automation) => Promise<{ status: "success" | "skipped"; result: string }>;
@@ -46,7 +48,7 @@ export class AutomationService {
     return this.repo.get(id);
   }
 
-  async create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean }): Promise<Automation> {
+  async create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority }): Promise<Automation> {
     const schedule = scheduleSpecSchema.parse(input.schedule);
     if ((input.kind === "reminder" || input.kind === "agent_prompt") && !input.message.trim()) {
       throw new ValidationError(input.kind === "reminder" ? "A reminder needs a message." : "An AI automation needs a prompt.");
@@ -61,7 +63,7 @@ export class AutomationService {
 
   async update(
     id: string,
-    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean },
+    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean; priority?: AutomationPriority },
   ): Promise<Automation> {
     const existing = this.repo.require(id);
     if (patch.message !== undefined && (existing.kind === "reminder" || existing.kind === "agent_prompt") && !patch.message.trim()) {
@@ -80,6 +82,7 @@ export class AutomationService {
       message: patch.message,
       schedule: patch.schedule ? scheduleSpecSchema.parse(patch.schedule) : undefined,
       enabled: patch.enabled,
+      priority: patch.priority,
     });
     if (timingChanged) {
       await this.disarm(next);

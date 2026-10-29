@@ -368,6 +368,13 @@ describe("scheduling", () => {
     expect(events.find((e) => e.type === "tool" && e.tool.status === "success")?.tool.name).toBe("create_reminder");
     expect((await c.json("/api/automations")).automations.some((a: any) => a.message === "call mom")).toBe(true);
   });
+
+  it("chat can create an insistent reminder when asked", async () => {
+    const c = await loggedIn();
+    await readSse(await c.call("/api/chat", { method: "POST", body: { message: "remind me in 45 minutes to take the pill until I confirm" } }));
+    const list = (await c.json("/api/automations")).automations;
+    expect(list.find((a: any) => a.message === "take the pill")?.priority).toBe("high");
+  });
 });
 
 describe("database migrations", () => {

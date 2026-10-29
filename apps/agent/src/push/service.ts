@@ -1,4 +1,14 @@
-import { type Language, localizeServerText, MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
+import {
+  ESCALATION,
+  isInsistent,
+  type Language,
+  localizeServerText,
+  MAX_PUSH_DEVICES,
+  type Notification,
+  type NotificationAction,
+  NOTIFICATION_ACTIONS,
+  type PushStatus,
+} from "@talorys/shared";
 import { clip } from "../services/text";
 import { encryptPayload } from "./ece";
 import { fromB64url } from "./encoding";
@@ -19,7 +29,19 @@ export interface PushMessage {
   /** Notification id, so a click can open the app and mark it read. */
   id?: string;
   url: string;
+  /** Buttons under the notification (Done, Snooze, Mute); the service worker answers them. */
+  actions?: { action: NotificationAction; title: string }[];
+  /** Keep the notification on screen until the owner acts on it (high and critical alerts). */
+  sticky?: boolean;
 }
+
+/** Options for one push: a later try of an insistent alert is marked "(2/3)". */
+export interface PushOptions {
+  attempt?: { number: number };
+}
+
+/** Labels of the push buttons, translated with the server-text catalog. */
+const ACTION_TEXT: Record<NotificationAction, string> = { done: "Done", snooze: "Snooze 1 h", mute: "Mute this alert" };
 
 export type SendOutcome = "sent" | "gone" | "failed";
 
@@ -93,14 +115,28 @@ export class PushService {
    * Sends a notification to every device. Returns at once; delivery continues in the background,
    * and `onDone` gets the outcome counts (all zero when the send itself threw).
    */
-  notify(n: Pick<Notification, "id" | "title" | "body">, onDone?: (counts: Record<SendOutcome, number>) => void): void {
+  notify(
+    n: Pick<Notification, "id" | "title" | "body"> & Partial<Pick<Notification, "priority" | "category">>,
+    onDone?: (counts: Record<SendOutcome, number>) => void,
+    opts: PushOptions = {},
+  ): void {
     if (!this.configured() || this.subscriptions.all().length === 0) {
       onDone?.({ sent: 0, gone: 0, failed: 0 });
       return;
     }
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
-    const work: Promise<void> = this.sendToAll(toPushMessage(localized))
+    const message = toPushMessage(localized);
+    if (opts.attempt) message.title = `${message.title} (${opts.attempt.number}/${ESCALATION.attempts})`;
+    // Insistent alerts stay on screen and carry their buttons; the rest only open the app. A security
+    // alert has none: answers from the browser can't stop it, only Telegram can.
+    if (n.priority && isInsistent(n.priority)) {
+      message.sticky = true;
+      if (n.category !== "security") {
+        message.actions = NOTIFICATION_ACTIONS.map((action) => ({ action, title: localizeServerText(ACTION_TEXT[action], language) }));
+      }
+    }
+    const work: Promise<void> = this.sendToAll(message)
       .catch((error) => {
         console.warn("Push delivery failed", error instanceof Error ? error.message : String(error));
         return { sent: 0, gone: 0, failed: 0 };

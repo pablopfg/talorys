@@ -94,6 +94,47 @@ export interface AlertsOverview {
 
 export const notificationPriorityUpdateSchema = z.object({ priority: alertPrioritySchema });
 
+/**
+ * Insistence: a high or critical alert nobody confirmed is sent again. active: still insisting;
+ * acknowledged: the owner confirmed it (Done, Snooze, read in the app, a reply in the bot's chat);
+ * muted: the owner silenced it; unacknowledged: every try went out and nobody confirmed it.
+ */
+export const ALERT_ESCALATION_STATES = ["active", "acknowledged", "muted", "unacknowledged"] as const;
+export type AlertEscalation = (typeof ALERT_ESCALATION_STATES)[number];
+
+/**
+ * Tries in total, and when each later try goes out, in minutes after the first. The last entry
+ * is when an alert still unconfirmed after every try is recorded as unacknowledged.
+ */
+export const ESCALATION = { attempts: 3, afterMinutes: [15, 60], giveUpAfterMinutes: 75 } as const;
+
+/**
+ * Security alerts stop insisting only from outside the app (Telegram): someone in the owner's
+ * session must not be able to read, mute, lower or delete the warning about what they just did.
+ */
+export function confirmedOnlyOutOfBand(n: { category: AlertCategory }): boolean {
+  return n.category === "security";
+}
+
+/** Most alerts insisting at once (security aside), so a flood of high alerts can't ring forever. */
+export const MAX_ACTIVE_ESCALATIONS = 20;
+
+/** Whether an alert of this priority insists until the owner confirms it. */
+export function isInsistent(priority: AlertPriority): boolean {
+  return priority === "high" || priority === "critical";
+}
+
+/** Answers to an alert from its buttons (Telegram, push) or the notification center. */
+export const NOTIFICATION_ACTIONS = ["done", "snooze", "mute"] as const;
+export type NotificationAction = (typeof NOTIFICATION_ACTIONS)[number];
+export const notificationActionSchema = z.object({ action: z.enum(NOTIFICATION_ACTIONS) });
+/** What an answer did: already = the alert was handled before; the rest name the action taken. */
+export type NotificationActionResult = "done" | "snoozed" | "muted" | "already";
+
+/** Priorities an automation may give its alerts; critical is kept for security alerts. */
+export const AUTOMATION_PRIORITIES = ["low", "normal", "high"] as const;
+export type AutomationPriority = (typeof AUTOMATION_PRIORITIES)[number];
+
 /** The Telegram bot as the app shows it in Settings → Alerts. Ids stay on the server. */
 export interface TelegramStatus {
   /** False until the Worker has the TELEGRAM_BOT_TOKEN secret. */

@@ -130,6 +130,10 @@ describe("local model consumption", () => {
       db.run("DROP INDEX tal_notifications_dedupe");
       for (const col of ["priority", "category", "dedupe_key"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
       db.run("DROP TABLE tal_alert_deliveries");
+      // Migration 20 (insistent alerts).
+      db.run("DROP INDEX tal_notifications_escalation");
+      for (const col of ["escalation", "attempts", "next_attempt_at"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run("ALTER TABLE tal_automations DROP COLUMN priority");
       db.run("UPDATE tal_schema SET version = 6 WHERE id = 1");
       migrate(db);
       migrate(db);

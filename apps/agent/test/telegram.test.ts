@@ -440,6 +440,69 @@ describe("buttons", () => {
     });
   });
 
+  it("shows Mute under insistent alerts, and muting stops the insistence but keeps the alert unread", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      const n = agent.services.alerts.raise({ title: "Pill", body: "b", category: "reminder", priority: "high" })!;
+      await agent.services.telegram.idle();
+      const keyboard = fake.sent().at(-1)!.params.reply_markup.inline_keyboard;
+      expect(keyboard[1]).toEqual([{ text: "Mute this alert", callback_data: `n:mute:${n.id}` }]);
+      expect(agent.services.notifications.get(n.id)!.escalation).toBe("active");
+      await agent.services.telegram.handle(press(`n:mute:${n.id}`));
+      expect(agent.services.notifications.get(n.id)).toMatchObject({ escalation: "muted", read_at: null });
+      await agent.services.telegram.handle(press(`n:mute:${n.id}`));
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.params.text)).toEqual([
+        "Muted. Talorys stops insisting on this alert.",
+        "This alert was already handled.",
+      ]);
+      // A normal alert has no Done, Snooze or Mute.
+      agent.services.alerts.raise({ title: "FYI", body: "b", category: "reminder" });
+      await agent.services.telegram.idle();
+      expect(fake.sent().at(-1)!.params.reply_markup.inline_keyboard.flat().some((b: { callback_data?: string }) => b.callback_data)).toBe(false);
+    });
+  });
+
+  it("stops every insistent alert when the owner writes in the private chat", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      const n = agent.services.alerts.raise({ title: "Pill", body: "b", category: "reminder", priority: "high" })!;
+      await agent.services.telegram.handle(privateMessage("/help"));
+      expect(agent.services.notifications.get(n.id)).toMatchObject({ escalation: "acknowledged", read_at: null });
+    });
+  });
+
+  it("sends the last try to the private chat instead of the group, marked as a later try", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram({ createForumTopic: () => ({ message_thread_id: 77 }) });
+      const t = agent.services.telegram;
+      const code = await linkChat(agent, fake);
+      await t.handle(groupMessage(`/start ${code}`, OWNER, { is_forum: true }));
+      const n = agent.services.alerts.raise({ title: "Pill", body: "b", category: "reminder", priority: "high" })!;
+      await t.idle();
+      expect(fake.sent().at(-1)!.params).toMatchObject({ chat_id: GROUP, message_thread_id: 77 });
+      const s = agent.services;
+      const back = (minutes: number) => {
+        const row = s.notifications.get(n.id)!;
+        const shift = (iso: string) => new Date(Date.parse(iso) - minutes * 60_000).toISOString();
+        s.db.run(`UPDATE tal_notifications SET created_at = ?, next_attempt_at = ? WHERE id = ?`, shift(row.created_at), shift(row.next_attempt_at!), n.id);
+      };
+      back(15);
+      s.alerts.escalate(n.id);
+      await t.idle();
+      expect(fake.sent().at(-1)!.params).toMatchObject({ chat_id: GROUP, message_thread_id: 77, disable_notification: false });
+      expect(fake.sent().at(-1)!.params.text).toContain("Try 2 of 3, not confirmed yet");
+      back(45);
+      s.alerts.escalate(n.id);
+      await t.idle();
+      const last = fake.sent().at(-1)!.params;
+      expect(last.chat_id).toBe(OWNER);
+      expect(last).not.toHaveProperty("message_thread_id");
+      expect(last.text).toContain("Try 3 of 3, not confirmed yet");
+    });
+  });
+
   it("refuses presses from other accounts and unknown data", async () => {
     await inAgent(async (agent) => {
       const fake = fakeTelegram();
