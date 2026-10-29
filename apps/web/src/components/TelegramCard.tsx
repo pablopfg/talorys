@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TelegramLinkCode, TelegramStatus } from "@talorys/shared";
-import { ExternalLink, Send, Unlink } from "lucide-react";
-import { Badge, Button, Card, ErrorNotice } from "./ui";
+import { ExternalLink, MessageSquare, Send, Unlink } from "lucide-react";
+import { Link } from "react-router";
+import { Badge, Button, Card, ErrorNotice, Switch } from "./ui";
 import { useApiMutation } from "../hooks/queries";
 import { api } from "../lib/api";
 import { relativeTime } from "../lib/utils";
@@ -78,6 +79,10 @@ function TelegramControls({ status: s, code, onCode }: { status: TelegramStatus;
     success: t("telegram.disconnected"),
     onSuccess: (r) => { onCode(null); setStatus(r.status); },
   });
+  const conversation = useApiMutation((on: boolean) => api<{ status: TelegramStatus }>("/telegram", { method: "PATCH", body: { conversation: on } }), {
+    success: (r) => (r.status.conversation ? t("telegram.conversationOn") : t("telegram.conversationOff")),
+    onSuccess: (r) => setStatus(r.status),
+  });
   const linked = s.chat || s.group !== null;
   return (
     <>
@@ -111,6 +116,31 @@ function TelegramControls({ status: s, code, onCode }: { status: TelegramStatus;
       <Row label={t("telegram.chat")} hint={t("telegram.chatHint")}>
         <Badge tone={s.chat ? "success" : "neutral"}>{s.chat ? t("telegram.linked") : t("telegram.notLinked")}</Badge>
       </Row>
+      {s.chat && (
+        <Row
+          label={t("telegram.conversation")}
+          hint={
+            <>
+              {t("telegram.conversationHint")}
+              {s.conversation_id && (
+                <>
+                  {" "}
+                  <Link to={`/chat/${s.conversation_id}`} className="inline-flex items-center gap-1 font-medium text-accent hover:underline">
+                    <MessageSquare className="h-3 w-3" /> {t("telegram.openConversation")}
+                  </Link>
+                </>
+              )}
+            </>
+          }
+        >
+          <Switch
+            checked={s.conversation}
+            onChange={(on) => conversation.mutate(on)}
+            label={t("telegram.conversationAria")}
+            disabled={conversation.isPending}
+          />
+        </Row>
+      )}
       <Row label={t("telegram.group")} hint={s.group !== null ? (s.topics ? t("telegram.topicsOn") : t("telegram.groupHint")) : t("telegram.groupHint")}>
         <Badge tone={s.group !== null ? "success" : "neutral"}>{s.group !== null ? (s.group || t("telegram.linked")) : t("telegram.notLinked")}</Badge>
       </Row>

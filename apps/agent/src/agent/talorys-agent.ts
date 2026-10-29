@@ -64,6 +64,13 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         (work) => this.ctx.waitUntil(work),
       );
       migrate(this._services.db);
+      const services = this._services;
+      // The private Telegram chat talks to the same agent as the app's chat.
+      services.telegram.attachChat({
+        turn: (input) => this.runner().chat(input),
+        active: this.activeRuns,
+        exists: (id) => services.conversations.get(id) !== null,
+      });
     }
     return this._services;
   }

@@ -107,7 +107,13 @@ export interface TelegramStatus {
   /** The group is a forum: alerts go to one topic per category. */
   topics: boolean;
   linked_at: string | null;
+  /** The owner may talk to the agent in the private chat. */
+  conversation: boolean;
+  /** The app conversation the private chat continues, or null before the first message (or after /new). */
+  conversation_id: string | null;
 }
+
+export const telegramUpdateSchema = z.object({ conversation: z.boolean() });
 
 /** A one-time code that links the chat and the group; valid for TELEGRAM_LINK_TTL_MS. */
 export interface TelegramLinkCode {

@@ -1,3 +1,4 @@
+import { telegramUpdateSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -42,6 +43,13 @@ telegramRoutes.get("/telegram", (c) => c.json({ status: c.env.agent.services.tel
 telegramRoutes.post("/telegram/connect", async (c) => {
   requireRecentAuth(c);
   return c.json(await c.env.agent.services.telegram.connect(new URL(c.req.url).origin));
+});
+
+/** Turns the conversation in the private chat on (asks for the password again) or off. */
+telegramRoutes.patch("/telegram", async (c) => {
+  const { conversation } = await body(c, telegramUpdateSchema, 1024);
+  if (conversation) requireRecentAuth(c);
+  return c.json({ status: c.env.agent.services.telegram.setConversation(conversation) });
 });
 
 telegramRoutes.post("/telegram/test", async (c) => {
