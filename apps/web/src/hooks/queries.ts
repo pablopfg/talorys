@@ -1,4 +1,6 @@
 import type {
+  AuthEventsPage,
+  AuthEventsSummary,
   Automation,
   AutomationRun,
   Conversation,
@@ -36,6 +38,7 @@ export const keys = {
   notifications: ["notifications"] as const,
   usage: ["usage"] as const,
   sessions: ["sessions"] as const,
+  authActivity: ["auth-activity"] as const,
   system: ["system"] as const,
   update: ["system", "update"] as const,
   remoteStatus: ["remote", "status"] as const,
@@ -147,6 +150,27 @@ export function useAutomationRuns(id: string | null, status?: AutomationRun["sta
     },
     getNextPageParam: (last) => (last.has_more ? last.runs[last.runs.length - 1]?.started_at : undefined),
   });
+}
+
+/** Settings → Security → Sign-in activity, newest first, paged with "Load more". */
+export function useAuthActivity(failuresOnly: boolean, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: [...keys.authActivity, "list", failuresOnly],
+    enabled,
+    retry: false,
+    initialPageParam: undefined as number | undefined,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: "25" });
+      if (failuresOnly) params.set("failures", "1");
+      if (pageParam) params.set("before", String(pageParam));
+      return api<AuthEventsPage>(`/auth/activity?${params}`);
+    },
+    getNextPageParam: (last) => last.next_before ?? undefined,
+  });
+}
+
+export function useAuthActivitySummary() {
+  return useQuery({ queryKey: [...keys.authActivity, "summary"], queryFn: () => api<AuthEventsSummary>("/auth/activity/summary") });
 }
 
 export function useNotifications() {

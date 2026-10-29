@@ -432,6 +432,49 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_usage_daily ADD COLUMN transcription_seconds INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    version: 17,
+    name: "sign-in activity",
+    statements: [
+      // One row per sign-in event; repeated failures from one network fold into one row (count).
+      `CREATE TABLE IF NOT EXISTS tal_auth_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        last_at INTEGER NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        kind TEXT NOT NULL,
+        reason TEXT,
+        ip TEXT,
+        network TEXT,
+        country TEXT,
+        region TEXT,
+        city TEXT,
+        asn INTEGER,
+        as_org TEXT,
+        colo TEXT,
+        host TEXT,
+        user_agent TEXT,
+        known_device INTEGER,
+        session TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS tal_auth_events_at ON tal_auth_events(at)`,
+      `CREATE INDEX IF NOT EXISTS tal_auth_events_network ON tal_auth_events(network, last_at)`,
+      // What is left once the detailed rows expire: counts per day, country and kind, no IP.
+      `CREATE TABLE IF NOT EXISTS tal_auth_daily (
+        day TEXT NOT NULL,
+        country TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        n INTEGER NOT NULL,
+        PRIMARY KEY (day, country, kind)
+      )`,
+      // Browsers that completed a sign-in; only HMAC(SESSION_SECRET, device cookie) is stored.
+      `CREATE TABLE IF NOT EXISTS tal_known_devices (
+        id TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

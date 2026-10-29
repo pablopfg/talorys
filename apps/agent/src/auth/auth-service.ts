@@ -203,17 +203,6 @@ export class AuthService {
     return timingSafeEqual(encode(given), encode(expected));
   }
 
-  /** Signing in from a network with no sign-in in 30 days tells the owner (not on the very first one). */
-  private alertNewNetwork(trusted: boolean): void {
-    if (trusted) return;
-    const known = this.db.one(`SELECT 1 AS x FROM tal_login_attempts WHERE success = 1 LIMIT 1`);
-    if (!known) return;
-    this.alert(
-      "New sign-in",
-      "Someone signed in to Talorys from a network not used in the last 30 days. If it wasn't you, change your password and sign out the other sessions in Settings → Security.",
-    );
-  }
-
   /** What a new password must not lean on: the owner's e-mail address and the agent's name. */
   private personalWords(): string[] {
     return [this.secrets.ownerEmail ?? "", this.settings.get().agentName].filter(Boolean);
@@ -326,14 +315,12 @@ export class AuthService {
    * With OWNER_EMAIL set, the address must match too. Both are always checked (the PBKDF2 runs
    * even for a wrong address) and a failure never says which one was wrong.
    */
-  async login(password: string, client: string, userAgent: string, email?: string): Promise<{ token: string; expiresAt: Date }> {
+  async login(password: string, client: string, userAgent: string, email?: string): Promise<{ token: string; expiresAt: Date; sessionId: string }> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
-    const trusted = this.isTrustedClient(client);
     const [passwordOk, emailOk] = await Promise.all([this.checkPassword(password), this.checkEmail(email)]);
     if (!passwordOk || !emailOk) throw new AppError("UNAUTHORIZED", this.emailRequired() ? "Incorrect email or password." : "Incorrect password.");
-    this.alertNewNetwork(trusted);
     this.markAttemptSucceeded(attempt);
     this.notePasswordStrength(password);
     return this.createSession(userAgent);
@@ -343,7 +330,7 @@ export class AuthService {
     return hmacSha256Hex(this.requireConfigured().sessionSecret, token);
   }
 
-  async createSession(userAgent: string): Promise<{ token: string; expiresAt: Date }> {
+  async createSession(userAgent: string): Promise<{ token: string; expiresAt: Date; sessionId: string }> {
     const token = randomToken(32);
     const id = await this.sessionId(token);
     const ts = new Date();
@@ -354,7 +341,7 @@ export class AuthService {
     );
     // Cap concurrent sessions; drop the least recently used beyond 20.
     this.db.run(`DELETE FROM tal_sessions WHERE id NOT IN (SELECT id FROM tal_sessions ORDER BY last_seen_at DESC LIMIT 20)`);
-    return { token, expiresAt };
+    return { token, expiresAt, sessionId: id };
   }
 
   /**

@@ -8,3 +8,4 @@ export * from "./remote";
 export * from "./plans";
 export * from "./mcp";
 export * from "./server-text";
+export * from "./auth-events";

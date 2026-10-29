@@ -20,13 +20,14 @@ import { PushNotificationsCard } from "../components/PushNotificationsCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
+import { AuthActivityCard } from "../components/AuthActivityCard";
 import { UsageBreakdown, UsagePricingNote } from "../components/UsageBreakdown";
 import { keys, useApiMutation, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
 import { useSession } from "../hooks/session";
 import { useToast, errorMessage } from "../hooks/toast";
 import { api } from "../lib/api";
 import { applyTheme } from "../lib/theme";
-import { cn, relativeTime } from "../lib/utils";
+import { cn, describeAgent, relativeTime } from "../lib/utils";
 import { applyLanguage, browserLanguage, LANGUAGE_NAMES, type PlainMessageKey, useI18n } from "../lib/i18n";
 
 const TABS = ["General", "AI", "Privacy", "Security", "Integrations", "About"] as const;
@@ -608,15 +609,10 @@ function SecurityTab({ settings }: { settings: Settings }) {
       <p className="px-1 text-xs leading-5 text-fg-subtle">
         {i18n.rich("settings.forgotPassword", { command: <code className="rounded bg-muted px-1">npx create-talorys@latest reset-password</code> })}
       </p>
+      <AuthActivityCard timezone={settings.timezone} />
       <RemoteAccessCard />
     </>
   );
-}
-
-function describeAgent(ua: string, t: ReturnType<typeof useI18n>["t"]): string {
-  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : t("settings.browser");
-  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
-  return os ? t("settings.browserOn", { browser, os }) : browser;
 }
 
 function AboutTab({ settings }: { settings: Settings }) {
