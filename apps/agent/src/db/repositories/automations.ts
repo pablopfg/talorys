@@ -266,9 +266,11 @@ export class NotificationRepository {
     return (id ? this.db.run(`${sql} AND id = ?`, id) : this.db.run(sql)).changes > 0;
   }
 
-  /** Alerts insisting right now, security alerts aside. */
-  activeEscalations(): number {
-    return this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE escalation = 'active' AND category != 'security'`)?.n ?? 0;
+  /** Alerts insisting right now, security alerts aside (or only those of `category`). */
+  activeEscalations(category?: AlertCategory): number {
+    return (category
+      ? this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE escalation = 'active' AND category = ?`, category)?.n
+      : this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE escalation = 'active' AND category != 'security'`)?.n) ?? 0;
   }
 
   /** Records the insistence state of an alert. */

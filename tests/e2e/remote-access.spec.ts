@@ -16,7 +16,7 @@ async function openSecurity(page: Page) {
 }
 
 /** Generates a token through the card and returns the plaintext from the once-only panel. */
-async function generate(page: Page, name: string, scope: "read" | "write" = "read"): Promise<string> {
+async function generate(page: Page, name: string, scope: "read" | "write" | "events" = "read"): Promise<string> {
   await page.getByLabel("Token name").fill(name);
   await page.getByLabel("Scope").selectOption(scope);
   await page.getByRole("button", { name: "Generate token" }).click();
@@ -114,5 +114,24 @@ test.describe("Remote access", () => {
     await expect(page.getByRole("button", { name: "Revoke all" })).toBeDisabled();
     expect((await bearerGet(page, a)).status()).toBe(401);
     expect((await bearerGet(page, b)).status()).toBe(401);
+  });
+
+  test("an events token sends an alert to the alert center and can do nothing else", async ({ page }) => {
+    await login(page);
+    await openSecurity(page);
+    await page.getByRole("switch", { name: "Remote access" }).click();
+    await page.getByLabel("Scope").selectOption("events");
+    await expect(page.getByText(/Events can only send alerts to POST \/api\/remote\/events/)).toBeVisible();
+    const token = await generate(page, "n8n", "events");
+    const origin = new URL(page.url()).origin;
+    await expect(page.getByTestId("remote-token-example")).toContainText(`${origin}/api/remote/events`);
+    await page.getByRole("button", { name: "Done" }).click();
+
+    const headers = { authorization: `Bearer ${token}` };
+    expect((await bearerGet(page, token)).status()).toBe(403);
+    const sent = await page.request.post("/api/remote/events", { headers, data: { title: "E2E backup failed", source: "n8n", kind: "backup", priority: "high" } });
+    expect(sent.status()).toBe(201);
+    const notifications = await (await page.request.get("/api/notifications")).json();
+    expect(notifications.notifications.some((n: { title: string; category: string }) => n.title === "n8n: E2E backup failed" && n.category === "event")).toBe(true);
   });
 });
