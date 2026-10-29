@@ -22,6 +22,11 @@ function denyRemoteAgentPrompt(c: Context<AppEnv>, kind: string): void {
   }
 }
 
+/** Calendar conditions are set in the app: an access token learns nothing about the owner's calendars. */
+function denyRemoteGate(c: Context<AppEnv>, gate: string | null | undefined): void {
+  if (c.get("remote") && gate) throw new AppError("FORBIDDEN", "Access tokens cannot set a calendar condition.");
+}
+
 automationRoutes.get("/automations", (c) => {
   const s = c.env.agent.services;
   return c.json({
@@ -59,6 +64,7 @@ automationRoutes.post("/automations/:id/run", async (c) => {
 automationRoutes.post("/automations", async (c) => {
   const input = await body(c, automationCreateSchema);
   denyRemoteAgentPrompt(c, input.kind);
+  denyRemoteGate(c, input.calendar_gate);
   return c.json({ automation: await c.env.agent.services.automations.create(input) }, 201);
 });
 
@@ -66,6 +72,7 @@ automationRoutes.patch("/automations/:id", async (c) => {
   const id = c.req.param("id");
   const patch = await body(c, automationUpdateSchema);
   if (c.get("remote")) denyRemoteAgentPrompt(c, c.env.agent.services.automationsRepo.require(id).kind);
+  denyRemoteGate(c, patch.calendar_gate);
   return c.json({ automation: await c.env.agent.services.automations.update(id, patch) });
 });
 

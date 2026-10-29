@@ -65,10 +65,11 @@ export async function planNotices(s: Services, schedule: (at: Date, payload: Not
       if (start === null || start <= now.getTime()) continue;
       const last = s.settings.getJson<{ day: string; start: number }>(NOTICE_KEY(calendar.id));
       if (last?.day === day && last.start === start) continue;
-      s.settings.setJson(NOTICE_KEY(calendar.id), { day, start });
       const at = start - calendar.notice!.minutes * 60_000;
       if (at <= now.getTime()) sendNotice(s, calendar.id, day, start);
       else await schedule(new Date(at), { calendarId: calendar.id, day, start });
+      // Remembered only once planned: a failed schedule is tried again next round.
+      s.settings.setJson(NOTICE_KEY(calendar.id), { day, start });
       planned++;
     } catch (error) {
       console.warn("Calendar notice not planned", error instanceof Error ? error.message : String(error));
@@ -97,7 +98,7 @@ function sendNotice(s: Services, calendarId: string, day: string, start: number)
   const calendar = s.calendar.calendar(calendarId);
   if (!calendar?.notice) return false;
   const time = toLocalMinute(new Date(start), s.settings.get().timezone).slice(11);
-  const name = clip(calendar.name, 80);
+  const name = defangLinks(clip(calendar.name, 80));
   return (
     s.alerts.raise({
       title: `First event on ${name} at ${time}`,
@@ -119,11 +120,11 @@ export async function agendaLines(s: Services, now = new Date()): Promise<string
     try {
       for (const e of await today(s, calendar.id, now)) {
         const title = defangLinks(e.title) || "—";
-        const where = clip(calendar.name, 60);
+        const where = defangLinks(clip(calendar.name, 60));
         rows.push(
           e.start === null
-            ? { at: 0, line: `- all day · ${title} (${where})` }
-            : { at: e.start, line: `- ${toLocalMinute(new Date(e.start), tz).slice(11)} · ${title} (${where})` },
+            ? { at: 0, line: `- all day — ${title} (${where})` }
+            : { at: e.start, line: `- ${toLocalMinute(new Date(e.start), tz).slice(11)} — ${title} (${where})` },
         );
       }
     } catch (error) {

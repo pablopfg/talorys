@@ -218,15 +218,16 @@ export class TalorysAgent extends Agent<Env, AgentState> {
 
   /** "Run now" from the UI: executes immediately without touching the schedule. */
   async runAutomationNow(id: string) {
-    const run = await this.services.automations.runNow(id, (a) => this.executeAutomation(a));
+    // Asked for by the owner: the calendar condition doesn't hold it back.
+    const run = await this.services.automations.runNow(id, (a) => this.executeAutomation(a, { manual: true }));
     this.refreshUnread();
     return run;
   }
 
-  private async executeAutomation(a: Automation): Promise<{ status: "success" | "skipped"; result: string }> {
+  private async executeAutomation(a: Automation, opts: { manual?: boolean } = {}): Promise<{ status: "success" | "skipped"; result: string }> {
     const s = this.services;
     const settings = s.settings.get();
-    const gate = await gateAutomation(s, a);
+    const gate = opts.manual ? null : await gateAutomation(s, a);
     if (gate) return gate;
     switch (a.kind) {
       case "reminder": {

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { type Client, inAgent, loggedIn } from "./helpers";
+import { bearer, type Client, inAgent, loggedIn } from "./helpers";
 import { googleFixture } from "./google-fixture";
 import { agendaLines, gateAutomation, type NoticePayload, noticeDue, planNotices } from "../src/calendar/routines";
 import { sendDigest } from "../src/alerts/watchers";
@@ -136,6 +136,25 @@ describe("routines that run only on days with events", () => {
     expect(((await res.json()) as any).automation.calendar_gate).toBe(CLINIC);
   });
 
+  it("can't be set with an access token, and a run asked for in the app isn't held back", async () => {
+    await setup();
+    const token = await inAgent(async (x) => {
+      x.services.remote.setEnabled(true);
+      return (await x.services.remote.create({ name: "script", scope: "write" })).token;
+    });
+    const body = { name: "Probe", kind: "reminder", message: "x", schedule: { type: "interval", minutes: 30 }, calendar_gate: CLINIC };
+    expect((await bearer(token).call("/api/automations", { method: "POST", body })).status).toBe(403);
+    await inAgent((x) => {
+      x.services.remote.revokeAll();
+      x.services.remote.setEnabled(false);
+    });
+    // No events today on the clinic calendar: the scheduled run would be skipped, "Run now" isn't.
+    const a = await inAgent((x) =>
+      x.services.automations.create({ name: "Saturday closing", kind: "reminder", message: "Close", schedule: { type: "weekly", days: [6], time: "13:00" }, enabled: true, calendar_gate: CLINIC }),
+    );
+    expect(await inAgent((x) => x.runAutomationNow(a.id))).toMatchObject({ status: "success" });
+  });
+
   it("are skipped on a day without events, and run on a day with one", async () => {
     const { f } = await setup();
     const a = await inAgent((x) =>
@@ -172,10 +191,10 @@ describe("the daily summary", () => {
       patient("tomorrow", "2026-11-04T13:00:00Z", "2026-11-04T14:00:00Z", "Tomorrow"),
     );
     const lines = await inAgent((a) => agendaLines(a.services, NOW));
-    expect(lines[0]).toBe("- all day · Holiday (Owner)");
-    expect(lines[1]).toBe("- 07:00 · Gym (Owner)");
+    expect(lines[0]).toBe("- all day — Holiday (Owner)");
+    expect(lines[1]).toBe("- 07:00 — Gym (Owner)");
     // An invite's link stays visible but can't be clicked, as in every alert.
-    expect(lines[2]).toBe("- 13:00 · Ana `https://evil.example` (Clinic)");
+    expect(lines[2]).toBe("- 13:00 — Ana `https://evil.example` (Clinic)");
     expect(lines).toHaveLength(3);
     expect(await inAgent((a) => sendDigest(a.services, NOW, "2026-11-03", lines))).toBe(true);
     const [digest] = await inAgent((a) => a.services.notifications.list({ limit: 5 }).filter((n) => n.title === "Daily summary"));

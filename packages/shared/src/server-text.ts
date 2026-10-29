@@ -581,7 +581,8 @@ const PT_BR: Catalog = {
   "Calendar “{name}”: notice {minutes} min before the first event": "Agenda “{name}”: aviso {minutes} min antes do primeiro evento",
   "Calendar “{name}”: notice off": "Agenda “{name}”: aviso desligado",
   "**Calendar today ({count})**": "**Agenda de hoje ({count})**",
-  "- all day · {title}": "- dia inteiro · {title}",
+  "Access tokens cannot set a calendar condition.": "Tokens de acesso não podem definir uma condição de agenda.",
+  "- all day — {title}": "- dia inteiro — {title}",
 };
 
 const CATALOGS: Partial<Record<Language, Catalog>> = { "pt-BR": PT_BR };

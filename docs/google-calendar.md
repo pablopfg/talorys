@@ -51,6 +51,8 @@ Talorys also reads the open calendars for itself, without the AI:
   with events** on one open calendar. On a day without events there, the run is
   skipped (shown in its history). If Google can't be reached, it runs anyway.
   If that calendar is hidden later, runs are skipped and you get one alert.
+  **Run now** always runs. The condition is set in the app only, never with an
+  access token.
 
 In **Automations → New → AI routine**, three ready-made routines use this:
 

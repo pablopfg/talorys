@@ -45,7 +45,7 @@ export function exportData(s: Services): Backup {
       notes: db.all(`SELECT * FROM tal_notes ORDER BY created_at`),
       projects: db.all(`SELECT * FROM tal_projects ORDER BY created_at`),
       automations: db
-        .all<Record<string, unknown>>(`SELECT id, name, kind, message, schedule, enabled, priority, sentinel, created_at, updated_at FROM tal_automations`)
+        .all<Record<string, unknown>>(`SELECT id, name, kind, message, schedule, enabled, priority, sentinel, calendar_gate, created_at, updated_at FROM tal_automations`)
         .map((a) => ({ ...a, schedule: JSON.parse(String(a.schedule)), enabled: a.enabled === 1, sentinel: a.sentinel === 1 })),
       // Where each server is and how it authenticates; never the credential, a session or tool choices.
       mcp_servers: db.all(`SELECT id, name, url, auth_type, created_at FROM tal_mcp_servers ORDER BY created_at`),
@@ -247,10 +247,12 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
         continue;
       }
       db.run(
-        `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, ?, ?, 'paused', ?, ?)`,
+        // A calendar condition is kept as written: until that calendar is open again, runs are skipped with an alert.
+        `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, calendar_gate, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'paused', ?, ?)`,
         a.id, a.name, kind, str(a.message), JSON.stringify(schedule.data),
-        pick(a.priority, ["low", "normal", "high"], "normal"), kind === "agent_prompt" && (a.sentinel === true || a.sentinel === 1) ? 1 : 0, at(a.created_at), now,
+        pick(a.priority, ["low", "normal", "high"], "normal"), kind === "agent_prompt" && (a.sentinel === true || a.sentinel === 1) ? 1 : 0,
+        typeof a.calendar_gate === "string" && a.calendar_gate.length <= 1024 ? a.calendar_gate : null, at(a.created_at), now,
       );
       automations++;
     }

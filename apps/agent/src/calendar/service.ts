@@ -344,7 +344,9 @@ export class CalendarService {
 
   /** Open calendars with a notice before their first event. */
   withNotice(): GoogleCalendarInfo[] {
-    return this.readable().filter((c) => c.notice !== null);
+    return this.readable()
+      .filter((c) => c.notice !== null)
+      .slice(0, 10);
   }
 
   /** Events of one calendar between two instants, earliest first (at most 50), cancelled ones left out. */
