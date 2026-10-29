@@ -185,6 +185,8 @@ export interface Automation {
    * answers SENTINEL_NOTHING, the run ends quietly with no notification.
    */
   sentinel: boolean;
+  /** Runs only on days with an event on this Google calendar (by id); null runs every time. */
+  calendar_gate: string | null;
   status: AutomationStatus;
   schedule_id: string | null;
   next_run: string | null;
@@ -327,6 +329,7 @@ export const automationCreateSchema = z.object({
   enabled: z.boolean().optional().default(true),
   priority: z.enum(AUTOMATION_PRIORITIES).optional().default("normal"),
   sentinel: z.boolean().optional().default(false),
+  calendar_gate: z.string().min(1).max(1024).nullable().optional().default(null),
 });
 export const automationUpdateSchema = z
   .object({
@@ -336,6 +339,7 @@ export const automationUpdateSchema = z
     enabled: z.boolean(),
     priority: z.enum(AUTOMATION_PRIORITIES),
     sentinel: z.boolean(),
+    calendar_gate: z.string().min(1).max(1024).nullable(),
   })
   .partial();
 

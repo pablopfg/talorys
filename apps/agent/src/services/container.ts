@@ -78,7 +78,8 @@ export function createServices(
   const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
   const notifications = new NotificationRepository(db);
   const activity = new ActivityLog(db);
-  const automations = new AutomationService(automationsRepo, settings, activity, scheduler);
+  const calendar = new CalendarService(db, env, settings, activity);
+  const automations = new AutomationService(automationsRepo, settings, activity, scheduler, (id) => (calendar.calendar(id)?.mode ?? "off") !== "off");
   const alertTimers = scheduler.scheduleAlert
     ? {
         schedule: (at: Date, id: string, step: number) =>
@@ -169,6 +170,6 @@ export function createServices(
     remoteEvents: new RemoteEvents(alerts, settings, db),
     taskPlans: new TaskPlanService(db, tasks, projects, activity),
     mcp: new McpService(db, env, activity),
-    calendar: new CalendarService(db, env, settings, activity),
+    calendar,
   };
 }

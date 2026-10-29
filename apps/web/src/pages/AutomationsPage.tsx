@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { AUTOMATION_PRIORITIES, type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, SENTINEL_TEMPLATES, type SentinelTemplate, describeSchedule, getZonedParts, scheduleSpecSchema, sentinelText, upcomingRuns } from "@talorys/shared";
 import { AlarmClock, Bell, Bot, CalendarClock, ChevronDown, History, ListChecks, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
-import { keys, useApiMutation, useAutomationRuns, useAutomations } from "../hooks/queries";
+import { keys, useApiMutation, useAutomationRuns, useAutomations, useGoogleCalendar } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, formatDateTime, relativeTime } from "../lib/utils";
 import { type I18n, type PlainMessageKey, useI18n } from "../lib/i18n";
@@ -85,6 +85,7 @@ export default function AutomationsPage() {
             {a.status === "running" && <Badge tone="accent">{t("automations.running")}</Badge>}
             {a.priority === "high" && <Badge tone="warning">{t("automations.insistent")}</Badge>}
             {a.sentinel && <Badge tone="accent">{t("automations.sentinel")}</Badge>}
+            {a.calendar_gate && <Badge>{t("automations.gateBadge")}</Badge>}
           </div>
           <p className="mt-0.5 text-sm text-fg-muted">{describeSchedule(a.schedule, i18n.language)}</p>
           <p className="mt-0.5 text-xs text-fg-subtle">
@@ -386,6 +387,9 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const [message, setMessage] = useState(automation?.message ?? "");
   const [priority, setPriority] = useState<AutomationPriority>(automation?.priority ?? "normal");
   const [sentinel, setSentinel] = useState(automation?.sentinel ?? false);
+  const [gate, setGate] = useState(automation?.calendar_gate ?? "");
+  const google = useGoogleCalendar();
+  const openCalendars = google.data?.connected ? google.data.calendars.filter((c) => c.mode !== "off") : [];
   const [type, setType] = useState<ScheduleSpec["type"]>(initial?.type ?? "once");
   const [at, setAt] = useState(initial?.type === "once" ? initial.at : tomorrowAt9(tz));
   const [time, setTime] = useState(initial && "time" in initial ? initial.time : "09:00");
@@ -418,6 +422,7 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
     setMessage("");
     setKind("reminder");
     setSentinel(false);
+    setGate("");
     setType("once");
     setAt(tomorrowAt9(tz));
   };
@@ -426,7 +431,9 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
     const text = sentinelText(template, i18n.language);
     setName(text.name);
     setMessage(text.prompt);
-    setSentinel(true);
+    setSentinel(template.sentinel ?? true);
+    // A gated template suggests a calendar that isn't the main one (a work calendar shared with the owner).
+    setGate(template.calendarGate ? (openCalendars.find((c) => !c.primary) ?? openCalendars[0])?.id ?? "" : "");
     setType(template.schedule.type);
     if ("time" in template.schedule) setTime(template.schedule.time);
     if (template.schedule.type === "weekly") setDays(template.schedule.days);
@@ -434,7 +441,9 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const save = useApiMutation(
     () => {
       const finalName = name.trim() || message.trim().slice(0, 80) || t(KIND_META[kind].label);
-      const quiet = kind === "agent_prompt" ? { sentinel } : {};
+      // The calendar condition is sent only when it changed: an unchanged one stays valid even if that calendar was closed since.
+      const gateChange = !automation || (gate || null) !== automation.calendar_gate ? { calendar_gate: gate || null } : {};
+      const quiet = { ...(kind === "agent_prompt" ? { sentinel } : {}), ...gateChange };
       if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule, priority, ...quiet } });
       // Saving a finished one-off with a new schedule brings it back to life.
       const revive = automation.status === "completed" ? { enabled: true } : {};
@@ -525,6 +534,21 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
               <p className="mt-0.5 text-xs text-fg-subtle">{t("automations.sentinelHint")}</p>
             </div>
             <Switch checked={sentinel} onChange={setSentinel} label={t("automations.sentinelLabel")} />
+          </div>
+        )}
+        {(openCalendars.length > 0 || gate) && (
+          <div>
+            <Label htmlFor="auto-gate">{t("automations.gate")}</Label>
+            <Select id="auto-gate" value={gate} onChange={(e) => setGate(e.target.value)}>
+              <option value="">{t("automations.gateNone")}</option>
+              {openCalendars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {t("automations.gateCalendar", { name: c.name })}
+                </option>
+              ))}
+              {gate && !openCalendars.some((c) => c.id === gate) && <option value={gate}>{t("automations.gateClosed")}</option>}
+            </Select>
+            <p className="mt-1 text-xs text-fg-subtle">{t("automations.gateHint")}</p>
           </div>
         )}
         <div>

@@ -1,9 +1,9 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { type CalendarMode, GITHUB_URL, type GoogleCalendarInfo, type GoogleCalendarStatus } from "@talorys/shared";
-import { CalendarDays, LogIn, RefreshCw } from "lucide-react";
-import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Select, Spinner } from "./ui";
+import { CALENDAR_NOTICE_MINUTES, type CalendarMode, GITHUB_URL, type GoogleCalendarInfo, type GoogleCalendarStatus } from "@talorys/shared";
+import { BellRing, CalendarDays, LogIn, RefreshCw } from "lucide-react";
+import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, Select, Spinner } from "./ui";
 import { useToast } from "../hooks/toast";
 import { keys, useApiMutation, useGoogleCalendar } from "../hooks/queries";
 import { api } from "../lib/api";
@@ -183,7 +183,55 @@ function CalendarRow({ calendar }: { calendar: GoogleCalendarInfo }) {
           {calendar.writable && <option value="write">{t(MODE_LABEL.write)}</option>}
         </Select>
       </Row>
+      {calendar.mode !== "off" && <NoticeEditor calendar={calendar} />}
     </li>
+  );
+}
+
+/** A notice some minutes before the calendar's first event of the day ("turn on the air conditioning"). */
+function NoticeEditor({ calendar }: { calendar: GoogleCalendarInfo }) {
+  const { t } = useI18n();
+  const [minutes, setMinutes] = useState(calendar.notice?.minutes ?? 0);
+  const [text, setText] = useState(calendar.notice?.text ?? "");
+  const save = useApiMutation(
+    (notice: { minutes: number; text: string } | null) =>
+      api<{ calendar: GoogleCalendarInfo }>(`/calendar/google/calendars/${encodeURIComponent(calendar.id)}/notice`, { method: "PUT", body: { notice } }),
+    { invalidate: [keys.googleCalendar], success: t("calendar.noticeSaved") },
+  );
+  const changed = minutes !== (calendar.notice?.minutes ?? 0) || (minutes > 0 && text.trim() !== (calendar.notice?.text ?? ""));
+
+  return (
+    <div className="flex flex-col gap-2 px-5 pb-4 sm:flex-row sm:items-center">
+      <BellRing className="hidden h-4 w-4 shrink-0 text-fg-subtle sm:block" />
+      <Select
+        aria-label={t("calendar.noticeAria", { name: calendar.name })}
+        value={minutes}
+        onChange={(e) => setMinutes(Number(e.target.value))}
+        className="sm:w-56"
+      >
+        <option value={0}>{t("calendar.noticeOff")}</option>
+        {CALENDAR_NOTICE_MINUTES.map((m) => (
+          <option key={m} value={m}>
+            {t("calendar.noticeBefore", { minutes: m })}
+          </option>
+        ))}
+      </Select>
+      {minutes > 0 && (
+        <Input
+          aria-label={t("calendar.noticeTextAria")}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={200}
+          placeholder={t("calendar.noticePlaceholder")}
+          className="min-w-0 flex-1"
+        />
+      )}
+      {changed && (
+        <Button size="sm" loading={save.isPending} onClick={() => save.mutate(minutes > 0 ? { minutes, text: text.trim() } : null)}>
+          {t("common.save")}
+        </Button>
+      )}
+    </div>
   );
 }
 

@@ -657,6 +657,17 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 27,
+    name: "calendar routines",
+    statements: [
+      // A notice some minutes before a calendar's first event of the day, with the owner's text.
+      `ALTER TABLE tal_google_calendars ADD COLUMN notice_minutes INTEGER`,
+      `ALTER TABLE tal_google_calendars ADD COLUMN notice_text TEXT`,
+      // An automation that runs only on days with events on this calendar.
+      `ALTER TABLE tal_automations ADD COLUMN calendar_gate TEXT`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

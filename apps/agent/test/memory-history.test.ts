@@ -445,6 +445,9 @@ describe("migration from the previous schema", () => {
       db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
       // Migration 25 (passkeys).
       db.run(`ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge`);
+      // Migration 27 (calendar routines).
+      db.run(`ALTER TABLE tal_automations DROP COLUMN calendar_gate`);
+      for (const col of ["notice_minutes", "notice_text"]) db.run(`ALTER TABLE tal_google_calendars DROP COLUMN ${col}`);
       // Migration 23 (events access tokens) moved the old table aside.
       db.run(`DROP TABLE IF EXISTS tal_remote_tokens_v8`);
       // Migration 22 (push device last seen).

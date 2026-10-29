@@ -18,6 +18,7 @@ import { CLEF_MODEL, type ClefRun } from "../memory/conflict";
 import { createTranscriber, type Transcription } from "../ai/transcription";
 import { classifyAiError } from "../ai/provider";
 import { runWatchers } from "../alerts/watchers";
+import { gateAutomation, type NoticePayload, noticeDue, planNotices } from "../calendar/routines";
 
 interface AgentState {
   /** Unread notifications, kept in agent state for cheap polling. */
@@ -115,7 +116,20 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   /** Scheduled callback (cron): deadlines, system health and the daily summary. */
   async watch(): Promise<void> {
     await runWatchers(this.services);
+    try {
+      // Notices before a calendar's first event, timed to the minute rather than to this round.
+      await planNotices(this.services, async (at, payload) => {
+        await this.schedule<NoticePayload>(at, "calendarNotice", payload, { idempotent: true });
+      });
+    } catch (error) {
+      console.warn("Calendar notices failed", error instanceof Error ? error.message : String(error));
+    }
     this.refreshUnread();
+  }
+
+  /** Scheduled callback: a notice before a calendar's first event of the day. */
+  async calendarNotice(payload: NoticePayload): Promise<void> {
+    if (await noticeDue(this.services, payload)) this.refreshUnread();
   }
 
   override async onRequest(request: Request): Promise<Response> {
@@ -204,14 +218,17 @@ export class TalorysAgent extends Agent<Env, AgentState> {
 
   /** "Run now" from the UI: executes immediately without touching the schedule. */
   async runAutomationNow(id: string) {
-    const run = await this.services.automations.runNow(id, (a) => this.executeAutomation(a));
+    // Asked for by the owner: the calendar condition doesn't hold it back.
+    const run = await this.services.automations.runNow(id, (a) => this.executeAutomation(a, { manual: true }));
     this.refreshUnread();
     return run;
   }
 
-  private async executeAutomation(a: Automation): Promise<{ status: "success" | "skipped"; result: string }> {
+  private async executeAutomation(a: Automation, opts: { manual?: boolean } = {}): Promise<{ status: "success" | "skipped"; result: string }> {
     const s = this.services;
     const settings = s.settings.get();
+    const gate = opts.manual ? null : await gateAutomation(s, a);
+    if (gate) return gate;
     switch (a.kind) {
       case "reminder": {
         // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.

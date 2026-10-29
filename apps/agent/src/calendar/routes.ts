@@ -1,4 +1,4 @@
-import { calendarModeSchema, googleCalendarCallbackSchema } from "@talorys/shared";
+import { calendarModeSchema, calendarNoticeSchema, googleCalendarCallbackSchema } from "@talorys/shared";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
@@ -59,6 +59,18 @@ calendarRoutes.patch("/calendar/google/calendars/:id", async (c) => {
   const s = c.env.agent.services;
   const calendar = s.calendar.setMode(c.req.param("id"), mode);
   s.activity.record("calendar.mode", `Calendar “${calendar.name}”: ${mode}`);
+  return c.json({ calendar });
+});
+
+/** A notice before the calendar's first event of the day, sent to the owner (the agent isn't involved). */
+calendarRoutes.put("/calendar/google/calendars/:id/notice", async (c) => {
+  const { notice } = await body(c, calendarNoticeSchema, 2048);
+  const s = c.env.agent.services;
+  const calendar = s.calendar.setNotice(c.req.param("id"), notice);
+  s.activity.record(
+    "calendar.notice",
+    notice ? `Calendar “${calendar.name}”: notice ${notice.minutes} min before the first event` : `Calendar “${calendar.name}”: notice off`,
+  );
   return c.json({ calendar });
 });
 

@@ -249,6 +249,7 @@ Resumos com
 
 - tarefas atrasadas;
 - tarefas que vencem hoje;
+- os compromissos de hoje nas agendas do Google abertas (veja [google-calendar.md](google-calendar.md#daily-routines-with-the-calendar));
 - o que está agendado para hoje (lembretes e automações ligadas);
 - os avisos de prioridade baixa das últimas 24 horas que ficaram no app sem ler;
 - às **sextas-feiras**, o que a prioridade aprendeu na semana.

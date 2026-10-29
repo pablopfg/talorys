@@ -568,6 +568,21 @@ const PT_BR: Catalog = {
   "Agent created the calendar event “{title}”": "O agente criou o evento “{title}” na agenda",
   "Agent changed a calendar event": "O agente alterou um evento da agenda",
   "Agent deleted a calendar event": "O agente excluiu um evento da agenda",
+  "Choose a Google calendar that is open in Settings → Integrations.": "Escolha uma agenda do Google que esteja aberta em Configurações → Integrações.",
+  "Open this calendar first (read only is enough).": "Abra esta agenda primeiro (só leitura basta).",
+  "Choose one of the offered times": "Escolha um dos tempos oferecidos",
+  "Skipped: the Google calendar this automation depends on isn't open anymore. Open it in Settings → Integrations or edit the automation.":
+    "Pulada: a agenda do Google de que esta automação depende não está mais aberta. Abra-a em Configurações → Integrações ou edite a automação.",
+  "Its Google calendar isn't open": "A agenda do Google dela não está aberta",
+  "No events on “{name}” today": "Nenhum evento em “{name}” hoje",
+  "First event on {name} at {time}": "Primeiro evento em {name} às {time}",
+  "The first event of the day on {name} starts at {time}.": "O primeiro evento do dia em {name} começa às {time}.",
+  "Notice before the first event ({name})": "Aviso antes do primeiro evento ({name})",
+  "Calendar “{name}”: notice {minutes} min before the first event": "Agenda “{name}”: aviso {minutes} min antes do primeiro evento",
+  "Calendar “{name}”: notice off": "Agenda “{name}”: aviso desligado",
+  "**Calendar today ({count})**": "**Agenda de hoje ({count})**",
+  "Access tokens cannot set a calendar condition.": "Tokens de acesso não podem definir uma condição de agenda.",
+  "- all day — {title}": "- dia inteiro — {title}",
 };
 
 const CATALOGS: Partial<Record<Language, Catalog>> = { "pt-BR": PT_BR };
