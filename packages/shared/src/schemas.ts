@@ -407,6 +407,8 @@ export const settingsSchema = z.object({
   memoryHistory: memoryHistorySettingsSchema,
   /** Check the npm registry once a day for a newer Axis release. */
   updateCheck: z.boolean(),
+  /** The weekly cleanup and the memory compaction every 15 days (Settings → Privacy). */
+  autoCleanup: z.boolean().catch(true),
   session: sessionTimeoutsSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -424,6 +426,7 @@ export const settingsUpdateSchema = settingsSchema
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
     session: sessionTimeoutsSchema.partial().optional(),
+    autoCleanup: z.boolean().optional(),
   });
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });

@@ -30,7 +30,7 @@ chatRoutes.post("/conversations", async (c) => {
 chatRoutes.get("/conversations/:id", (c) => {
   const s = c.env.agent.services;
   const conversation = s.conversations.require(c.req.param("id"));
-  const { summary: _s, summary_upto: _u, ...rest } = conversation;
+  const { summary: _s, summary_upto: _u, summary_from: _f, ...rest } = conversation;
   return c.json({
     conversation: rest,
     messages: s.taskPlans.withCurrentState(s.pendingActions.withCurrentStatus(s.conversations.messages(conversation.id))),
@@ -40,7 +40,7 @@ chatRoutes.get("/conversations/:id", (c) => {
 
 chatRoutes.patch("/conversations/:id", async (c) => {
   const { title } = await body(c, conversationUpdateSchema);
-  const { summary: _s, summary_upto: _u, ...rest } = c.env.agent.services.conversations.rename(c.req.param("id"), title);
+  const { summary: _s, summary_upto: _u, summary_from: _f, ...rest } = c.env.agent.services.conversations.rename(c.req.param("id"), title);
   return c.json({ conversation: rest });
 });
 

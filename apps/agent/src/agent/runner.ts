@@ -192,7 +192,7 @@ export class AgentRunner {
           s.usage.record(result.usage);
           summary = result.text.trim().slice(0, 2000);
           summaryUpto = window.overflow.at(-1)!.created_at;
-          s.conversations.setSummary(conversation.id, summary, summaryUpto);
+          s.conversations.setSummary(conversation.id, summary, { first: window.overflow[0]!.created_at, last: summaryUpto });
           window = buildContextWindow(history, historyBudget, summaryUpto);
         } catch (error) {
           const usage = usageOfFailure(error);

@@ -752,6 +752,17 @@ export const MIGRATIONS: Migration[] = [
       `CREATE TRIGGER IF NOT EXISTS tal_counts_trash_actor_del AFTER DELETE ON tal_trash BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'trash_' || old.actor; UPDATE tal_counts SET n = n - old.bytes WHERE kind = 'trash_bytes_' || old.actor; END`,
     ],
   },
+  {
+    version: 30,
+    name: "cleanup",
+    statements: [
+      // Where a conversation's summary starts covering every message without a gap, so the cleanup
+      // only ever removes turns the summary really holds. Null until the next summary is written.
+      `ALTER TABLE tal_conversations ADD COLUMN summary_from TEXT`,
+      // The memory compaction walks current memories by age.
+      `CREATE INDEX IF NOT EXISTS idx_tal_memories_status_created ON tal_memories (status, created_at)`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

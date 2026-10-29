@@ -32,6 +32,8 @@ import { TelegramService } from "../telegram/service";
 import { WorkflowRepository } from "../workflows/repository";
 import { WorkflowService } from "../workflows/service";
 import { StorageService } from "./storage";
+import { RetentionService } from "./retention";
+import { deleteVector } from "../semantic/vectorStore";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
 export interface Services {
@@ -65,6 +67,8 @@ export interface Services {
   workflows: WorkflowService;
   /** Storage limits and the trash. */
   storage: StorageService;
+  /** The weekly cleanup and the memory compaction. */
+  retention: RetentionService;
 }
 
 /** `background` keeps work alive after the request or alarm that started it (the Durable Object's waitUntil). */
@@ -128,12 +132,13 @@ export function createServices(
   const usage = new UsageService(db, () => settings.get().timezone);
   const tasks = new TaskRepository(db, (id) => alerts.taskCompleted(id), store);
   const projects = new ProjectRepository(db, store);
+  const notes = new NoteRepository(db, store);
   const authLog = new AuthLog(db, settings, () => env.SESSION_SECRET);
   return {
     db,
     tasks,
     memories,
-    notes: new NoteRepository(db, store),
+    notes,
     projects,
     conversations: new ConversationRepository(db, store),
     automationsRepo,
@@ -189,5 +194,6 @@ export function createServices(
       env.TALORYS_ENV === "development",
     ),
     storage: store,
+    retention: new RetentionService(db, settings, store, tasks, notes, memories, alerts, activity, (id) => deleteVector(db, id)),
   };
 }

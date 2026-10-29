@@ -180,7 +180,11 @@ dataRoutes.delete("/projects/:id", (c) => {
 // ---------- Storage and trash ----------
 // Owner only: none of these paths is on the access-token allowlist.
 
-dataRoutes.get("/storage", (c) => c.json({ storage: c.env.agent.services.storage.usage() }));
+dataRoutes.get("/storage", (c) => {
+  const s = c.env.agent.services;
+  const { last_cleanup, last_compaction } = s.retention.state();
+  return c.json({ storage: s.storage.usage(), retention: { last_cleanup, last_compaction } });
+});
 
 const trashKindSchema = z.enum(["memory", "task", "note"]);
 
