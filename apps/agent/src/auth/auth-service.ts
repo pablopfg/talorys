@@ -17,6 +17,7 @@ import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
 import { AppError, ValidationError } from "../api/errors";
 import { type MfaFactor, MfaService } from "./mfa";
+import type { HumanCheck } from "./turnstile";
 
 /** A session's use and presence are written at most this often (writes on the Free plan are counted). */
 export const TOUCH_INTERVAL_MS = 60_000;
@@ -33,6 +34,19 @@ export const MAX_FAILURES_GLOBAL = 25;
 export const MAX_FAILURES_GLOBAL_HARD = 100;
 /** A network with a successful sign-in this recent is the owner's, and exempt from the global cap. */
 export const TRUSTED_CLIENT_MS = 30 * 24 * 3600_000;
+/**
+ * With Turnstile on, this many failures across all networks in the window count as an attack in
+ * progress: every network the owner hasn't used must pass the check before its password is tried.
+ */
+export const HUMAN_CHECK_GLOBAL_FAILURES = 10;
+/**
+ * Refused robot checks a network may pile up in the window before it is told to wait like any
+ * other blocked network. Without it, requests refused before the password check would cost a
+ * write and a siteverify call each, without limit.
+ */
+export const MAX_HUMAN_CHECK_FAILURES = 10;
+/** tal_login_attempts.success for a sign-in refused by the robot check: not a password guess. */
+const HUMAN_CHECK_FAILED = 2;
 /** While the global cap is tripped, the owner hears about it at most this often. */
 export const ATTACK_ALERT_INTERVAL_MS = 6 * 3600_000;
 
@@ -99,6 +113,15 @@ export interface MfaPending {
 export interface AuthChecks {
   /** Whether a new password is in a known breach (null: unknown). Off when not given. */
   breached?: (password: string) => Promise<boolean | null>;
+  /** Cloudflare Turnstile, asked for only on risky sign-ins. Off when not given. */
+  human?: HumanCheck;
+}
+
+/** What the browser sends with the password when the form showed the robot check. */
+export interface HumanProof {
+  token?: string;
+  /** The visitor's IP address, which siteverify compares with the one that solved the widget. */
+  ip?: string;
 }
 
 /**
@@ -283,9 +306,16 @@ export class AuthService {
   assertLoginAllowed(client: string): void {
     const nowMs = Date.now();
     // Failures matter for a day; successes are kept as long as they mark a trusted network.
-    this.db.run(`DELETE FROM tal_login_attempts WHERE (success = 0 AND at < ?) OR at < ?`, nowMs - 24 * 3600_000, nowMs - TRUSTED_CLIENT_MS);
+    this.db.run(`DELETE FROM tal_login_attempts WHERE (success != 1 AND at < ?) OR at < ?`, nowMs - 24 * 3600_000, nowMs - TRUSTED_CLIENT_MS);
     const failures = this.recentFailures(client);
-    let blocked = failures >= MAX_FAILURES_PER_CLIENT;
+    const humanFailures = this.db.one<{ n: number }>(
+      `SELECT count(*) AS n FROM tal_login_attempts WHERE success = ? AND at > ? AND client = ?`,
+      HUMAN_CHECK_FAILED,
+      nowMs - LOGIN_WINDOW_MS,
+      client,
+    )!.n;
+    const byHumanCheck = humanFailures >= MAX_HUMAN_CHECK_FAILURES;
+    let blocked = failures >= MAX_FAILURES_PER_CLIENT || byHumanCheck;
     let globally = false;
     const total = blocked ? 0 : this.recentFailures();
     if (total >= MAX_FAILURES_GLOBAL) {
@@ -297,7 +327,8 @@ export class AuthService {
     }
     if (blocked) {
       const oldest = this.db.one<{ at: number }>(
-        `SELECT min(at) AS at FROM tal_login_attempts WHERE success = 0 AND at > ?${globally ? "" : " AND client = ?"}`,
+        `SELECT min(at) AS at FROM tal_login_attempts WHERE success = ? AND at > ?${globally ? "" : " AND client = ?"}`,
+        byHumanCheck && !globally ? HUMAN_CHECK_FAILED : 0,
         ...(globally ? [nowMs - LOGIN_WINDOW_MS] : [nowMs - LOGIN_WINDOW_MS, client]),
       );
       const retryAfter = Math.max(1, Math.ceil(((oldest?.at ?? nowMs) + LOGIN_WINDOW_MS - nowMs) / 1000));
@@ -322,8 +353,12 @@ export class AuthService {
    * before the (async) password check. Otherwise concurrent requests could all pass
    * the check while PBKDF2 runs and bypass the limit. Returns the attempt id.
    */
-  private beginAttempt(client: string): number {
+  private beginAttempt(client: string, signIn?: { humanVerified: boolean }): number {
     this.assertLoginAllowed(client);
+    // For a sign-in, again here, in the same synchronous step as the insert: a check that became
+    // needed meanwhile (another try failed while this one was on its way) still applies. Signed-in
+    // checks (confirm, password change) never ask for it: the session already passed.
+    if (signIn && !signIn.humanVerified && this.humanCheckRequired(client)) throw this.humanCheckError(false);
     return this.db.one<{ id: number }>(
       `INSERT INTO tal_login_attempts (client, success, at) VALUES (?, 0, ?) RETURNING id`,
       client,
@@ -335,6 +370,53 @@ export class AuthService {
     this.db.run(`UPDATE tal_login_attempts SET success = 1 WHERE id = ?`, attemptId);
   }
 
+  // ---------- Robot check (Turnstile) ----------
+
+  /**
+   * Whether this network's next sign-in must pass the robot check: it got the password wrong in the
+   * last 15 minutes, or many networks are failing (an attack in progress) and it isn't one of the
+   * owner's recent networks. Everyone else signs in with the password alone, as before.
+   */
+  humanCheckRequired(client: string): boolean {
+    if (!this.checks.human) return false;
+    if (this.recentFailures(client) > 0) return true;
+    return this.recentFailures() >= HUMAN_CHECK_GLOBAL_FAILURES && !this.isTrustedClient(client);
+  }
+
+  /** For the sign-in form: the widget's public key and whether it must be solved now. Undefined when off. */
+  humanCheck(client: string): { site_key: string; required: boolean } | undefined {
+    const human = this.checks.human;
+    return human ? { site_key: human.siteKey, required: this.humanCheckRequired(client) } : undefined;
+  }
+
+  /**
+   * Runs before the attempt is counted and before any PBKDF2 work, so a bot without a token costs
+   * no guess. True when a token was confirmed; beginAttempt checks again whether one was needed.
+   */
+  private async assertHuman(client: string, proof: HumanProof): Promise<boolean> {
+    const human = this.checks.human;
+    if (!human || !this.humanCheckRequired(client)) return false;
+    const result = await human.verify(proof.token, proof.ip);
+    if (result === "ok") return true;
+    if (result === "unavailable") {
+      throw new AppError("SERVICE_UNAVAILABLE", "The robot check could not be confirmed right now. Please try again shortly.", {
+        human_check: "unavailable",
+        site_key: human.siteKey,
+      });
+    }
+    // Counted, so a network can't send refused tries without limit (MAX_HUMAN_CHECK_FAILURES).
+    this.db.run(`INSERT INTO tal_login_attempts (client, success, at) VALUES (?, ?, ?)`, client, HUMAN_CHECK_FAILED, Date.now());
+    throw this.humanCheckError(!!proof.token);
+  }
+
+  private humanCheckError(tokenGiven: boolean): AppError {
+    return new AppError(
+      "HUMAN_CHECK_REQUIRED",
+      tokenGiven ? "The robot check failed. Please do it again." : "Confirm that you are not a robot, then sign in.",
+      { human_check: tokenGiven ? "failed" : "required", site_key: this.checks.human?.siteKey },
+    );
+  }
+
   // ---------- Login / sessions ----------
 
   /**
@@ -343,13 +425,25 @@ export class AuthService {
    *
    * With the second step on, a right password opens no session: it starts a challenge, and the
    * attempt keeps counting as a failure in the rate limit until the code is right too.
+   *
+   * A risky sign-in (humanCheckRequired) must pass the robot check first. The rate limit still
+   * comes before it, so a blocked network hears "wait", not "solve this".
    */
-  async login(password: string, client: string, userAgent: string, email?: string): Promise<SignedIn | MfaPending> {
+  async login(password: string, client: string, userAgent: string, email?: string, proof: HumanProof = {}): Promise<SignedIn | MfaPending> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
-    const attempt = this.beginAttempt(client);
+    this.assertLoginAllowed(client);
+    const humanVerified = await this.assertHuman(client, proof);
+    const attempt = this.beginAttempt(client, { humanVerified });
     const [passwordOk, emailOk] = await Promise.all([this.checkPassword(password), this.checkEmail(email)]);
-    if (!passwordOk || !emailOk) throw new AppError("UNAUTHORIZED", this.emailRequired() ? "Incorrect email or password." : "Incorrect password.");
+    if (!passwordOk || !emailOk) {
+      // The failure is counted now, so the next try from this network needs the robot check.
+      throw new AppError(
+        "UNAUTHORIZED",
+        this.emailRequired() ? "Incorrect email or password." : "Incorrect password.",
+        this.checks.human ? { human_check: "required", site_key: this.checks.human.siteKey } : undefined,
+      );
+    }
     if (this.mfa.enabled()) {
       return { mfa: await this.mfa.createChallenge(attempt, this.passwordProblem(password) !== null, userAgent) };
     }

@@ -410,7 +410,11 @@ export const settingsUpdateSchema = settingsSchema
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
 /** Signing in: the e-mail address is asked for only when OWNER_EMAIL is set. */
-export const signInSchema = loginSchema.extend({ email: z.string().max(254).optional() });
+export const signInSchema = loginSchema.extend({
+  email: z.string().max(254).optional(),
+  /** The Turnstile widget's answer, when the sign-in form showed it (GET /api/auth/session says when). */
+  turnstile_token: z.string().max(2048).optional(),
+});
 /** Step-up: the password, or with two-step sign-in on, a current authenticator code. */
 export const confirmSchema = z
   .object({ password: z.string().min(1).max(256).optional(), code: z.string().min(1).max(40).optional() })
@@ -472,6 +476,8 @@ export type ApiErrorCode =
   | "REAUTH_REQUIRED"
   /** The password in use fails the current rules: only changing it (POST /api/auth/password) works. */
   | "PASSWORD_CHANGE_REQUIRED"
+  /** The sign-in looks risky: solve the Turnstile check (details.site_key) and send its token. */
+  | "HUMAN_CHECK_REQUIRED"
   /** A service the request depends on (such as the breach check) did not answer; retry later. */
   | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR";

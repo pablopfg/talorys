@@ -2,11 +2,18 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AtSign, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
+import { TurnstileWidget } from "../components/TurnstileWidget";
 import { Button } from "../components/ui";
+import type { HumanCheck } from "../hooks/session";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 
-export function LoginPage({ configured, ended, emailRequired = false }: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean }) {
+export function LoginPage({
+  configured,
+  ended,
+  emailRequired = false,
+  humanCheck,
+}: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean; humanCheck?: HumanCheck }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -24,6 +31,18 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
   const codeRef = useRef<HTMLInputElement>(null);
   // Kept from the moment the lock screen appeared, so a later session refresh doesn't erase it.
   const [endedReason] = useState(ended);
+  // The robot check: shown only when the server says this sign-in looks risky (a recent failure,
+  // or an attack in progress). Its site key comes with the session or with the refusal.
+  const [humanKey, setHumanKey] = useState<string | null>(humanCheck?.required ? humanCheck.site_key : null);
+  const [humanToken, setHumanToken] = useState<string | null>(null);
+  const [humanBroken, setHumanBroken] = useState(false);
+  // A token works once: a new widget after every try.
+  const [humanRound, setHumanRound] = useState(0);
+  useEffect(() => {
+    if (humanCheck?.required) setHumanKey(humanCheck.site_key);
+  }, [humanCheck?.required, humanCheck?.site_key]);
+  // A widget that can't load doesn't lock the form: the server decides whether it was needed.
+  const humanMissing = humanKey !== null && !humanToken && !humanBroken;
 
   useEffect(() => {
     if (!retryAt) return;
@@ -34,11 +53,17 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0) return;
+    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0 || humanMissing) return;
     setPending(true);
     setError(null);
+    const token = humanToken;
+    if (humanKey !== null) {
+      setHumanToken(null);
+      setHumanRound((n) => n + 1);
+    }
     try {
-      const result = await api<{ authenticated: boolean; mfa_required?: boolean }>("/auth/login", { method: "POST", body: emailRequired ? { email, password } : { password } });
+      const body = { password, ...(emailRequired ? { email } : {}), ...(token ? { turnstile_token: token } : {}) };
+      const result = await api<{ authenticated: boolean; mfa_required?: boolean }>("/auth/login", { method: "POST", body });
       setPassword("");
       if (result.mfa_required) {
         setCodeStep(true);
@@ -48,6 +73,12 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
       }
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
+      const check = err instanceof ApiError ? (err.details as { human_check?: string; site_key?: string } | undefined) : undefined;
+      if (check?.human_check && check.site_key) {
+        // The next try from here needs the check (or it must be done again).
+        if (humanKey === null) setHumanRound((n) => n + 1);
+        setHumanKey(check.site_key);
+      }
       if (err instanceof ApiError && err.code === "RATE_LIMITED") {
         const seconds = (err.details as { retry_after?: number } | undefined)?.retry_after ?? 60;
         setRetryAt(Date.now() + seconds * 1000);
@@ -209,7 +240,26 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0}>
+            {humanKey !== null && (
+              <div className="space-y-1.5">
+                <p className="text-center text-sm leading-6 text-fg-muted">{humanBroken ? t("login.humanCheckBroken") : t("login.humanCheckHint")}</p>
+                <TurnstileWidget
+                  key={`${humanKey}-${humanRound}`}
+                  siteKey={humanKey}
+                  onToken={(value) => {
+                    setHumanToken(value);
+                    if (value) setHumanBroken(false);
+                  }}
+                  onError={() => setHumanBroken(true)}
+                />
+              </div>
+            )}
+            <Button
+              type="submit"
+              className="h-12 w-full justify-center rounded-xl text-[15px]"
+              loading={pending}
+              disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0 || humanMissing}
+            >
               {waitSeconds > 0 ? t("login.tryAgainIn", { seconds: waitSeconds }) : t("login.unlock")}
             </Button>
             {error && (

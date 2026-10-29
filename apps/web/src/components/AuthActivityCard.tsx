@@ -24,6 +24,7 @@ const KIND_LABEL: Record<AuthEventKind, PlainMessageKey> = {
   mfa_enabled: "authActivity.mfaEnabled",
   mfa_disabled: "authActivity.mfaDisabled",
   mfa_codes_regenerated: "authActivity.mfaCodesRegenerated",
+  login_human_check: "authActivity.loginHumanCheck",
 };
 
 /** Reasons worth showing next to the kind; the others say nothing the kind doesn't. */
@@ -43,6 +44,9 @@ const REASON_LABEL: Record<string, PlainMessageKey> = {
   rate_limited: "authActivity.reasonRateLimited",
   disable: "authActivity.reasonMfaDisable",
   recovery_codes: "authActivity.reasonMfaCodes",
+  required: "authActivity.reasonHumanRequired",
+  failed: "authActivity.reasonHumanFailed",
+  unavailable: "authActivity.reasonHumanUnavailable",
 };
 
 const RETENTION_CHOICES = [30, 60, 90, 120, 180];
