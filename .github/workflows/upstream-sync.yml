@@ -1,0 +1,114 @@
+name: Upstream sync
+
+# Once a week, compares develop with the original Talorys (rociiu/talorys) and keeps one issue
+# up to date with what the original has that develop doesn't: commits, files, tags and whether
+# the merge is clean. It uses no secrets and never pushes: the merge itself is a normal pull
+# request opened by a person (or Claude) so CI runs on it and conflicts get a human decision.
+# A GITHUB_TOKEN push could not carry the original's workflow changes anyway, and a pull request
+# it opened would not start CI.
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays, 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      UPSTREAM_URL: https://github.com/rociiu/talorys.git
+      UPSTREAM_WEB: https://github.com/rociiu/talorys
+      LABEL: upstream-sync
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Only git reads the original's code here: nothing from it is installed or run.
+      - name: Compare with the original
+        id: compare
+        env:
+          # A .gitattributes from the original can't make the merge download LFS objects.
+          GIT_LFS_SKIP_SMUDGE: "1"
+          LC_ALL: C.UTF-8
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet "$UPSTREAM_URL" main:refs/remotes/upstream/main
+          behind=$(git rev-list --count HEAD..upstream/main)
+          echo "behind=$behind" >> "$GITHUB_OUTPUT"
+          [ "$behind" -gt 0 ] || exit 0
+
+          # Text written by others goes inside code blocks, with backticks and @ neutralized,
+          # so it can't break out, mention anyone or turn into links.
+          clean() { sed -e 's/`/ʼ/g' -e 's/@/＠/g' | awk '{ print substr($0, 1, 160) }'; }
+          git config user.name "upstream-sync"
+          git config user.email "upstream-sync@users.noreply.github.com"
+          if git merge --no-commit --no-ff --quiet upstream/main >/dev/null 2>&1; then
+            conflicts=""
+          else
+            conflicts=$(git diff --name-only --diff-filter=U | awk 'NR <= 100' | clean)
+            [ -n "$conflicts" ] || conflicts="(a mesclagem falhou sem arquivos em conflito; veja o log da execução)"
+          fi
+          git merge --abort >/dev/null 2>&1 || true
+
+          tag=$(git ls-remote --tags --refs --sort=-v:refname "$UPSTREAM_URL" 'v*' 'create-talorys@*' | awk 'NR == 1 { sub(/.*refs\/tags\//, ""); print }' | clean)
+          base=$(git merge-base HEAD upstream/main)
+          {
+            echo "O Talorys original tem **$behind commit(s)** que ainda não estão na \`develop\`."
+            echo
+            echo "- Última tag do original: \`${tag:-nenhuma}\`"
+            echo "- Comparação: $UPSTREAM_WEB/compare/${base:0:12}...main"
+            echo "- Verificado em: $(date -u +%Y-%m-%dT%H:%MZ) (execução [#$GITHUB_RUN_NUMBER]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID))"
+            echo
+            if [ -n "$conflicts" ]; then
+              echo "### ⚠️ A mesclagem tem conflitos"
+              echo
+              echo '```text'
+              echo "$conflicts"
+              echo '```'
+            else
+              echo "### ✅ A mesclagem é limpa"
+            fi
+            echo
+            echo "### Commits (até 50, mais novos primeiro)"
+            echo
+            echo '```text'
+            git log --no-merges --format='%h %ad %s' --date=short -50 HEAD..upstream/main | clean
+            echo '```'
+            echo
+            echo "### Arquivos alterados (até 100)"
+            echo
+            echo '```text'
+            git diff --stat=120 --stat-count=100 "$base" upstream/main | clean
+            echo '```'
+            echo
+            echo "Como sincronizar: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/develop/docs/releases.md#sincronizar-com-o-original"
+          } > "$RUNNER_TEMP/body.md"
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BEHIND: ${{ steps.compare.outputs.behind }}
+        run: |
+          set -euo pipefail
+          gh label create "$LABEL" --color 0e8a16 --description "Mudanças do Talorys original a trazer" --force >/dev/null
+          issue=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ "${BEHIND:-0}" -eq 0 ]; then
+            if [ -n "$issue" ]; then gh issue close "$issue" --comment "A \`develop\` já tem tudo o que está no original."; fi
+            echo "Up to date with the original."
+          elif [ -n "$issue" ]; then
+            gh issue edit "$issue" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "Sincronizar com o Talorys original" --label "$LABEL" --body-file "$RUNNER_TEMP/body.md"
+          fi

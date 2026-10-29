@@ -6,6 +6,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Adicionado
 
+- **Aviso semanal de mudanças no Talorys original.** O workflow **Upstream sync** compara a `develop` com o original toda segunda-feira e mantém uma issue (`upstream-sync`) com os commits novos, os arquivos alterados, a última tag e se a mesclagem tem conflitos. Sem segredos e sem enviar commits; a sincronização em si é um PR normal. Veja [docs/releases.md](docs/releases.md#sincronizar-com-o-original).
+
 - **Rotinas do dia com a agenda.**
   - **Resumo do dia com a agenda.** O resumo do dia passa a listar os compromissos de hoje das agendas abertas.
   - **Aviso antes do primeiro evento.** Em **Configurações → Integrações → Google Agenda**, cada agenda aberta ganha um aviso N minutos antes do primeiro evento do dia, com o seu texto (por exemplo, "ligar o ar-condicionado"). O aviso sai uma vez por dia, segue o evento se ele mudar de horário e ignora eventos de dia inteiro.
