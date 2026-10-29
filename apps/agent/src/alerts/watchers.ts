@@ -1,4 +1,4 @@
-import { type AlertCategory, getZonedParts, TALORYS_VERSION, type Task, WATCH, zonedTimeToUtc } from "@talorys/shared";
+import { type AlertCategory, getZonedParts, PUSH_INACTIVE_DAYS, TALORYS_VERSION, type Task, WATCH, zonedTimeToUtc } from "@talorys/shared";
 import type { Services } from "../services/container";
 import { checkForUpdate } from "../services/update-check";
 import { clip, defangLinks } from "../services/text";
@@ -44,6 +44,8 @@ export async function runWatchers(s: Services, now = new Date(), fetchFn: typeof
       console.warn("Watcher failed", check, error instanceof Error ? error.message : String(error));
     }
   };
+  // A security rule, not a reminder: runs even with the watchers turned off.
+  await guard("push-inactive", () => removeInactivePush(s, now));
   if (prefs.watchers) {
     await guard("tasks", () => watchTasks(s, now, prefs.digest.time));
     await guard("routines", () => watchRoutines(s));
@@ -209,6 +211,27 @@ function watchPush(s: Services): number {
     dedupeKey: "push-broken",
     cooldownMinutes: 7 * 24 * 60,
   }) ? 1 : 0;
+}
+
+/**
+ * Devices that have not opened Talorys signed in for PUSH_INACTIVE_DAYS stop receiving push: a lost
+ * or forgotten phone should not keep getting the owner's alerts. Each removal is logged, and the
+ * owner is told (on the devices that remain, Telegram and the app) how to add it back.
+ */
+function removeInactivePush(s: Services, now: Date): number {
+  const removed = s.push.subscriptions.removeUnseenSince(new Date(now.getTime() - PUSH_INACTIVE_DAYS * DAY_MS).toISOString());
+  for (const d of removed) {
+    const label = clip(defangLinks(d.label.replace(/\s+/g, " ").trim()), 100);
+    s.activity.record("push.expired", `Removed ${label} from notifications after ${PUSH_INACTIVE_DAYS} days without use`);
+    s.alerts.raise({
+      title: "Push device removed for inactivity",
+      body: `“${label}” had not opened Talorys for ${PUSH_INACTIVE_DAYS} days and no longer receives push notifications. To get them again, open Talorys on it and turn them on in Settings → Alerts.`,
+      category: "system",
+      dedupeKey: `push-inactive:${d.id}`,
+      cooldownMinutes: 24 * 60,
+    });
+  }
+  return removed.length;
 }
 
 /** No backup exported in WATCH.backupDays (counted from the first use when there was none). */

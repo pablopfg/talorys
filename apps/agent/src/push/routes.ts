@@ -1,4 +1,4 @@
-import { localizeServerText, pushSubscribeSchema, pushUnsubscribeSchema } from "@talorys/shared";
+import { localizeServerText, pushSeenSchema, pushSubscribeSchema, pushUnsubscribeSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError, NotFoundError, ValidationError } from "../api/errors";
@@ -18,6 +18,12 @@ pushRoutes.post("/push/subscriptions", async (c) => {
   const problem = endpointProblem(input.endpoint);
   if (problem) throw new ValidationError(problem);
   const label = input.label || deviceLabel(c.req.header("user-agent") ?? "");
+  // The browser rotated a registered subscription: the same device, so it keeps its place. Only a
+  // browser holding the old endpoint (a secret the API never returns) can name it.
+  if (input.replaces && input.replaces !== input.endpoint && !s.push.subscriptions.hasEndpoint(input.endpoint)) {
+    const device = s.push.subscriptions.replace(input.replaces, { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth });
+    if (device) return c.json({ device, status: s.push.status() });
+  }
   // A new device would get every alert from now on: it needs the password typed recently, and
   // the owner is told. The same browser renewing its subscription needs neither.
   const known = s.push.subscriptions.hasEndpoint(input.endpoint);
@@ -44,6 +50,16 @@ pushRoutes.post("/push/unsubscribe", async (c) => {
   const input = await body(c, pushUnsubscribeSchema, 8 * 1024);
   s.push.subscriptions.removeByEndpoint(input.endpoint);
   return c.json(s.push.status());
+});
+
+/**
+ * A signed-in browser saying it still uses Talorys, at most about once an hour. A device that stops
+ * doing this for PUSH_INACTIVE_DAYS is removed by the watchers. `known: false` tells the browser its
+ * subscription is no longer registered, so its switch shows off.
+ */
+pushRoutes.post("/push/seen", async (c) => {
+  const input = await body(c, pushSeenSchema, 4 * 1024);
+  return c.json({ known: c.env.agent.services.push.subscriptions.markSeen(input.endpoint) });
 });
 
 pushRoutes.delete("/push/subscriptions/:id", (c) => {

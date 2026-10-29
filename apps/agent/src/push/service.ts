@@ -7,6 +7,7 @@ import {
   type Notification,
   type NotificationAction,
   NOTIFICATION_ACTIONS,
+  PUSH_INACTIVE_DAYS,
   type PushStatus,
 } from "@talorys/shared";
 import { clip } from "../services/text";
@@ -103,7 +104,7 @@ export class PushService {
   status(): PushStatus {
     this.dropMovedDevices();
     const available = this.configured();
-    return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES };
+    return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES, inactive_days: PUSH_INACTIVE_DAYS };
   }
 
   private vapid(): Promise<VapidKeys | null> {

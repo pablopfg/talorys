@@ -22,7 +22,7 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 
 | Bloco | O que faz |
 | --- | --- |
-| Notificações push | Liga o push neste aparelho, lista os aparelhos cadastrados e envia um teste. |
+| Notificações push | Liga o push neste aparelho, lista os aparelhos cadastrados (no máximo 3, com o último acesso de cada um) e envia um teste. Veja [Aparelhos do push](#aparelhos-do-push). |
 | Telegram | Conecta o bot, vincula o chat privado e o grupo, envia um teste e desvincula. Veja [Telegram](#telegram). |
 | Para onde vão os avisos | Para cada categoria, um interruptor por canal e o interruptor **Texto completo** (para o Telegram e o e-mail). Desligado, a categoria fica só no app. Também mostra o destino do e-mail com o botão de teste e define os limites por canal. |
 | Entregas recentes | As últimas 100 tentativas de envio, com categoria, canal, prioridade, situação e o motivo quando o aviso não saiu. |
@@ -228,6 +228,7 @@ geram um aviso quando algo precisa de você. Um vigia que não encontrou nada n�
 | Servidor MCP precisa de atenção | Servidor ligado que perdeu o login ou está com erro | Normal | 1 vez por dia |
 | Orçamento de IA quase no fim / esgotado | 80% / 100% dos pedidos de IA do dia | Normal / **Alta** | 1 vez por dia |
 | Notificações push não estão chegando | Todo aparelho inscrito falhou 3 vezes seguidas | Normal | 1 vez por semana |
+| Aparelho removido do push por inatividade | Um aparelho ficou 3 dias sem abrir o Talorys e foi removido (roda mesmo com os vigias desligados) | Normal | 1 vez por aparelho removido |
 | Hora de fazer um backup | Nenhuma exportação há 30 dias (contando do primeiro dia do vigia, se nunca houve) | Baixa | A cada 30 dias |
 | Atualização disponível | Versão nova publicada (só com a checagem de atualização ligada em Configurações) | Baixa | Uma vez por versão |
 
@@ -601,7 +602,8 @@ ganham o resumo às 07:30 e os vigias ligados. A migração 21 acrescenta às no
 (`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
 as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
 100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
-avisos. Não há variável nova. Os alertas de segurança novos e o canal de e-mail não pedem
+avisos. Não há variável nova. A migração 22 acrescenta `last_seen_at` a
+`tal_push_subscriptions`, com a hora da migração nos aparelhos que já existem. Os alertas de segurança novos e o canal de e-mail não pedem
 migração; o e-mail é opcional e segue [Configurar o e-mail](#configurar-o-e-mail).
 
 Para o Telegram, siga [Configurar o Telegram](#configurar-o-telegram). Para o push,
@@ -614,6 +616,35 @@ depois do deploy:
 3. Ajuste os limites se precisar e toque em **Salvar**.
 4. Use **Enviar teste** para conferir o aparelho.
 
+## Aparelhos do push
+
+- **No máximo 3 aparelhos** recebem push. Com 3 cadastrados, ligar o push num quarto
+  responde "No máximo 3 dispositivos podem receber notificações. Remova um primeiro.":
+  remova um na lista de **Configurações → Avisos → Notificações push**.
+- **Aparelho parado sai sozinho.** Por segurança, um aparelho que fica **3 dias ou mais sem
+  abrir o Talorys com login** é removido do push, para que um celular perdido ou esquecido
+  pare de receber os seus avisos. A checagem roda a cada 15 minutos, mesmo com os vigias
+  desligados. Cada remoção fica no registro de atividade e gera o aviso "Aparelho removido do
+  push por inatividade" pelos canais que restam (outros aparelhos, Telegram, e-mail se ligado
+  para Sistema, e a central).
+- **O que conta como acesso:** abrir o Talorys com login naquele navegador. O app avisa o
+  servidor ao abrir e depois no máximo uma vez por hora enquanto fica aberto
+  (`POST /api/push/seen`). Ligar ou renovar o push também conta. Receber notificações, não.
+- Na prática: **abra o Talorys em cada aparelho pelo menos a cada 3 dias** para continuar
+  recebendo push nele. Para voltar a receber num aparelho removido, abra o Talorys nele e
+  ligue o push de novo (pede a senha recente, como todo aparelho novo, e gera o alerta "Novo
+  aparelho no push").
+- Se todos os aparelhos saírem de uma vez e o Telegram e o e-mail não estiverem ligados, o
+  aviso da remoção fica só na central do app.
+- Instalações que já tinham mais de 3 aparelhos antes desta versão não perdem nenhum na
+  hora (o cartão mostra, por exemplo, "5 de 3"): os parados saem sozinhos depois de 3 dias, e
+  um aparelho novo só entra quando houver vaga.
+- Quando o navegador troca a inscrição sozinho (chaves renovadas ou inscrição expirada), o
+  service worker envia a nova com o endpoint antigo em `replaces`: o mesmo aparelho continua
+  no lugar, sem pedir senha e sem alerta, e o último acesso não muda.
+- Os limites ficam em `packages/shared/src/push.ts` (`MAX_PUSH_DEVICES = 3` e
+  `PUSH_INACTIVE_DAYS = 3`). Não há variável de ambiente para mudá-los.
+
 ## API
 
 Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeçalho
@@ -623,7 +654,9 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | --- | --- | --- |
 | `GET /api/alerts` | — | `{ preferences, deliveries, channels, email: { to, sentToday } }`; `channels` tem `push`, `telegram` e `email`; `email.to` é o destino mascarado ou `null` sem e-mail |
 | `POST /api/alerts/email/test` | — | Envia o e-mail de teste; `{ sent, overview }`; pede a senha recente (403 `REAUTH_REQUIRED`); 503 `NOT_CONFIGURED` sem e-mail; 429 depois de 2 testes no dia ou sem espaço no limite |
-| `POST /api/push/subscriptions` | Inscrição do navegador | Um aparelho novo pede a senha recente e gera o alerta "Novo aparelho no push"; a renovação do mesmo navegador não |
+| `POST /api/push/subscriptions` | Inscrição do navegador, com `replaces` opcional (endpoint antigo) | Com `replaces` de um aparelho cadastrado, troca o endpoint e as chaves dele (sem senha, sem alerta). Um aparelho novo pede a senha recente e gera o alerta "Novo aparelho no push"; a renovação do mesmo navegador não. 400 com 3 aparelhos já cadastrados |
+| `POST /api/push/seen` | `{ endpoint }` (até 4 KB) | `{ known }`: marca o último acesso do aparelho com esse endpoint; `known: false` quando ele não está mais cadastrado (o interruptor do navegador volta a mostrar desligado) |
+| `GET /api/push` | — | `{ available, public_key, devices, max_devices: 3, inactive_days: 3 }`; cada aparelho traz `last_seen_at` |
 | `DELETE /api/notifications/:id` | — | Alerta de segurança pede a senha recente (403 `REAUTH_REQUIRED`); 409 enquanto ainda insiste |
 | `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram", "email"] }, limits: { perHour, perDay }, fullText: [<categoria>...], digest: { enabled, time: "HH:MM" }, watchers }` (todas as categorias, até 8 KB; `fullText`, `digest` e `watchers` opcionais, padrão vazio, `{ enabled: true, time: "07:30" }` e `true`) | `{ preferences }`; 400 se inválido |
 | `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }` com `priority_reason: "corrected"`; o perfil do aviso aprende com a correção; 400 para baixar um alerta de segurança; 404 se não existir |

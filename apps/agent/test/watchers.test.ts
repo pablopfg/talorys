@@ -1,8 +1,9 @@
-import { localizeServerText, WATCH } from "@talorys/shared";
+import { localizeServerText, PUSH_INACTIVE_DAYS, WATCH } from "@talorys/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TalorysAgent } from "../src/agent/talorys-agent";
 import { runWatchers, sendDigest } from "../src/alerts/watchers";
 import { inAgent, loggedIn } from "./helpers";
+import { fakeBrowser, pushServiceStub } from "./push-helpers";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -202,6 +203,42 @@ describe("system watchers", () => {
       expect((await c.call("/api/export")).status).toBe(200);
       s.db.run(`DELETE FROM tal_activity`);
       expect((await round(agent)).raised).toEqual({});
+    });
+  });
+
+  it(`removes push devices that have not opened Talorys for ${PUSH_INACTIVE_DAYS} days, even with the watchers off`, async () => {
+    await inAgent(async (agent) => {
+      const s = agent.services;
+      s.db.run(`DELETE FROM tal_push_subscriptions`);
+      s.push.fetcher = pushServiceStub(201).fetcher;
+      const add = async (label: string, endpoint: string) => {
+        const { keys } = (await fakeBrowser(endpoint)).json;
+        return s.push.subscriptions.save({ endpoint, p256dh: keys.p256dh, auth: keys.auth, label, origin: "https://exemplo.com.br" });
+      };
+      const lost = await add("Lost https://evil.example phone", "https://fcm.googleapis.com/fcm/send/lost");
+      const kept = await add("Laptop", "https://fcm.googleapis.com/fcm/send/kept");
+      const now = Date.now();
+      s.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ? WHERE id = ?`, new Date(now - PUSH_INACTIVE_DAYS * DAY - MIN).toISOString(), lost.id);
+      // Just inside the limit: kept.
+      s.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ? WHERE id = ?`, new Date(now - PUSH_INACTIVE_DAYS * DAY + HOUR).toISOString(), kept.id);
+      s.alerts.updatePreferences({ ...s.alerts.preferences(), watchers: false, digest: { enabled: false, time: "00:00" } });
+
+      expect((await runWatchers(s, new Date(now), offline)).raised).toEqual({ "push-inactive": 1 });
+      expect(s.push.subscriptions.devices().map((d) => d.id)).toEqual([kept.id]);
+      const [alert] = alerts(agent);
+      expect(alert).toMatchObject({ title: "Push device removed for inactivity", category: "system" });
+      expect(alert!.body).toContain(`had not opened Talorys for ${PUSH_INACTIVE_DAYS} days`);
+      // The label is the owner's (or a browser's) text: links in it never become clickable.
+      expect(alert!.body).toContain("“Lost `https://evil.example` phone”");
+      expect(localizeServerText(alert!.body, "pt-BR")).toContain(`não abria o Talorys havia ${PUSH_INACTIVE_DAYS} dias`);
+      expect(s.activity.list(10).some((a) => a.type === "push.expired")).toBe(true);
+
+      // Opening the app keeps a device: the next round removes nothing.
+      expect(s.push.subscriptions.markSeen("https://fcm.googleapis.com/fcm/send/kept", new Date(now).toISOString())).toBe(true);
+      expect((await runWatchers(s, new Date(now + 2 * HOUR), offline)).raised).toEqual({});
+      expect(s.push.subscriptions.devices()).toHaveLength(1);
+      await s.push.idle();
+      s.db.run(`DELETE FROM tal_push_subscriptions`);
     });
   });
 
