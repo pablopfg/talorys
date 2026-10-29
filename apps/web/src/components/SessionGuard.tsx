@@ -10,7 +10,10 @@ const LEADER_LOCK = "talorys-heartbeat";
 const HEARTBEAT_MS = 60_000;
 /** The warning shows this long before the session ends for lack of use. */
 const WARN_MS = 2 * 60_000;
-const INPUT_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"] as const;
+// Not "scroll": the app scrolls by itself (a chat reply streaming in), and that is not use.
+const INPUT_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
+/** A tab must be in front this long before its own count may sign the whole browser out. */
+const SETTLE_MS = 5_000;
 
 const formatCountdown = (ms: number) => {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -25,11 +28,12 @@ const formatCountdown = (ms: number) => {
  */
 export function SessionGuard() {
   const { t } = useI18n();
-  const { session, logout } = useSession();
+  const { session, logout, lock, refresh } = useSession();
   const [deadlines, setDeadlines] = useState<LocalDeadlines | undefined>(session?.local);
   const [now, setNow] = useState(Date.now());
   const lastBeat = useRef(Date.now());
   const ending = useRef(false);
+  const visibleSince = useRef(Date.now());
 
   useEffect(() => setDeadlines(session?.local), [session?.local]);
 
@@ -90,6 +94,14 @@ export function SessionGuard() {
     };
   }, [beat]);
 
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") visibleSince.current = Date.now();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   // The clock for the warning.
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -114,8 +126,16 @@ export function SessionGuard() {
     if (remaining > 0 || ending.current) return;
     ending.current = true;
     // A maximum-length end is not about inactivity, so it gets the general message.
-    void logout(idleAt <= maxAt ? "idle" : "ended");
-  }, [remaining, idleAt, maxAt, logout]);
+    const reason = idleAt <= maxAt ? "idle" : "ended";
+    // A tab just back from the background (or from being frozen) may count from stale news. It
+    // locks only itself and asks the server, so it never signs out a session in use elsewhere.
+    if (document.visibilityState !== "visible" || Date.now() - visibleSince.current < SETTLE_MS) {
+      lock(reason);
+      void refresh();
+      return;
+    }
+    void logout(reason);
+  }, [remaining, idleAt, maxAt, logout, lock, refresh]);
 
   if (!warn || remaining <= 0) return null;
   const maxReached = maxAt <= idleAt;

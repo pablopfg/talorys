@@ -20,7 +20,7 @@ Talorys is single-user. The threat model assumes the internet can reach your
   unprefixed one used by local development. The database stores only
   `HMAC(SESSION_SECRET, token)`; a storage leak cannot be replayed.
 - A session ends on the server, whichever comes first, after:
-  - **15 minutes without use** (a click, a key, scrolling: only requests the
+  - **15 minutes without use** (a click, a key, the mouse wheel: only requests the
     owner started count, marked with the `x-talorys-activity` header, never
     background polling);
   - **5 minutes with no open tab** (one tab per browser sends a presence
@@ -31,7 +31,9 @@ Talorys is single-user. The threat model assumes the internet can reach your
   again. The browser warns 2 minutes before the end, signs every tab out at
   once, and the session cookie has no expiry date, so it goes when the
   browser closes. Logout and "sign out other sessions" revoke server-side,
-  logout also sends `Clear-Site-Data: "cache", "cookies"`, and each end is
+  logout also sends `Clear-Site-Data: "cache"` (not `"cookies"`, which would
+  also clear the cookies of every other site on your domain, Cloudflare
+  Access's included), and each end is
   recorded in the activity log. At most 20 sessions are kept.
 - Signing in ends the session the browser already had, so a cookie planted
   before sign-in cannot ride along.

@@ -24,7 +24,7 @@ authRoutes.post("/logout", (c) => {
   c.header("set-cookie", sessionCookie(c, null));
   // Drops what this browser cached of the app. Not "storage": that would remove the service
   // worker and with it push notifications; local storage holds only theme and language.
-  c.header("clear-site-data", '"cache", "cookies"');
+  c.header("clear-site-data", '"cache"');
   return c.json({ authenticated: false });
 });
 

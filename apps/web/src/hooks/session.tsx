@@ -28,6 +28,8 @@ interface SessionContextValue {
   error: unknown;
   refresh: () => Promise<unknown>;
   logout: (reason?: LogoutReason) => Promise<void>;
+  /** Locks this tab only, without telling the server or the other tabs. */
+  lock: (reason: LogoutReason) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -111,7 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <SessionContext.Provider value={{ session: query.data, loading: query.isLoading, error: query.error, refresh: query.refetch, logout }}>
+    <SessionContext.Provider value={{ session: query.data, loading: query.isLoading, error: query.error, refresh: query.refetch, logout, lock: signOutHere }}>
       {children}
     </SessionContext.Provider>
   );

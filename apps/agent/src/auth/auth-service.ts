@@ -366,6 +366,8 @@ export class AuthService {
   listSessions(currentId: string | null): SessionInfo[] {
     return this.db
       .all<SessionRow>(`SELECT * FROM tal_sessions ORDER BY last_seen_at DESC`)
+      // A session past a deadline ends here too, so the list never shows one that can't be used.
+      .filter((row) => !this.endIfExpired(row))
       .map(({ confirmed_at: _, last_presence_at: __, ...s }) => ({ ...s, id: s.id.slice(0, 16), current: s.id === currentId }));
   }
 

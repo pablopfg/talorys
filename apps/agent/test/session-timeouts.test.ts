@@ -45,6 +45,15 @@ describe("the three session deadlines (D9)", () => {
     expect((await endedLog()).at(-1)?.summary).toBe("Signed out: maximum session length");
   });
 
+  it("never lists a session past a deadline as active", async () => {
+    const c = await only();
+    const other = await loggedIn();
+    await inAgent((a) => a.services.db.run(`UPDATE tal_sessions SET last_seen_at = ? WHERE rowid = (SELECT MIN(rowid) FROM tal_sessions)`, ago(16 * MIN)));
+    const { sessions } = await other.json("/api/auth/sessions");
+    expect(sessions).toHaveLength(1);
+    expect((await c.call("/api/tasks")).status).toBe(401);
+  });
+
   it("keeps a session that is inside all three", async () => {
     const c = await only();
     await setSession({ created_at: ago(11 * 60 * MIN), last_seen_at: ago(14 * MIN), last_presence_at: ago(4 * MIN) });
@@ -119,7 +128,7 @@ describe("cookie and sign-out", () => {
   it("signing out clears the cookie and the browser's cache, but not storage (push)", async () => {
     const c = await only();
     const res = await c.call("/api/auth/logout", { method: "POST", body: {} });
-    expect(res.headers.get("clear-site-data")).toBe('"cache", "cookies"');
+    expect(res.headers.get("clear-site-data")).toBe('"cache"');
     expect(res.headers.get("set-cookie")).toMatch(/Max-Age=0/);
   });
 });

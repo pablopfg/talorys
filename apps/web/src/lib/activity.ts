@@ -1,7 +1,7 @@
 /**
  * The owner's real use of the app, shared between tabs. Only the time of the last use is kept,
  * never what was done. The server counts a request as use only when it carries the activity
- * header, which this module adds for a few seconds after a click, key, touch, wheel or scroll.
+ * header, which this module adds for a few seconds after a click, key, touch or mouse wheel.
  */
 
 /** A request this soon after a real input counts as one the owner started. */
