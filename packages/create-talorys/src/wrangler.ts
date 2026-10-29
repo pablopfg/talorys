@@ -165,7 +165,7 @@ export class Wrangler {
   async deployPages(cwd: string, projectName: string, outputDir: string): Promise<{ deploymentUrl: string | null }> {
     const r = await this.runOk(
       "Deploying Cloudflare Pages",
-      ["pages", "deploy", outputDir, "--project-name", projectName, "--branch", "main", "--commit-dirty=true", "--commit-message", "Talorys deploy"],
+      ["pages", "deploy", outputDir, "--project-name", projectName, "--branch", "main", "--commit-dirty=true", "--commit-message", "Axis deploy"],
       { cwd, timeoutMs: 10 * 60_000 },
     );
     const deploymentUrl = r.stdout.match(/https:\/\/[a-z0-9.-]+\.pages\.dev/i)?.[0] ?? null;

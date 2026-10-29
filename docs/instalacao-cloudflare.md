@@ -1,12 +1,12 @@
 # Instalação completa na Cloudflare, passo a passo
 
-Este guia leva o Talorys do zero até o ar, com todos os recursos ligados, na
+Este guia leva o Axis do zero até o ar, com todos os recursos ligados, na
 sua conta da Cloudflare e no seu repositório do GitHub. Ele junta, na ordem
 certa, o que está espalhado nos outros documentos, e aponta para eles quando
 você quiser os detalhes.
 
 Tudo é feito **no navegador**, nos painéis da Cloudflare, do GitHub e do
-próprio Talorys. Não é preciso instalar nada no computador. Onde existe um
+próprio Axis. Não é preciso instalar nada no computador. Onde existe um
 atalho pelo terminal, ele aparece num bloco recolhido *Alternativa pelo
 terminal*.
 
@@ -18,7 +18,7 @@ terminal*.
 
 ## Sumário
 
-- [Como o Talorys roda na Cloudflare](#como-o-talorys-roda-na-cloudflare)
+- [Como o Axis roda na Cloudflare](#como-o-talorys-roda-na-cloudflare)
 - [Antes de começar](#antes-de-começar)
 - **Parte 1 — Cloudflare: conta e domínio**
   - [1. Criar e proteger a conta da Cloudflare](#1-criar-e-proteger-a-conta-da-cloudflare)
@@ -57,7 +57,7 @@ terminal*.
 - [Problemas comuns](#problemas-comuns)
 - [Referência: variáveis e segredos](#referência-variáveis-e-segredos)
 
-## Como o Talorys roda na Cloudflare
+## Como o Axis roda na Cloudflare
 
 ```
 navegador / Telegram / n8n
@@ -94,7 +94,7 @@ navegador / Telegram / n8n
 | Workers AI | Modelo do chat, embeddings e transcrição de voz | ✅ 10 mil Neurons/dia |
 | Email Routing (opcional) | Avisos e recuperação de senha por e-mail para o **seu** endereço verificado | ✅ |
 | Turnstile (opcional) | Verificação contra robôs nos logins arriscados | ✅ |
-| Zero Trust / Access (opcional) | Pedir o seu e-mail antes de abrir o Talorys | ✅ até 50 usuários |
+| Zero Trust / Access (opcional) | Pedir o seu e-mail antes de abrir o Axis | ✅ até 50 usuários |
 | GitHub Actions | CI e deploy | ✅ repositório público não gasta minutos |
 
 ## Antes de começar
@@ -102,17 +102,17 @@ navegador / Telegram / n8n
 Separe:
 
 - [ ] Um **e-mail** que você usa e protege bem (ele vira o dono da conta da
-      Cloudflare e, se quiser, o e-mail de login do Talorys).
+      Cloudflare e, se quiser, o e-mail de login do Axis).
 - [ ] Um **domínio** seu (por exemplo `exemplo.com.br`), registrado em
       qualquer lugar (Registro.br, Cloudflare Registrar, etc.). É recomendado,
-      não obrigatório: sem domínio, o Talorys fica em
+      não obrigatório: sem domínio, o Axis fica em
       `https://talorys.<sua-conta>.workers.dev` e alguns recursos (Access,
       recuperação de senha por e-mail, Email Routing) ficam de fora.
 - [ ] Um **gerenciador de senhas** (Bitwarden, 1Password, o do navegador).
       Todos os segredos deste guia são gerados e guardados nele.
 - [ ] Um **app autenticador** no celular (Google Authenticator, Aegis,
       1Password, Authy) para a verificação em duas etapas.
-- [ ] A conta do **GitHub** dona do repositório do Talorys (ou do seu fork),
+- [ ] A conta do **GitHub** dona do repositório do Axis (ou do seu fork),
       com permissão de administrador nele.
 - [ ] Cerca de **1 hora** para a primeira vez. Siga as etapas na ordem: várias
       dependem da anterior.
@@ -121,7 +121,7 @@ Escolha agora, e anote no gerenciador de senhas:
 
 | Escolha | Exemplo | Observação |
 | --- | --- | --- |
-| Endereço do Talorys | `assistente.exemplo.com.br` | Use um **subdomínio**, não o domínio puro: o app manda HSTS com `includeSubDomains`. |
+| Endereço do Axis | `assistente.exemplo.com.br` | Use um **subdomínio**, não o domínio puro: o app manda HSTS com `includeSubDomains`. |
 | Nome do Worker | `talorys` | Minúsculas, números e hífen. Se já existe uma instalação feita pelo instalador (`talorys-<id>-agent`), use esse nome para manter os dados. |
 | Remetente dos e-mails (opcional) | `talorys@exemplo.com.br` | Não precisa ser uma caixa de entrada real. |
 | Fuso horário | `America/Sao_Paulo` | |
@@ -139,7 +139,7 @@ Escolha agora, e anote no gerenciador de senhas:
    superior direito) → **Profile → Authentication → Two-Factor
    Authentication** → configure o app autenticador e guarde os códigos de
    recuperação no gerenciador de senhas. Quem entra nesta conta controla todos
-   os seus dados no Talorys.
+   os seus dados no Axis.
 4. Anote o **Account ID**: na página inicial da conta, em **Workers & Pages**,
    ele aparece na lateral direita (também fica na URL do painel:
    `dash.cloudflare.com/<account-id>/...`). Ele vai virar um segredo do GitHub
@@ -184,7 +184,7 @@ requisição chegar a ele. Painel → o domínio → **SSL/TLS**:
 | **Edge Certificates** | Automatic HTTPS Rewrites | **Ligado** |
 
 **Não** ligue o HSTS da zona com *includeSubDomains* ou *Preload* se algum
-outro subdomínio do domínio ainda usa HTTP. O HSTS do Talorys já vale para o
+outro subdomínio do domínio ainda usa HTTP. O HSTS do Axis já vale para o
 endereço dele.
 
 Detalhes do que o Worker faz com HTTP: [deploy-github-actions.md](deploy-github-actions.md#2-forçar-https-no-domínio-próprio).
@@ -202,7 +202,7 @@ mesmo quem vai usar domínio próprio.
 Com domínio próprio, o deploy **desliga** o endereço
 `talorys.minhaconta.workers.dev` e as URLs de preview do Worker e confere isso
 pela API a cada deploy. Sem domínio, é por esse endereço que você vai acessar o
-Talorys. Detalhes: [E o endereço `*.workers.dev`?](deploy-github-actions.md#e-o-endereço-workersdev).
+Axis. Detalhes: [E o endereço `*.workers.dev`?](deploy-github-actions.md#e-o-endereço-workersdev).
 
 > **Não ligue os Workers traces** (Worker → Settings → Observability →
 > Traces). Os logs já vêm ligados pelo `observability` do Wrangler; os traces
@@ -210,7 +210,7 @@ Talorys. Detalhes: [E o endereço `*.workers.dev`?](deploy-github-actions.md#e-o
 
 ### 5. O que não precisa criar (D1, KV, R2…)
 
-O Talorys **não usa** D1, KV, R2, Vectorize, Queues, Pages nem Hyperdrive.
+O Axis **não usa** D1, KV, R2, Vectorize, Queues, Pages nem Hyperdrive.
 Tudo fica no Durable Object, que o primeiro deploy cria sozinho, junto com a
 migração do banco. O único Workflow (`<nome do Worker>-workflow`, do menu
 **Workflows**) também é criado pelo deploy: não crie nenhum à mão. O Workers AI também não precisa ser ativado: ele já vem
@@ -360,7 +360,7 @@ environment** → nome `production` → **Configure environment**:
    | `TALORYS_AGENT_NAME` | não | `Iris` |
 
    Use **ou** `TALORYS_CUSTOM_DOMAIN` **ou** `TALORYS_PUBLIC_URL`. Com um dos
-   dois, o Talorys responde só nesse endereço (qualquer outro recebe 404) e o
+   dois, o Axis responde só nesse endereço (qualquer outro recebe 404) e o
    deploy confere a saúde do app depois de publicar. As outras variáveis
    (Access, Turnstile, e-mail, push) entram nas etapas da Parte 4.
 
@@ -373,7 +373,7 @@ Modelo de segurança do deploy: [deploy-github-actions.md](deploy-github-actions
 ### 12. (Opcional) Criar o ambiente `smoke`
 
 Só para quem quer rodar o teste de fumaça numa conta real (Actions → CI → *Run
-workflow* → marcar *smoke*). Ele instala uma cópia do Talorys pelo instalador e
+workflow* → marcar *smoke*). Ele instala uma cópia do Axis pelo instalador e
 o log, público, mostra o nome e o e-mail da conta. Use uma **conta da
 Cloudflare separada**, só para testes.
 
@@ -396,7 +396,7 @@ números, o tamanho indicado) e salve com o nome da tabela.
 
 | Segredo | Tamanho | Obrigatório | Para quê |
 | --- | --- | --- | --- |
-| `OWNER_PASSWORD` | 20+ | **sim** | A senha de entrada no Talorys. Precisa ter 16+ caracteres, ou 10+ misturando maiúsculas, minúsculas, números e símbolos, sem palavras comuns. Uma senha fraca conta como "não configurada". |
+| `OWNER_PASSWORD` | 20+ | **sim** | A senha de entrada no Axis. Precisa ter 16+ caracteres, ou 10+ misturando maiúsculas, minúsculas, números e símbolos, sem palavras comuns. Uma senha fraca conta como "não configurada". |
 | `SESSION_SECRET` | 48+ | **sim** | Chave das sessões, da verificação em duas etapas e do webhook do Telegram. Ninguém digita. |
 | `PASSWORD_PEPPER` | 48+ | recomendado | Misturado ao hash de toda senha criada no app: um vazamento do banco não basta para adivinhar a senha. |
 | `MCP_CREDENTIAL_KEY` | 48+ | para MCP | Criptografa os tokens dos servidores MCP. |
@@ -521,14 +521,14 @@ mudar uma variável do GitHub, rode **Actions → Deploy → Run workflow** na
 ### 18. Cloudflare Access na frente
 
 O Access pede o seu e-mail e um código enviado a ele antes de a página do
-Talorys abrir. Quem não for você nem chega à tela de login. Precisa de domínio
+Axis abrir. Quem não for você nem chega à tela de login. Precisa de domínio
 próprio.
 
 1. Painel → **Zero Trust**. No primeiro acesso, escolha o nome da equipe (o
    endereço fica `<equipe>.cloudflareaccess.com`) e o plano **Free**. A
    Cloudflare pode pedir um meio de pagamento, mas não cobra no Free.
 2. **Access → Applications → Add an application → Self-hosted**:
-   - **Application name:** `Talorys`.
+   - **Application name:** `Axis`.
    - **Session Duration:** `12 hours`.
    - **Application domain:** `assistente.exemplo.com.br`, sem caminho.
    - **Policy:** nome `Dono`, **Action** *Allow*, **Include → Emails** = o seu
@@ -540,7 +540,7 @@ próprio.
    **Policy** *Bypass*, **Include → Everyone**. Sem cookie nem token, essa rota
    responde só `{"ok": true}`.
 4. Se for usar o Telegram (etapa 22), crie uma **terceira aplicação** igual à
-   segunda, com o path `api/telegram/webhook`. O Talorys continua exigindo o
+   segunda, com o path `api/telegram/webhook`. O Axis continua exigindo o
    cabeçalho secreto do Telegram nessa rota.
 5. Na primeira aplicação, aba **Overview** (ou *Basic information*), copie a
    **Application Audience (AUD) Tag**.
@@ -552,7 +552,7 @@ próprio.
    | `TALORYS_ACCESS_TEAM_DOMAIN` | `minhaequipe.cloudflareaccess.com` |
    | `TALORYS_ACCESS_AUD` | os 64 caracteres da AUD Tag |
 
-7. Rode o Deploy. A partir daí, o Talorys confere a assinatura do Access em
+7. Rode o Deploy. A partir daí, o Axis confere a assinatura do Access em
    cada requisição.
 
 Com as variáveis e sem o Access funcionando, toda requisição recebe 403. Para
@@ -562,12 +562,12 @@ passam pelo Access com um *Service Token* (etapa 23). Detalhes:
 
 ### 19. Verificação contra robôs (Turnstile)
 
-O Talorys mostra o "não sou um robô" da Cloudflare só quando um login parece
+O Axis mostra o "não sou um robô" da Cloudflare só quando um login parece
 arriscado (a rede errou a senha há pouco, ou há um ataque vindo de várias
 redes) e em todo pedido de recuperação de senha.
 
 1. Painel → **Turnstile → Add widget**:
-   - **Widget name:** `Talorys`.
+   - **Widget name:** `Axis`.
    - **Hostname Management → Add hostnames:** `assistente.exemplo.com.br`
      (ou `talorys.minhaconta.workers.dev`), sem `https://`.
    - **Widget Mode:** *Managed*.
@@ -617,7 +617,7 @@ endereço verificado. Precisa de domínio próprio.
    remetente do passo 4. O deploy cria o binding `send_email` (só esse
    remetente pode enviar).
 7. Rode o Deploy.
-8. No Talorys, **Configurações → Avisos → E-mail → Enviar e-mail de teste**.
+8. No Axis, **Configurações → Avisos → E-mail → Enviar e-mail de teste**.
    Se não chegar, olhe o spam e o histórico de entregas.
 
 Com o e-mail configurado **e** o deploy sabendo o próprio endereço
@@ -647,8 +647,8 @@ e [security.md](security.md).
 2. Cloudflare, Worker → segredos `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY`.
 3. (Opcional) GitHub, ambiente `production` → variável
    `TALORYS_VAPID_SUBJECT` = `mailto:voce@exemplo.com.br`. Rode o Deploy.
-4. No aparelho, abra o Talorys → **Configurações → Avisos → Notificações push
-   → Ativar** (pede a senha recente). No iPhone, antes adicione o Talorys à
+4. No aparelho, abra o Axis → **Configurações → Avisos → Notificações push
+   → Ativar** (pede a senha recente). No iPhone, antes adicione o Axis à
    **Tela de Início** (Compartilhar → Adicionar à Tela de Início) e abra por
    lá.
 5. Toque em **Enviar teste**.
@@ -665,7 +665,7 @@ os aparelhos. Detalhes: [alerts.md](alerts.md#aparelhos-do-push).
 2. Cloudflare, Worker → segredo `TELEGRAM_BOT_TOKEN`.
 3. Com o Access ligado, confira que criou a aplicação *Bypass* de
    `api/telegram/webhook` (etapa 18, passo 4).
-4. No Talorys, **Configurações → Avisos → Telegram → Conectar**. Toque em
+4. No Axis, **Configurações → Avisos → Telegram → Conectar**. Toque em
    **Abrir o chat com o bot** → **Iniciar**.
 5. (Opcional) Crie um grupo de avisos, de preferência com **tópicos**, e use
    **Adicionar o bot a um grupo**. Para um tópico por categoria, torne o bot
@@ -681,7 +681,7 @@ Detalhes: [alerts.md](alerts.md#configurar-o-telegram).
 
 ### 23. n8n e outras automações (eventos e acesso remoto)
 
-O n8n (ou qualquer script) fala com o Talorys por um **token de acesso
+O n8n (ou qualquer script) fala com o Axis por um **token de acesso
 remoto**, sempre de servidor para servidor:
 
 | Escopo | O que faz |
@@ -690,7 +690,7 @@ remoto**, sempre de servidor para servidor:
 | `read` | Lê tarefas, notas e afins. |
 | `write` | Lê e altera. Dê só a quem precisa. |
 
-1. Talorys → **Configurações → Segurança → Acesso remoto** → ligue (pede a
+1. Axis → **Configurações → Segurança → Acesso remoto** → ligue (pede a
    senha recente) → nome `n8n` → escopo **events** → **Gerar token**. Copie o
    `tal_...` na hora: ele não aparece de novo e vence em 90 dias.
 2. No n8n → **Credentials → New → Header Auth**: nome `Authorization`, valor
@@ -701,7 +701,7 @@ remoto**, sempre de servidor para servidor:
    completo em [alerts.md](alerts.md#configurar-no-n8n).
 4. **Com o Access ligado:** Zero Trust → **Access → Service Auth → Create
    Service Token** (nome `n8n`, duração 1 ano). Copie o *Client ID* e o
-   *Client Secret*. Na aplicação `Talorys`, acrescente uma política
+   *Client Secret*. Na aplicação `Axis`, acrescente uma política
    **Service Auth** que inclua esse token. No n8n, mande também os cabeçalhos
    `CF-Access-Client-Id` e `CF-Access-Client-Secret`, guardados como
    credencial, nunca dentro do fluxo.
@@ -712,17 +712,17 @@ Assistant, CLI): [remote-access.md](remote-access.md).
 
 ### 24. Servidores MCP
 
-O Talorys usa ferramentas de servidores MCP remotos (Streamable HTTP), como o
+O Axis usa ferramentas de servidores MCP remotos (Streamable HTTP), como o
 MCP Server Trigger do próprio n8n.
 
 1. Confira que o segredo `MCP_CREDENTIAL_KEY` existe no Worker (etapa 15). Sem
    ele, só servidores sem autenticação podem ser adicionados.
-2. Talorys → **Configurações → Integrações → Servidores MCP** → adicionar servidor → a URL pública do
+2. Axis → **Configurações → Integrações → Servidores MCP** → adicionar servidor → a URL pública do
    servidor (com o caminho, muitas vezes `/mcp`) → o token, se ele pedir, ou
    **Entrar** (OAuth).
 3. Leia a descrição de cada ferramenta e ligue só as que quer usar. Ações que
    mudam algo pedem a sua confirmação no chat.
-4. Recomendado: limite o Talorys aos seus servidores. No Worker, crie o segredo
+4. Recomendado: limite o Axis aos seus servidores. No Worker, crie o segredo
    `TALORYS_MCP_ALLOWED_ORIGINS` com as origens permitidas, separadas por
    vírgula: `https://n8n.exemplo.com.br` ou `https://*.exemplo.com.br` para
    qualquer subdomínio. Qualquer outro servidor é recusado, inclusive os que
@@ -733,23 +733,23 @@ MCP Server Trigger do próprio n8n.
    clientes ali. Use segredo, não variável, para o endereço do seu n8n ficar
    fora do GitHub.
 
-O Talorys só se conecta a endereços **públicos** e `https://`: um n8n na sua
+O Axis só se conecta a endereços **públicos** e `https://`: um n8n na sua
 rede local precisa estar publicado (por exemplo por um Cloudflare Tunnel).
 Detalhes: [mcp.md](mcp.md).
 
 ### 25. Google Agenda
 
-O Talorys pode ler as suas agendas do Google e propor eventos (cada alteração
+O Axis pode ler as suas agendas do Google e propor eventos (cada alteração
 espera a sua aprovação no chat). Tudo pelo plano gratuito do Google Cloud.
 
-**Como funciona.** O cliente OAuth é a "identidade" do seu Talorys no Google.
-Ao clicar em **Conectar Google**, o Talorys manda você para a página de login
+**Como funciona.** O cliente OAuth é a "identidade" do seu Axis no Google.
+Ao clicar em **Conectar Google**, o Axis manda você para a página de login
 do Google com o ID do cliente, as duas permissões e o endereço de volta. Você
 entra e autoriza; o Google devolve você para `/settings/google-calendar` com um
 código de uso único. O Worker troca esse código, junto com a chave secreta do
 cliente e uma prova PKCE, por um token de longa duração (refresh token), que é
 gravado cifrado com `MCP_CREDENTIAL_KEY`. A partir daí o Worker renova o acesso
-sozinho, sem pedir login de novo. A senha do Google nunca passa pelo Talorys, e
+sozinho, sem pedir login de novo. A senha do Google nunca passa pelo Axis, e
 você pode cortar o acesso a qualquer momento em
 <https://myaccount.google.com/permissions>.
 
@@ -759,34 +759,34 @@ você pode cortar o acesso a qualquer momento em
    **Ativar**.
 3. **Google Auth Platform** (ou **Tela de consentimento OAuth**):
    - Tipo de usuário **Externo** (ou **Interno**, se a conta for do Google
-     Workspace), nome do app `Talorys` e o seu e-mail de suporte.
+     Workspace), nome do app `Axis` e o seu e-mail de suporte.
    - Em **Acesso a dados → Adicionar escopos**, marque só estes dois:
      `.../auth/calendar.calendarlist.readonly` e `.../auth/calendar.events`.
    - Em **Público-alvo**, clique em **Publicar app** (status **Em produção**).
      Em **Teste**, o Google derruba a conexão a cada 7 dias. Como só você usa o
      app, não precisa pedir a verificação do Google: na hora de conectar,
-     escolha **Avançado → Acessar Talorys (não seguro)**.
+     escolha **Avançado → Acessar Axis (não seguro)**.
 4. **Clientes → Criar cliente** → tipo **Aplicativo da Web** → em **URIs de
-   redirecionamento autorizados**, o endereço do seu Talorys seguido de
+   redirecionamento autorizados**, o endereço do seu Axis seguido de
    `/settings/google-calendar`, por exemplo
    `https://talorys.exemplo.com.br/settings/google-calendar`. Não precisa de
    origem JavaScript. O endereço tem de ser **idêntico** ao que você abre no
-   navegador (com `https://`, sem barra no fim): o Talorys monta o endereço de
+   navegador (com `https://`, sem barra no fim): o Axis monta o endereço de
    volta a partir da página em que você está. Use o domínio próprio da etapa 2;
-   se também abrir o Talorys por outro endereço, cadastre cada um. A mudança
+   se também abrir o Axis por outro endereço, cadastre cada um. A mudança
    pode levar alguns minutos para valer no Google.
 5. Copie o **ID do cliente** e a **Chave secreta do cliente** e grave como
    segredos do Worker (como na etapa 15): `GOOGLE_CLIENT_ID` e
    `GOOGLE_CLIENT_SECRET`. O segredo `MCP_CREDENTIAL_KEY` também precisa
    existir: ele cifra os tokens do Google. Guarde a chave secreta no
    gerenciador de senhas e nunca no GitHub.
-6. Talorys → **Configurações → Integrações → Google Agenda → Conectar Google**
+6. Axis → **Configurações → Integrações → Google Agenda → Conectar Google**
    → entre na conta, marque as duas permissões → escolha, em cada agenda,
    **Oculta para o agente**, **Só leitura** ou **Ler e propor alterações**.
 
 Para uma agenda de trabalho (a do consultório, por exemplo), compartilhe-a no
 Google Agenda com a sua conta pessoal como **Ver todos os detalhes do evento** e
-deixe-a em **Só leitura** no Talorys: assim o próprio Google impede qualquer
+deixe-a em **Só leitura** no Axis: assim o próprio Google impede qualquer
 alteração. Detalhes e modelo de segurança: [google-calendar.md](google-calendar.md).
 
 **Se der erro na conexão:**
@@ -811,7 +811,7 @@ tempo e 10 ms de CPU por etapa; esperar a rede não conta).
 Não há nada para criar nem segredo para gravar: o deploy cria o Workflow
 `<nome do Worker>-workflow` junto com o Worker, com o mesmo token da etapa 6.
 
-1. Talorys → **Workflows**.
+1. Axis → **Workflows**.
 2. Em cada workflow, toque no lápis, preencha os endereços (um `https://` por
    linha), escolha de quanto em quanto tempo roda e ligue a chave.
    Ligar e trocar endereços pedem a senha recente.
@@ -844,7 +844,7 @@ Cloudflare:
 
 - [ ] Verificação em duas etapas ligada na conta da Cloudflare.
 - [ ] Domínio **Active**, SSL/TLS em *Full (strict)*, *Always Use HTTPS* e TLS 1.2+.
-- [ ] Nenhum D1, KV, R2 ou projeto Pages criado para o Talorys.
+- [ ] Nenhum D1, KV, R2 ou projeto Pages criado para o Axis.
 - [ ] **Workers & Pages → Workflows** mostra só `<nome do Worker>-workflow`.
 - [ ] Worker → **Settings → Domains & Routes**: só o domínio próprio; `workers.dev` e *Preview URLs* desligados.
 - [ ] Worker → **Settings → Variables and Secrets**: todos os segredos do tipo **Secret**, nenhum como *Text*.
@@ -858,14 +858,14 @@ GitHub:
 - [ ] Secret scanning, push protection, CodeQL e Dependabot ligados.
 - [ ] **Deployments** mostra `production` verde.
 
-Talorys:
+Axis:
 
 - [ ] `http://assistente.exemplo.com.br` redireciona para `https://`.
 - [ ] `https://talorys.minhaconta.workers.dev` não responde (com domínio próprio).
 - [ ] Login funciona; senha errada é recusada.
 - [ ] Verificação em duas etapas ligada e códigos de recuperação guardados.
 - [ ] Backup baixado.
-- [ ] Com Access: uma janela anônima pede o e-mail antes de mostrar o Talorys.
+- [ ] Com Access: uma janela anônima pede o e-mail antes de mostrar o Axis.
 - [ ] Com Turnstile: depois de uma senha errada, o login pede a verificação.
 - [ ] Com e-mail: o e-mail de teste chegou e o login mostra **Esqueceu a senha?**.
 - [ ] Com push e Telegram: os testes chegaram.

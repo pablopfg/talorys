@@ -82,7 +82,7 @@ sigam o idioma escolhido.
 
 O idioma padrão é o português do Brasil (`DEFAULT_LANGUAGE` em
 `packages/shared/src/constants.ts`). Ele vale para instalações novas e para
-"Padrão do navegador" quando o navegador pede um idioma que o Talorys não tem.
+"Padrão do navegador" quando o navegador pede um idioma que o Axis não tem.
 Uma instalação pode escolher outro padrão com a variável
 `TALORYS_DEFAULT_LANGUAGE` do Worker (`en`, `ko`, `pt-BR` ou `system`); os
 testes do agente e o servidor dos testes e2e a definem como `en`, e o navegador

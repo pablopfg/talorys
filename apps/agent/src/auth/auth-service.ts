@@ -233,7 +233,7 @@ export class AuthService {
     if (!this.isConfigured()) {
       throw new AppError(
         "NOT_CONFIGURED",
-        "Owner credentials are not configured. Run the Talorys installer, or set a strong OWNER_PASSWORD and SESSION_SECRET with `wrangler secret put`.",
+        "Owner credentials are not configured. Run the Axis installer, or set a strong OWNER_PASSWORD and SESSION_SECRET with `wrangler secret put`.",
       );
     }
     return { sessionSecret: this.secrets.sessionSecret! };
@@ -404,7 +404,7 @@ export class AuthService {
     this.settings.setJson(ATTACK_ALERT_KEY, nowMs);
     this.alert(
       "Many failed sign-ins",
-      "Many sign-in attempts with a wrong password came from different networks in the last 15 minutes. Until they stop, each unknown network gets one attempt every 15 minutes; your recent networks are not affected. If this wasn't you, consider putting Cloudflare Access in front of Talorys.",
+      "Many sign-in attempts with a wrong password came from different networks in the last 15 minutes. Until they stop, each unknown network gets one attempt every 15 minutes; your recent networks are not affected. If this wasn't you, consider putting Cloudflare Access in front of Axis.",
     );
   }
 

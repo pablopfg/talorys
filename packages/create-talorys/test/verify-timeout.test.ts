@@ -17,7 +17,7 @@ async function ownedServer(stalled: string | null, frontendStatus = 200) {
     }
     if (path === "/") {
       res.writeHead(frontendStatus);
-      res.end("<title>Talorys</title>");
+      res.end("<title>Axis</title>");
     } else if (path === "/api/auth/session")
       res.end(JSON.stringify({ authenticated: false }));
     else if (path === "/api/tasks") {

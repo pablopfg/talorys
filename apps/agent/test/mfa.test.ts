@@ -7,7 +7,7 @@ import { type Client, client, inAgent, loggedIn, password } from "./helpers";
 async function turnOn(): Promise<{ secret: string; codes: string[] }> {
   return inAgent(async (a) => {
     const mfa = a.services.auth.mfa;
-    const { secret } = await mfa.beginSetup("Talorys");
+    const { secret } = await mfa.beginSetup("Axis");
     const codes = (await mfa.enable(await totpCode(secret, totpStep())))!;
     return { secret, codes };
   });

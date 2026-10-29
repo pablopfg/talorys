@@ -17,7 +17,7 @@ const TEXT_ATTRIBUTES = new Set(["label", "title", "placeholder", "aria-label", 
 /** Options of useApiMutation and other calls whose string values end up in a toast. */
 const TEXT_PROPERTIES = new Set(["success", "label", "hint", "title", "message"]);
 /** Words that read the same in every language: product names and code. */
-const ALLOWED = /^(Talorys|GitHub|Workers AI|Cloudflare Workers AI|MCP|OAuth|JSON|UTC|read|write|Chrome|Edge|Firefox|Safari|iOS|Android|macOS|Windows|Linux|local)$/;
+const ALLOWED = /^(Axis|GitHub|Workers AI|Cloudflare Workers AI|MCP|OAuth|JSON|UTC|read|write|Chrome|Edge|Firefox|Safari|iOS|Android|macOS|Windows|Linux|local)$/;
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

@@ -1,6 +1,6 @@
 # Versões, changelog e releases
 
-O Talorys usa [SemVer](https://semver.org/lang/pt-BR/). A versão é a do pacote
+O Axis usa [SemVer](https://semver.org/lang/pt-BR/). A versão é a do pacote
 instalador (`packages/create-talorys/package.json`), repetida em
 `TALORYS_VERSION` (`packages/shared/src/constants.ts`). O
 [CHANGELOG.md](../CHANGELOG.md) segue o
@@ -75,7 +75,7 @@ O workflow **PR checks** roda em segundos, sem `npm ci`:
 | Job | O que confere |
 | --- | --- |
 | `pr-title` | O título segue o [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/): `feat(chat): …`, `fix: …`, `docs: …`, `ci: …`, `chore(release): …`. Um `!` (`feat!: …`) indica mudança incompatível. No *squash merge*, o título vira a mensagem do commit. |
-| `changelog` | Só em PRs para a `develop`: a seção `Não lançado` mudou e tem entradas. Pule com o rótulo **`sem-changelog`** quando a mudança não afeta quem usa o Talorys (testes, CI, documentação interna). PRs do Dependabot são pulados. |
+| `changelog` | Só em PRs para a `develop`: a seção `Não lançado` mudou e tem entradas. Pule com o rótulo **`sem-changelog`** quando a mudança não afeta quem usa o Axis (testes, CI, documentação interna). PRs do Dependabot são pulados. |
 | `release-script` | Os testes de `scripts/release.mjs`. |
 
 Para torná-las obrigatórias, acrescente `pr-title` e `changelog` em
@@ -232,7 +232,7 @@ git merge upstream/main   # resolva os conflitos mantendo as personalizações
 
 Depois, rode lint, typecheck e testes, e abra o PR para a `develop` com o
 título `chore(upstream): sincronizar com o Talorys original` e uma linha em
-`## Não lançado` dizendo "Sincronizado com o Talorys vX.Y.Z" e as mudanças
+`## Não lançado` dizendo "Sincronizado com o Axis vX.Y.Z" e as mudanças
 relevantes. Use **Create a merge commit** nesse PR (não *Squash*), para o
 histórico do original continuar ligado e a próxima comparação partir dele.
 

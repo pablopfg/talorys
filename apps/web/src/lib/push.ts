@@ -35,7 +35,7 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
-/** Asks permission (must run from a click), subscribes this browser, and registers it with Talorys. */
+/** Asks permission (must run from a click), subscribes this browser, and registers it with Axis. */
 export async function enablePush(publicKey: string): Promise<{ device: PushDevice; status: PushStatus }> {
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error(currentI18n().t("push.notAllowed"));
@@ -64,7 +64,7 @@ export async function disablePush(): Promise<PushStatus> {
 }
 
 /**
- * Tells the server this browser still opens Talorys, so its push subscription is kept: devices
+ * Tells the server this browser still opens Axis, so its push subscription is kept: devices
  * silent for PUSH_INACTIVE_DAYS are removed. At most once an hour unless `force`. Resolves to
  * whether the server still has this browser's subscription, or null when there is none to report
  * (or the check could not be made).

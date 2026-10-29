@@ -64,7 +64,7 @@ describe("renderConfig", () => {
   });
 
   it("limits the API to the workers.dev host given for the health check", () => {
-    const config = renderConfig(base(), { TALORYS_WORKER_NAME: "talorys", TALORYS_PUBLIC_URL: "https://Talorys.Me.workers.dev/" });
+    const config = renderConfig(base(), { TALORYS_WORKER_NAME: "talorys", TALORYS_PUBLIC_URL: "https://Axis.Me.workers.dev/" });
     assert.equal(config.vars.TALORYS_ALLOWED_HOSTS, "talorys.me.workers.dev");
     // The custom domain wins over the public URL.
     const both = renderConfig(base(), {
@@ -101,13 +101,13 @@ describe("renderConfig", () => {
 
   it("adds the e-mail binding, limited to the sender, only when a sender is set", () => {
     const ok = { TALORYS_WORKER_NAME: "talorys" };
-    const config = renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: " Talorys@Exemplo.com.br " });
+    const config = renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: " Axis@Exemplo.com.br " });
     assert.equal(config.vars.ALERT_EMAIL_FROM, "talorys@exemplo.com.br");
     assert.deepEqual(config.send_email, [{ name: "SEND_EMAIL", allowed_sender_addresses: ["talorys@exemplo.com.br"] }]);
     const none = renderConfig({ ...base(), send_email: [{ name: "OTHER" }] }, ok);
     assert.equal(none.send_email, undefined);
     assert.equal(none.vars?.ALERT_EMAIL_FROM, undefined);
-    for (const bad of ["talorys", "Talorys <a@exemplo.com.br>", "a@b", "a@exemplo.com.br\nBcc: x@y.z", "a b@exemplo.com.br"]) {
+    for (const bad of ["talorys", "Axis <a@exemplo.com.br>", "a@b", "a@exemplo.com.br\nBcc: x@y.z", "a b@exemplo.com.br"]) {
       assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: bad }), ConfigError, bad);
     }
   });

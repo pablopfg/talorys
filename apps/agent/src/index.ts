@@ -35,7 +35,7 @@ export default {
     const hosts = allowedHosts(env);
     if (hosts && !hosts.has(url.hostname.toLowerCase())) return notFound();
     if (url.protocol !== "https:" && env.TALORYS_ENV !== "development") return toHttps(request, url);
-    // A "sub" path segment is the Agents SDK's sub-agent routing marker; Talorys has no sub-agents.
+    // A "sub" path segment is the Agents SDK's sub-agent routing marker; Axis has no sub-agents.
     const isSubAgentPath = url.pathname.split("/").includes("sub");
     const isApi = url.pathname.startsWith("/api/") || url.pathname === "/api";
     if (!isApi && !env.ASSETS) return notFound();

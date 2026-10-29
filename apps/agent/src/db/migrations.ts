@@ -1,7 +1,7 @@
 import type { Database } from "./database";
 
 /**
- * Versioned, append-only schema migrations for Talorys data.
+ * Versioned, append-only schema migrations for Axis data.
  *
  * Rules:
  *  - Never edit or reorder an existing migration; add a new one.
@@ -571,7 +571,7 @@ export const MIGRATIONS: Migration[] = [
     version: 22,
     name: "push device last seen",
     statements: [
-      // When each push device last opened Talorys signed in; devices away PUSH_INACTIVE_DAYS are removed.
+      // When each push device last opened Axis signed in; devices away PUSH_INACTIVE_DAYS are removed.
       `ALTER TABLE tal_push_subscriptions ADD COLUMN last_seen_at TEXT`,
       // Devices from before count from the update, so none is removed the moment it lands.
       `UPDATE tal_push_subscriptions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE last_seen_at IS NULL`,

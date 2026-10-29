@@ -40,10 +40,11 @@ export class RemoteEvents {
     this.settings.setJson(SENT_KEY, [...recent, now]);
     const source = input.source ?? "remote";
     const kind = input.kind ?? "event";
-    // Named after where it came from, so it can't pass for one of Talorys' own alerts; a source that
-    // carries the app's or the agent's name ("Talorys-Security") would undo that, so it shows as "remote".
+    // Named after where it came from, so it can't pass for one of Axis' own alerts; a source that
+    // carries the app's or the agent's name ("Axis-Security") would undo that, so it shows as "remote".
+    // The app's former name (Talorys) still counts: owners know it and alerts carried it until the rebrand.
     const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-    const own = ["talorys", squash(this.settings.get().agentName)].filter(Boolean);
+    const own = ["axis", "talorys", squash(this.settings.get().agentName)].filter(Boolean);
     const shown = own.some((name) => squash(source).includes(name)) ? "remote" : source;
     const title = clip(oneLine(`${shown}: ${unlinked(input.title)}`), 160);
     const n = this.alerts.raise({

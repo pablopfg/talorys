@@ -50,7 +50,7 @@ export interface TelegramAlerts {
   security(event: "telegram_chat" | "telegram_group" | "telegram_conversation"): void;
 }
 
-/** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
+/** What Axis remembers about the linked bot. Ids are Telegram's numeric ids. */
 export interface TelegramLink {
   bot: string | null;
   /** The owner's Telegram user: the only account the bot listens to. */
@@ -63,7 +63,7 @@ export interface TelegramLink {
   topics: Partial<Record<AlertCategory, number>>;
   /** Topics could not be created (the bot is not an admin): stop trying until the next link. */
   topicsUnavailable: boolean;
-  /** The app's address, for the "Open Talorys" button. */
+  /** The app's address, for the "Open Axis" button. */
   appUrl: string | null;
   /** The owner may talk to the agent in the private chat (Settings → Alerts → Telegram). */
   conversation: boolean;
@@ -126,7 +126,7 @@ const REASON_TEXT: Partial<Record<NonNullable<Notification["priority_reason"]>, 
 };
 const ICON: Record<AlertPriority, string> = { low: "🔕", normal: "🔔", high: "⚠️", critical: "🚨" };
 
-/** Minimal shapes of the Bot API objects Talorys reads. */
+/** Minimal shapes of the Bot API objects Axis reads. */
 interface TgUser { id: number; is_bot?: boolean }
 interface TgChat { id: number; type: string; title?: string; is_forum?: boolean }
 interface TgAudio { file_id: string; duration?: number; file_size?: number }
@@ -364,7 +364,7 @@ export class TelegramService {
         this.save({ userId: from.id, chatId: m.chat.id, linkedAt: new Date().toISOString() });
         this.activity.record("telegram.linked_chat", "Linked the Telegram chat");
         this.alerts.security("telegram_chat");
-        await this.reply(m.chat.id, this.text("Talorys is linked to this chat. Alerts will arrive here until you link a group."));
+        await this.reply(m.chat.id, this.text("Axis is linked to this chat. Alerts will arrive here until you link a group."));
         return;
       }
       if (isGroup) {
@@ -376,7 +376,7 @@ export class TelegramService {
         this.settings.delete(CODE_KEY);
         this.activity.record("telegram.linked_group", "Linked a Telegram group");
         this.alerts.security("telegram_group");
-        await this.reply(m.chat.id, this.text("This group now receives Talorys alerts."));
+        await this.reply(m.chat.id, this.text("This group now receives Axis alerts."));
         return;
       }
     }
@@ -403,7 +403,7 @@ export class TelegramService {
       return;
     }
     if (command === "help" || command === "start") {
-      await this.reply(m.chat.id, this.text(link.conversation ? "Write or send a voice message to talk to Talorys, as in the app's chat. /new starts a new conversation. Alerts arrive in the group, or here while no group is linked." : "Alerts arrive in the group, or here while no group is linked. The conversation through Telegram is off; turn it on in Settings → Alerts → Telegram."));
+      await this.reply(m.chat.id, this.text(link.conversation ? "Write or send a voice message to talk to Axis, as in the app's chat. /new starts a new conversation. Alerts arrive in the group, or here while no group is linked." : "Alerts arrive in the group, or here while no group is linked. The conversation through Telegram is off; turn it on in Settings → Alerts → Telegram."));
       return;
     }
     if (!link.conversation || !this.chat) {
@@ -416,13 +416,13 @@ export class TelegramService {
       return;
     }
     if (!text) {
-      await this.reply(m.chat.id, this.text("Talorys reads text and voice messages here."));
+      await this.reply(m.chat.id, this.text("Axis reads text and voice messages here."));
       return;
     }
     await this.converse(m.chat.id, clip(text, MAX_CHAT_MESSAGE));
   }
 
-  /** Whether the private chat is waiting on Talorys: a turn or a voice message in progress. */
+  /** Whether the private chat is waiting on Axis: a turn or a voice message in progress. */
   private busy(conversationId: string | null): boolean {
     return this.chatting || this.listening || (!!conversationId && !!this.chat?.active.has(conversationId));
   }
@@ -441,7 +441,7 @@ export class TelegramService {
       return;
     }
     if (this.busy(this.link().conversationId)) {
-      await this.reply(chatId, this.text("Talorys is still answering your last message. Wait for it, then write again."));
+      await this.reply(chatId, this.text("Axis is still answering your last message. Wait for it, then write again."));
       return;
     }
     // Held until the reply's turn starts, so no other message slips in between.
@@ -467,7 +467,7 @@ export class TelegramService {
         else if (error instanceof AppError && VOICE_ERRORS.has(error.code)) failure = error.message;
         else {
           console.warn("Telegram voice message failed", error instanceof TelegramError ? error.code : error instanceof AppError ? error.code : "error");
-          failure = "Talorys couldn't transcribe this voice message. Try again, or write it.";
+          failure = "Axis couldn't transcribe this voice message. Try again, or write it.";
         }
       }
       if (failure) {
@@ -475,7 +475,7 @@ export class TelegramService {
         return;
       }
       if (!text) {
-        await this.reply(chatId, this.text("Talorys couldn't make out any words in this voice message. Try again, or write it."));
+        await this.reply(chatId, this.text("Axis couldn't make out any words in this voice message. Try again, or write it."));
         return;
       }
       await this.reply(chatId, `🎙️ ${clip(text, MAX_ECHO)}`);
@@ -501,7 +501,7 @@ export class TelegramService {
       this.save({ conversationId: null });
     }
     if (this.busy(conversationId ?? null)) {
-      await this.reply(chatId, this.text("Talorys is still answering your last message. Wait for it, then write again."));
+      await this.reply(chatId, this.text("Axis is still answering your last message. Wait for it, then write again."));
       return;
     }
     this.chatting = true;
@@ -554,16 +554,16 @@ export class TelegramService {
       this.chatting = false;
     }
     // A partial answer says it was cut short: by the time limit, or by Stop in the app.
-    if (timedOut) failure = "Talorys took too long to answer. Try again.";
+    if (timedOut) failure = "Axis took too long to answer. Try again.";
     else if (controller.signal.aborted) failure = "The answer was stopped.";
     const parts = splitMessage(reply);
     if (failure) parts.push(`⚠️ ${this.text(failure)}`);
-    if (needsApp) parts.push(this.text("Something here needs your confirmation. Open Talorys to review it."));
+    if (needsApp) parts.push(this.text("Something here needs your confirmation. Open Axis to review it."));
     if (parts.length === 0) parts.push(this.text("I wasn't able to produce a response. Please try rephrasing."));
     const url = this.link().appUrl;
     for (const [i, part] of parts.entries()) {
       const last = i === parts.length - 1;
-      const button = last && needsApp && url && conversationId ? { inline_keyboard: [[{ text: this.text("Open in Talorys"), url: `${url}/chat/${conversationId}` }]] } : undefined;
+      const button = last && needsApp && url && conversationId ? { inline_keyboard: [[{ text: this.text("Open in Axis"), url: `${url}/chat/${conversationId}` }]] } : undefined;
       await this.sendText(chatId, part, button);
     }
   }
@@ -614,7 +614,7 @@ export class TelegramService {
       await answer(this.text("This alert was already handled."));
       return;
     }
-    const reply = result === "snoozed" ? "Snoozed for 1 hour." : result === "muted" ? "Muted. Talorys stops insisting on this alert." : "Marked as done.";
+    const reply = result === "snoozed" ? "Snoozed for 1 hour." : result === "muted" ? "Muted. Axis stops insisting on this alert." : "Marked as done.";
     await answer(this.text(reply));
     if (q.message) {
       await client.call("editMessageReplyMarkup", {
@@ -651,7 +651,7 @@ export class TelegramService {
       return true;
     }
     if (priority) {
-      await answer(this.text(`Priority changed to ${PRIORITY_BUTTON[n.priority]}. Talorys learns from this.`));
+      await answer(this.text(`Priority changed to ${PRIORITY_BUTTON[n.priority]}. Axis learns from this.`));
       await edit(this.keyboard(n));
     } else {
       await answer("");
@@ -686,16 +686,16 @@ export class TelegramService {
     // Security alerts are always critical: nothing to correct.
     if (n && n.category !== "security") rows.push([{ text: this.text("Change priority"), callback_data: `c:${n.id}` }]);
     const url = this.link().appUrl;
-    if (url) rows.push([{ text: this.text("Open Talorys"), url }]);
+    if (url) rows.push([{ text: this.text("Open Axis"), url }]);
     return { inline_keyboard: rows };
   }
 
   /** The alert as Telegram HTML. Discreet categories show the title only. */
   format(n: Notification, fullText: boolean, attempt?: AlertAttempt): string {
     // Telegram links any address it sees, backticks or not: text written by a routine, a reminder or
-    // an outside system must not arrive as a tappable link that looks like Talorys' own.
+    // an outside system must not arrive as a tappable link that looks like Axis' own.
     const title = escapeHtml(clip(unlinkForChannels(clip(this.text(n.title), 200)), 200));
-    const body = fullText ? escapeHtml(clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
+    const body = fullText ? escapeHtml(clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Axis to read it."))}</i>`;
     const parts = [this.text(CATEGORY_TEXT[n.category]), this.text(PRIORITY_TEXT[n.priority])];
     if (attempt) parts.push(this.text(`Try ${attempt.number} of ${ESCALATION.attempts}, not confirmed yet`));
     const why = n.priority_reason ? REASON_TEXT[n.priority_reason] : undefined;

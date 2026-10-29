@@ -50,7 +50,7 @@ const host = (url: string) => {
   }
 };
 
-/** Settings → Integrations: remote MCP servers and which of their tools Talorys may use. */
+/** Settings → Integrations: remote MCP servers and which of their tools Axis may use. */
 export function McpServersCard() {
   const { t } = useI18n();
   const overview = useMcpServers();

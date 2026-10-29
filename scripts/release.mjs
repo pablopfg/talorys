@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Versioning, changelog and release notes for Talorys. See docs/releases.md.
+// Versioning, changelog and release notes for Axis. See docs/releases.md.
 //
 //   node scripts/release.mjs next [auto|patch|minor|major|X.Y.Z]   prints the next version
 //   node scripts/release.mjs prepare [auto|patch|minor|major|X.Y.Z] [--date YYYY-MM-DD]
@@ -143,7 +143,7 @@ export function changelogProblem(base, head) {
   const baseVersions = versions(base);
   if ([...versions(head)].some((v) => !baseVersions.has(v))) return null;
   if (before && before.body.trim() === after.body.trim()) {
-    return `Descreva a mudança em "Não lançado" no CHANGELOG.md, ou adicione o rótulo "sem-changelog" se ela não afeta quem usa o Talorys.`;
+    return `Descreva a mudança em "Não lançado" no CHANGELOG.md, ou adicione o rótulo "sem-changelog" se ela não afeta quem usa o Axis.`;
   }
   if (!hasEntries(after.body)) return `"Não lançado" ficou sem nenhuma entrada.`;
   return null;

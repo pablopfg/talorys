@@ -4,8 +4,8 @@ import { localizeServerText, SERVER_TEXT_CATALOGS } from "../src/server-text";
 describe("localizeServerText", () => {
   it("translates exact text and fills placeholders", () => {
     expect(localizeServerText("Incorrect password.", "pt-BR")).toBe("Senha incorreta.");
-    expect(localizeServerText("Talorys reached its daily limit of 50 AI requests (adjustable in Settings → AI).", "pt-BR")).toBe(
-      "O Talorys atingiu o limite diário de 50 pedidos de IA (ajustável em Configurações → IA).",
+    expect(localizeServerText("Axis reached its daily limit of 50 AI requests (adjustable in Settings → AI).", "pt-BR")).toBe(
+      "O Axis atingiu o limite diário de 50 pedidos de IA (ajustável em Configurações → IA).",
     );
     expect(localizeServerText("Adding task “Buy milk”", "pt-BR")).toBe("Adicionando a tarefa “Buy milk”");
   });

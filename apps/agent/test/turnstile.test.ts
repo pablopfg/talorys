@@ -62,7 +62,7 @@ describe("siteverify", () => {
     let sent: { url: string; form: FormData } | null = null;
     const check = turnstile(SITE_KEY, SECRET, [], async (input, init) => {
       sent = { url: String(input), form: init!.body as FormData };
-      return new Response(JSON.stringify({ success: true, action: "login", hostname: "talorys.exemplo.com.br" }));
+      return new Response(JSON.stringify({ success: true, action: "login", hostname: "axis.exemplo.com.br" }));
     })!;
     expect(await check.verify("token-1", "203.0.113.9")).toBe("ok");
     expect(sent!.url).toBe(TURNSTILE_VERIFY_URL);
@@ -75,8 +75,8 @@ describe("siteverify", () => {
   });
 
   it("with allowed hosts, refuses a token solved on another site", async () => {
-    const hosts = ["talorys.exemplo.com.br"];
-    expect(await turnstile(SITE_KEY, SECRET, hosts, answer({ success: true, action: "login", hostname: "Talorys.Exemplo.com.br" }))!.verify("t", undefined)).toBe("ok");
+    const hosts = ["axis.exemplo.com.br"];
+    expect(await turnstile(SITE_KEY, SECRET, hosts, answer({ success: true, action: "login", hostname: "Axis.Exemplo.com.br" }))!.verify("t", undefined)).toBe("ok");
     expect(await turnstile(SITE_KEY, SECRET, hosts, answer({ success: true, action: "login", hostname: "outro.exemplo.com.br" }))!.verify("t", undefined)).toBe("failed");
     expect(await turnstile(SITE_KEY, SECRET, hosts, answer({ success: true, action: "login" }))!.verify("t", undefined)).toBe("failed");
   });

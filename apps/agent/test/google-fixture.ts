@@ -12,7 +12,7 @@ export interface FakeEvent {
   status?: string;
 }
 
-/** A fake Google (OAuth and Calendar API) that checks what Talorys sends, and records it. */
+/** A fake Google (OAuth and Calendar API) that checks what Axis sends, and records it. */
 export function googleFixture() {
   const state = {
     code: "good-code",

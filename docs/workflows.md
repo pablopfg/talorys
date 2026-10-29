@@ -8,15 +8,15 @@ execuções.
 
 ## Por que Workflows, e não o n8n
 
-| | n8n | Workflows no Talorys |
+| | n8n | Workflows no Axis |
 | --- | --- | --- |
-| Onde roda | Um servidor que precisa ficar no ar | Na Cloudflare, junto com o Talorys |
+| Onde roda | Um servidor que precisa ficar no ar | Na Cloudflare, junto com o Axis |
 | Falha de rede | O fluxo para, a não ser que você monte as tentativas | Cada etapa tenta de novo sozinha (3 tentativas, 20 s entre elas) |
 | Reinício no meio | Perde a execução | Continua de onde parou: etapa pronta não roda de novo |
 | Avisos | Precisa de um nó para cada canal | Usam a central de avisos (push, Telegram, e-mail, prioridade que aprende) |
 | Custo | Servidor próprio | Plano gratuito do Workers |
 
-O n8n continua útil para integrações que o Talorys não tem (os eventos do n8n
+O n8n continua útil para integrações que o Axis não tem (os eventos do n8n
 seguem funcionando, veja [alerts.md](alerts.md#eventos-do-n8n-e-de-outras-automações)).
 Cada rotina do n8n que for migrada vira um workflow novo neste menu.
 
@@ -84,16 +84,16 @@ Durable Object (agente)                     Cloudflare Workflow
   endereço privado.
 - Cada requisição tem limite de 15 segundos. Redirecionamentos não são
   seguidos.
-- O Workflow se identifica com o `User-Agent` `Talorys-Workflows/1.0`.
+- O Workflow se identifica com o `User-Agent` `Axis-Workflows/1.0`.
 
 ## Custos (plano gratuito)
 
-| Limite do Workers Free | Uso do Talorys |
+| Limite do Workers Free | Uso do Axis |
 | --- | --- |
 | 100 mil requisições por dia | Uma por execução. O monitor a cada 15 minutos usa 96 por dia. |
 | 10 ms de CPU por etapa | Uma etapa por endereço; esperar a rede não conta. |
 | 100 execuções ao mesmo tempo | No máximo uma por workflow. |
-| Estado guardado por 3 dias | O histórico fica no Talorys, não depende disso. |
+| Estado guardado por 3 dias | O histórico fica no Axis, não depende disso. |
 
 Fonte: [limites dos Workflows](https://developers.cloudflare.com/workflows/reference/limits/)
 e [preços](https://developers.cloudflare.com/workflows/reference/pricing/).

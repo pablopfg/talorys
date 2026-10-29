@@ -1,5 +1,5 @@
 /**
- * Cloudflare Access in front of Talorys (AUTH-03).
+ * Cloudflare Access in front of Axis (AUTH-03).
  *
  * Access signs every request it lets through with a JWT in the `Cf-Access-Jwt-Assertion`
  * header. Checking it here, inside the Worker, means a host Access does not cover (a forgotten

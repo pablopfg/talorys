@@ -56,7 +56,7 @@ export function makeTemplates(root: string, version: string): string {
   mkdirSync(join(dir, "web/functions/api"), { recursive: true });
   writeFileSync(join(dir, "version.json"), JSON.stringify({ version, built_at: "test" }));
   writeFileSync(join(dir, "agent/worker.js"), `export default {}; // ${version}`);
-  writeFileSync(join(dir, "web/dist/index.html"), "<title>Talorys</title>");
+  writeFileSync(join(dir, "web/dist/index.html"), "<title>Axis</title>");
   writeFileSync(join(dir, "web/functions/api/[[path]].ts"), "export const onRequest = () => new Response('ok');");
   return dir;
 }
@@ -138,7 +138,7 @@ export const CANCEL = Symbol("cancel");
 
 export const STRONG_PASSWORD = "correct-horse-Battery-9";
 
-/** Simulates a healthy (or unhealthy) deployed Talorys behind pages.dev. */
+/** Simulates a healthy (or unhealthy) deployed Axis behind pages.dev. */
 export function fakeSite(opts: { healthy?: boolean; failFirst?: number; minimalHealth?: boolean } = {}): FetchLike & { calls: string[] } {
   let failures = opts.failFirst ?? 0;
   const calls: string[] = [];
@@ -149,7 +149,7 @@ export function fakeSite(opts: { healthy?: boolean; failFirst?: number; minimalH
       throw new Error("getaddrinfo ENOTFOUND");
     }
     const path = new URL(url).pathname;
-    if (path === "/") return new Response("<!doctype html><title>Talorys</title>", { status: 200 });
+    if (path === "/") return new Response("<!doctype html><title>Axis</title>", { status: 200 });
     if (path === "/api/auth/session") return Response.json({ authenticated: false, configured: true });
     if (path === "/api/tasks") return Response.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
     if (path === "/api/health") {

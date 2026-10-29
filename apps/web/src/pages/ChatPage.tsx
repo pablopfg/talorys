@@ -187,7 +187,7 @@ export function ChatPage() {
           className="scrollbar-thin min-h-0 flex-1 overflow-y-auto"
         >
           {showEmpty ? (
-            <EmptyChat name={settings.data?.agentName ?? "Talorys"} onPick={(s) => void send(s)} />
+            <EmptyChat name={settings.data?.agentName ?? "Axis"} onPick={(s) => void send(s)} />
           ) : conversation.isLoading && !streamHere ? (
             <div className="flex justify-center py-16">
               <Spinner />
@@ -286,7 +286,7 @@ function EmptyChat({ name, onPick }: { name: string; onPick: (s: string) => void
         <Logo className="h-8 w-8" />
         <span className="text-sm font-medium">{name}</span>
       </div>
-      <h1 className="mt-6 text-3xl font-semibold tracking-tight text-fg md:text-4xl">{greeting}.</h1>
+      <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight text-fg md:text-4xl">{greeting}.</h1>
       <p className="mt-2 text-lg text-fg-muted">{i18n.t("chat.whatToDo")}</p>
       <div className="mt-8 grid gap-2 sm:grid-cols-2">
         {SUGGESTIONS.map((key) => i18n.t(key)).map((s) => (
@@ -495,13 +495,13 @@ function ToolChip({ tool }: { tool: ToolActivity }) {
       title={tool.error && serverText(tool.error)}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
-        tool.status === "error" ? "border-danger/30 bg-danger-soft text-danger" : "border-border bg-subtle text-fg-muted",
+        tool.status === "error" ? "border-danger/30 bg-danger-soft text-danger" : "border-agent/25 bg-agent-soft text-agent",
       )}
     >
       {tool.status === "running" ? (
         <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
       ) : tool.status === "success" ? (
-        <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
+        <CheckCircle2 className="h-3 w-3 shrink-0" />
       ) : (
         <XCircle className="h-3 w-3 shrink-0" />
       )}

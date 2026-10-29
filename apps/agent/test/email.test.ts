@@ -122,14 +122,14 @@ describe("e-mail alerts", () => {
       await email.idle();
       expect(sent).toHaveLength(3);
       // Line breaks never reach the subject.
-      expect(sent[2]!.subject).toBe("Talorys: Rent Bcc: x@y.z more");
+      expect(sent[2]!.subject).toBe("Axis: Rent Bcc: x@y.z more");
       expect(sent[0]).toMatchObject({ from: FROM, to: TO });
-      expect(sent[0]!.subject).toBe("Talorys: Novo login");
-      expect(sent[0]!.text).toContain("Abra o Talorys para ler.");
+      expect(sent[0]!.subject).toBe("Axis: Novo login");
+      expect(sent[0]!.text).toContain("Abra o Axis para ler.");
       expect(sent[0]!.text).not.toContain("Someone signed in.");
       expect(sent[0]!.text).toContain("Segurança · Crítica");
-      expect(sent[0]!.text).toContain("O Talorys nunca pede sua senha ou códigos por e-mail.");
-      expect(sent[0]!.text).toContain("Abrir o Talorys: https://talorys.exemplo.com.br/");
+      expect(sent[0]!.text).toContain("O Axis nunca pede sua senha ou códigos por e-mail.");
+      expect(sent[0]!.text).toContain("Abrir o Axis: https://talorys.exemplo.com.br/");
       expect(sent[0]!.text).toContain("Escolha quais avisos chegam ao seu e-mail em Configurações → Avisos.");
       expect(sent[1]!.text).toContain("Today, 300");
       expect(sent[1]!.text).not.toContain("nunca pede");
@@ -142,9 +142,9 @@ describe("e-mail alerts", () => {
       const { email, sent } = fakeEmail(agent);
       email.deliver(notification({ title: "Sign in at evil.com", body: "Open `https://evil.example/login` now", category: "reminder", priority: "high" }), true, () => {});
       await email.idle();
-      expect(sent[0]!.subject).toBe("Talorys: Sign in at evil[.]com");
+      expect(sent[0]!.subject).toBe("Axis: Sign in at evil[.]com");
       expect(sent[0]!.text).toContain("Open `hxxps://evil[.]example/login` now");
-      expect(sent[0]!.text).toContain("Open Talorys: https://talorys.exemplo.com.br/");
+      expect(sent[0]!.text).toContain("Open Axis: https://talorys.exemplo.com.br/");
     });
   });
 
@@ -181,7 +181,7 @@ describe("e-mail alerts", () => {
       for (let i = 0; i < EMAIL_ALERTS.testsPerDay; i++) expect(await email.test()).toBe(true);
       expect(email.canTest()).toBe(false);
       expect(await email.test()).toBe(false);
-      expect(sent.at(-1)!.subject).toBe("Talorys: Test e-mail");
+      expect(sent.at(-1)!.subject).toBe("Axis: Test e-mail");
       // Entries in another shape are ignored.
       agent.services.settings.setJson("alerts.email.sent", ["2099-01-01T00:00:00.000Z", null, 3]);
       expect(email.sentToday()).toBe(0);
@@ -197,7 +197,7 @@ describe("e-mail alerts", () => {
       await email.idle();
       expect(sent).toHaveLength(1);
       expect(sent[0]!.to).toBe(TO);
-      expect(sent[0]!.subject).toBe("Talorys: Reset your password");
+      expect(sent[0]!.subject).toBe("Axis: Reset your password");
       expect(sent[0]!.text).toContain("https://talorys.exemplo.com.br/recover#token");
       const now = new Date().toISOString();
       const shared = EMAIL_ALERTS.perDay - EMAIL_ALERTS.reserved;
@@ -214,7 +214,7 @@ describe("e-mail alerts", () => {
       const security = alerts.raise({ title: "New sign-in", body: "b", category: "security" })!;
       alerts.raise({ title: "Pay rent", body: "b", category: "reminder", priority: "high" });
       await email.idle();
-      expect(sent.map((m) => m.subject)).toEqual(["Talorys: New sign-in"]);
+      expect(sent.map((m) => m.subject)).toEqual(["Axis: New sign-in"]);
       expect(deliveries.list().filter((d) => d.channel === "email").map((d) => d.status)).toEqual(["sent"]);
       // The owner turns e-mail on for reminders.
       agent.services.settings.setJson("alerts.preferences", { routes: { reminder: ["push", "email"] }, limits: { perHour: 6, perDay: 30 }, fullText: [] });

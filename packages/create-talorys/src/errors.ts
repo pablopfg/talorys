@@ -55,7 +55,7 @@ export function explainWranglerFailure(action: string, stderr: string): CliError
   if (text.includes("[code: 10001]") || text.includes("permission") || text.includes("forbidden") || text.includes("unauthorized")) {
     return new CliError(
       `${action} failed: your Cloudflare login lacks a required permission.`,
-      "Talorys needs Workers Scripts:Edit, Pages:Edit, Workers AI:Read and Account Settings:Read. Ask an account admin, or choose another account.",
+      "Axis needs Workers Scripts:Edit, Pages:Edit, Workers AI:Read and Account Settings:Read. Ask an account admin, or choose another account.",
       details,
     );
   }

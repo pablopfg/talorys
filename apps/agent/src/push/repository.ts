@@ -83,7 +83,7 @@ export class PushSubscriptionRepository {
     return !!this.db.one<{ id: string }>(`SELECT id FROM tal_push_subscriptions WHERE endpoint = ?`, endpoint);
   }
 
-  /** Notes that the browser holding `endpoint` opened Talorys; false when no device has it. */
+  /** Notes that the browser holding `endpoint` opened Axis; false when no device has it. */
   markSeen(endpoint: string, at = now()): boolean {
     return this.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ? WHERE endpoint = ?`, at, endpoint).changes > 0;
   }

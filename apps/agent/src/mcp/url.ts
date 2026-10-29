@@ -80,7 +80,7 @@ export function validateEndpoint(raw: string, opts: { development: boolean }): U
   if (url.hash) throw new ValidationError("The MCP server URL can't contain a #fragment.");
   if (localDev) return url;
   if (isPrivateHost(host)) {
-    throw new ValidationError("This address is on a private or local network. Talorys only connects to public MCP servers.");
+    throw new ValidationError("This address is on a private or local network. Axis only connects to public MCP servers.");
   }
   return url;
 }
@@ -107,7 +107,7 @@ export function dohResolver(fetcher: typeof fetch): Resolver {
 
 /**
  * Refuses a host whose DNS answers include a private address, so a public-looking name can't
- * point Talorys at an internal one. It runs before every new connection; requests go only to the
+ * point Axis at an internal one. It runs before every new connection; requests go only to the
  * validated origin and redirects are never followed (see `guardedFetch`).
  */
 export async function assertPublicHost(url: URL, resolve: Resolver, opts: { development: boolean }): Promise<void> {
@@ -121,7 +121,7 @@ export async function assertPublicHost(url: URL, resolve: Resolver, opts: { deve
   }
   if (addresses.length === 0) throw new McpEndpointError("The MCP server's host name doesn't resolve to an address.");
   if (addresses.some(isPrivateAddress)) {
-    throw new McpEndpointError("This host name points to a private or local network address, so Talorys won't connect to it.");
+    throw new McpEndpointError("This host name points to a private or local network address, so Axis won't connect to it.");
   }
 }
 

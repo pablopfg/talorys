@@ -3,8 +3,8 @@ import { ValidationError } from "../api/errors";
 import { isPrivateAddress, isPrivateHost, type Resolver } from "../mcp/url";
 
 const TIMEOUT_MS = 15_000;
-/** Workflows say who they are, so a site owner can tell Talorys' checks apart. */
-const USER_AGENT = "Talorys-Workflows/1.0 (+https://github.com/pablopfg/talorys)";
+/** Workflows say who they are, so a site owner can tell Axis' checks apart. */
+const USER_AGENT = "Axis-Workflows/1.0 (+https://github.com/pablopfg/talorys)";
 
 export interface Network {
   fetch: typeof fetch;

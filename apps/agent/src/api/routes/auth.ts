@@ -158,7 +158,7 @@ async function finishSignIn(c: Context<AppEnv>, client: ClientInfo, signed: Sign
         category: "security",
         priority: "critical",
         title: "New sign-in",
-        body: "Someone signed in to Talorys from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.",
+        body: "Someone signed in to Axis from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.",
       });
     }
   } catch (error) {

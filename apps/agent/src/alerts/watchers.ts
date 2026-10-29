@@ -181,7 +181,7 @@ function watchBudget(s: Services): number {
   if (used >= max) {
     return s.alerts.raise({
       title: "AI budget used up",
-      body: `Talorys used all ${max} AI requests for today. Chat and AI routines resume tomorrow, or raise the limit in Settings → AI.`,
+      body: `Axis used all ${max} AI requests for today. Chat and AI routines resume tomorrow, or raise the limit in Settings → AI.`,
       category: "system",
       priority: "high",
       dedupeKey: `ai-budget-100:${day}`,
@@ -191,7 +191,7 @@ function watchBudget(s: Services): number {
   if (used * 100 >= max * WATCH.budgetWarnPercent) {
     return s.alerts.raise({
       title: "AI budget almost used",
-      body: `Talorys used ${used} of today's ${max} AI requests.`,
+      body: `Axis used ${used} of today's ${max} AI requests.`,
       category: "system",
       dedupeKey: `ai-budget-80:${day}`,
       cooldownMinutes: 24 * 60,
@@ -215,7 +215,7 @@ function watchPush(s: Services): number {
 }
 
 /**
- * Devices that have not opened Talorys signed in for PUSH_INACTIVE_DAYS stop receiving push: a lost
+ * Devices that have not opened Axis signed in for PUSH_INACTIVE_DAYS stop receiving push: a lost
  * or forgotten phone should not keep getting the owner's alerts. Each removal is logged, and the
  * owner is told (on the devices that remain, Telegram and the app) how to add it back.
  */
@@ -226,7 +226,7 @@ function removeInactivePush(s: Services, now: Date): number {
     s.activity.record("push.expired", `Removed ${label} from notifications after ${PUSH_INACTIVE_DAYS} days without use`);
     s.alerts.raise({
       title: "Push device removed for inactivity",
-      body: `“${label}” had not opened Talorys for ${PUSH_INACTIVE_DAYS} days and no longer receives push notifications. To get them again, open Talorys on it and turn them on in Settings → Alerts.`,
+      body: `“${label}” had not opened Axis for ${PUSH_INACTIVE_DAYS} days and no longer receives push notifications. To get them again, open Axis on it and turn them on in Settings → Alerts.`,
       category: "system",
       dedupeKey: `push-inactive:${d.id}`,
       cooldownMinutes: 24 * 60,
@@ -256,13 +256,13 @@ function watchBackup(s: Services, now: Date): number {
   }) ? 1 : 0;
 }
 
-/** A newer Talorys was published (only when the update check is on in Settings). */
+/** A newer Axis was published (only when the update check is on in Settings). */
 async function watchUpdate(s: Services, fetchFn: typeof fetch): Promise<number> {
   const status = await checkForUpdate(s.settings, TALORYS_VERSION, fetchFn);
   if (!status.update_available || !status.latest) return 0;
   return s.alerts.raise({
     title: "Update available",
-    body: `Talorys ${status.latest} is available (you have ${status.current}). See how to update in the docs.`,
+    body: `Axis ${status.latest} is available (you have ${status.current}). See how to update in the docs.`,
     category: "system",
     priority: "low",
     dedupeKey: `update:${status.latest}`,

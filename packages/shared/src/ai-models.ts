@@ -29,7 +29,7 @@ export const PAID_MODELS = {
   anthropic: [
     { id: "claude-opus-5-5", label: "Claude Opus 5.5", usdPerMillion: { input: 4, cachedInput: 0.2, output: 20 }, temperature: false },
     { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", usdPerMillion: { input: 2, cachedInput: 0.2, output: 10 }, temperature: false },
-    // Up to 100K-token prompts; Talorys' context cap (32K) stays below that.
+    // Up to 100K-token prompts; Axis' context cap (32K) stays below that.
     { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", usdPerMillion: { input: 0.1, cachedInput: 0.01, output: 0.5 }, temperature: false },
   ],
   openai: [

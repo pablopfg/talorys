@@ -199,7 +199,7 @@ export type AutomationPriority = (typeof AUTOMATION_PRIORITIES)[number];
 export interface TelegramStatus {
   /** False until the Worker has the TELEGRAM_BOT_TOKEN secret. */
   configured: boolean;
-  /** The bot's @username, once Talorys has reached Telegram with the token. */
+  /** The bot's @username, once Axis has reached Telegram with the token. */
   bot: string | null;
   /** The private chat with the bot is linked. */
   chat: boolean;

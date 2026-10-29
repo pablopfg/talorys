@@ -5,12 +5,14 @@ Codex, Cursor, Copilot e outros) que trabalham neste repositório. O
 [CLAUDE.md](CLAUDE.md) importa este arquivo. Leia tudo antes da primeira
 mudança; as regras por área ficam em [`.claude/rules/`](.claude/rules/).
 
-> **Nome do produto.** O código ainda se chama Talorys (pacotes `@talorys/*`,
-> tabelas `tal_`, variáveis `TALORYS_*`, cookies `talorys_*`). Um rebrand para
-> **Axis** está planejado e acontece em PRs próprios. Não renomeie
-> identificadores, tabelas, variáveis de ambiente, cookies nem chaves de
-> armazenamento por conta própria: isso quebra instalações existentes e exige
-> migração e compatibilidade.
+> **Nome do produto.** O produto se chama **Axis** ("Inteligente, integrado e
+> autônomo"), com a identidade visual Prisma. Ele nasceu do Talorys, e os nomes
+> internos continuam os de antes de propósito: pacotes `@talorys/*`, instalador
+> `create-talorys`, classe do Durable Object `TalorysAgent`, tabelas `tal_`,
+> variáveis `TALORYS_*`, cookies `talorys_*` e chaves de armazenamento. Não
+> renomeie nenhum deles por conta própria: isso apaga dados ou quebra
+> instalações existentes e exige migração e compatibilidade. Texto que o dono
+> lê (interface, servidor, docs) usa Axis.
 
 ## O que é o projeto
 

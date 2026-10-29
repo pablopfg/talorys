@@ -12,7 +12,7 @@ import { ClackUi } from "./ui";
 import { runChecks } from "./verify";
 import { Wrangler } from "./wrangler";
 
-const HELP = `create-talorys — deploy Talorys, your personal AI agent, to your own Cloudflare account.
+const HELP = `create-talorys — deploy Axis, your personal AI agent, to your own Cloudflare account.
 
 Usage
   npx create-talorys@latest [directory]     Install (or safely resume an interrupted install)
@@ -24,9 +24,9 @@ Usage
 Options
   --dir <path>          Installation directory (default: ./talorys, or the current directory if it is one)
   --account-id <id>     Cloudflare account to use
-  --name <name>         Agent name (default: Talorys)
+  --name <name>         Agent name (default: Axis)
   --semantic / --no-semantic  Turn semantic recall on or off without asking (default No; update keeps the last answer)
-  --domain <host>       Serve Talorys on your own domain (added to the Pages project as a custom domain);
+  --domain <host>       Serve Axis on your own domain (added to the Pages project as a custom domain);
                         the pages.dev address then stops answering. "--domain none" goes back to pages.dev
   -y, --yes             Skip confirmation prompts
   -h, --help            Show this help
@@ -47,8 +47,8 @@ function defaultDir(positional?: string): string {
 
 async function status(dir: string, deps: Deps): Promise<number> {
   const manifest = readManifest(dir);
-  if (!manifest) throw new CliError(`No Talorys installation found in ${dir}.`, "Run `npx create-talorys@latest` to install.");
-  deps.ui.intro("◆ Talorys status");
+  if (!manifest) throw new CliError(`No Axis installation found in ${dir}.`, "Run `npx create-talorys@latest` to install.");
+  deps.ui.intro("◆ Axis status");
   deps.ui.note(
     [
       `Installation   ${manifest.installation_id}`,
@@ -69,7 +69,7 @@ async function status(dir: string, deps: Deps): Promise<number> {
 
 async function doctor(dir: string, deps: Deps): Promise<number> {
   const { ui, wrangler } = deps;
-  ui.intro("◆ Talorys doctor");
+  ui.intro("◆ Axis doctor");
   const problems: string[] = [];
   try {
     checkNodeVersion();
@@ -87,7 +87,7 @@ async function doctor(dir: string, deps: Deps): Promise<number> {
   for (const g of await detectGlobalClis()) ui.info(`Global ${g.name} ${g.version ?? ""} (not required)`);
   const manifest = readManifest(dir);
   if (!manifest) {
-    ui.warn(`No ${MANIFEST_FILE} in ${dir}. Run this inside your Talorys directory.`);
+    ui.warn(`No ${MANIFEST_FILE} in ${dir}. Run this inside your Axis directory.`);
     ui.outro(problems.length ? "Problems found." : "Environment OK.");
     return problems.length ? 1 : 0;
   }

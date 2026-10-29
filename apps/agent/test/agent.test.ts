@@ -165,7 +165,7 @@ describe("prompt-injection and destructive-action defenses", () => {
 
   it("marks stored content as data, not instructions, in the system prompt", () => {
     const prompt = buildSystemPrompt({
-      agentName: "Talorys",
+      agentName: "Axis",
       timezone: "UTC",
       now: new Date(),
       autoMemory: false,

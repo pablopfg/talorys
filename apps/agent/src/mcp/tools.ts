@@ -47,7 +47,7 @@ const DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
  * A copy of the schema without regular expressions (`pattern`, `patternProperties`). Zod would
  * compile them into JavaScript RegExps that run inside the Durable Object on every call, so a
  * server could stall the whole app with a backtracking pattern. The server still validates its
- * own input; Talorys only checks the shape.
+ * own input; Axis only checks the shape.
  */
 export function withoutPatterns(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(withoutPatterns);
@@ -67,14 +67,14 @@ export function withoutPatterns(node: unknown): unknown {
   return out;
 }
 
-/** Converts an MCP input schema to Zod, the form Talorys tools validate with. Throws when unsupported. */
+/** Converts an MCP input schema to Zod, the form Axis tools validate with. Throws when unsupported. */
 export function toZod(schema: unknown): z.ZodType {
   return z.fromJSONSchema(withoutPatterns(schema) as Parameters<typeof z.fromJSONSchema>[0]);
 }
 
 /**
  * Checks one discovered tool and turns it into a catalog entry. A tool that is too large, too
- * deep or has a schema Talorys can't validate is kept as `invalid` (shown, never usable). The
+ * deep or has a schema Axis can't validate is kept as `invalid` (shown, never usable). The
  * hash covers everything the owner reviews, so any later change asks for a new review.
  */
 export async function checkTool(tool: Tool): Promise<CatalogEntry | null> {
@@ -92,7 +92,7 @@ export async function checkTool(tool: Tool): Promise<CatalogEntry | null> {
     try {
       toZod(schema);
     } catch {
-      invalid = "Its input schema uses features Talorys can't validate.";
+      invalid = "Its input schema uses features Axis can't validate.";
     }
   }
   return {
@@ -163,7 +163,7 @@ export interface McpToolRuntime {
 }
 
 /**
- * Adapts an enabled MCP tool to the Talorys tool pipeline, so validation, the call budget, per-tool
+ * Adapts an enabled MCP tool to the Axis tool pipeline, so validation, the call budget, per-tool
  * caps, duplicate detection and approvals all apply. `auto` tools run at once (the owner trusts
  * them as read-only); every other tool is proposed and runs only after the owner approves.
  */

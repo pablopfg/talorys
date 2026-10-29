@@ -53,7 +53,7 @@ pushRoutes.post("/push/unsubscribe", async (c) => {
 });
 
 /**
- * A signed-in browser saying it still uses Talorys, at most about once an hour. A device that stops
+ * A signed-in browser saying it still uses Axis, at most about once an hour. A device that stops
  * doing this for PUSH_INACTIVE_DAYS is removed by the watchers. `known: false` tells the browser its
  * subscription is no longer registered, so its switch shows off.
  */

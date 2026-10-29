@@ -44,23 +44,23 @@ describe("installer: fresh installation", () => {
     const pagesCfg = readFileSync(join(sb.dir, "web/wrangler.jsonc"), "utf8");
     expect(pagesCfg).toContain(`"service": "${manifest.worker_name}"`);
     expect(pagesCfg).toContain(`"binding": "AGENT"`);
-    expect(ui.log.some((l) => l.includes("Talorys is ready"))).toBe(true);
+    expect(ui.log.some((l) => l.includes("Axis is ready"))).toBe(true);
   });
 
   it("serves on the owner's domain and closes pages.dev when --domain is given (DOM-01)", async () => {
     const sb = makeSandbox();
     const site = fakeSite();
     const ui = new ScriptedUi(freshAnswers());
-    const manifest = await install({ dir: sb.dir, domain: "Talorys.Example.com.", ...FAST }, { ui, wrangler: sb.wrangler(), fetch: site, templates: sb.templates });
-    expect(manifest.public_url).toBe("https://talorys.example.com");
-    expect(manifest.custom_domain).toBe("talorys.example.com");
-    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBe("talorys.example.com");
-    expect(site.calls.every((u) => u.startsWith("https://talorys.example.com/"))).toBe(true);
+    const manifest = await install({ dir: sb.dir, domain: "Axis.Example.com.", ...FAST }, { ui, wrangler: sb.wrangler(), fetch: site, templates: sb.templates });
+    expect(manifest.public_url).toBe("https://axis.example.com");
+    expect(manifest.custom_domain).toBe("axis.example.com");
+    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBe("axis.example.com");
+    expect(site.calls.every((u) => u.startsWith("https://axis.example.com/"))).toBe(true);
     expect(ui.log.some((l) => l.includes("Custom domains"))).toBe(true);
 
     // An update keeps the domain; "none" goes back to pages.dev and reopens it.
     const kept = await install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
-    expect(kept.public_url).toBe("https://talorys.example.com");
+    expect(kept.public_url).toBe("https://axis.example.com");
     const back = await install({ dir: sb.dir, mode: "update", yes: true, domain: "none", ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
     expect(back.public_url).toMatch(/\.pages\.dev$/);
     expect(back.custom_domain).toBeNull();
@@ -126,7 +126,7 @@ describe("installer: fresh installation", () => {
     writeFileSync(join(sb.dir, "notes.txt"), "mine");
     await expect(
       install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
-    ).rejects.toThrow(/not a Talorys installation/);
+    ).rejects.toThrow(/not an Axis installation/);
     expect(readFileSync(join(sb.dir, "notes.txt"), "utf8")).toBe("mine");
   });
 
@@ -292,10 +292,10 @@ describe("installer: upgrades and password reset", () => {
     const sb = makeSandbox();
     await expect(
       install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([]), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
-    ).rejects.toThrow(/No Talorys installation/);
+    ).rejects.toThrow(/No Axis installation/);
   });
 
-  it("refuses a manifest that points at resources Talorys did not create", async () => {
+  it("refuses a manifest that points at resources Axis did not create", async () => {
     const sb = makeSandbox();
     const m = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
     const writes = () => sb.state().calls.filter((c) => /deploy|secret|create/.test(c.key)).length;

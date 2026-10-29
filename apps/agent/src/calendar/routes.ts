@@ -8,11 +8,11 @@ import { CalendarError } from "./service";
 
 /** Owner sessions only: access tokens never manage the calendar connection. */
 const ownerOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "Google Calendar can only be managed from the Talorys app.");
+  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "Google Calendar can only be managed from the Axis app.");
   return next();
 };
 
-/** The Talorys address the owner is using, for Google to return to. The CSRF check already refused any other Origin. */
+/** The Axis address the owner is using, for Google to return to. The CSRF check already refused any other Origin. */
 const appOrigin = (c: Context<AppEnv>) => c.req.header("origin") ?? new URL(c.req.url).origin;
 
 /** Google's answers become safe messages; nothing from Google's response reaches the browser. */

@@ -8,7 +8,7 @@ const RP_ID = new URL(BASE).hostname;
 
 async function turnOnMfa(): Promise<void> {
   await inAgent(async (a) => {
-    const { secret } = await a.services.auth.mfa.beginSetup("Talorys");
+    const { secret } = await a.services.auth.mfa.beginSetup("Axis");
     await a.services.auth.mfa.enable(await totpCode(secret, totpStep()));
   });
 }
@@ -90,7 +90,7 @@ describe("adding a passkey", () => {
     await inAgent(async (a) => {
       const service = new PasskeyService(a.services.db, a.services.settings, () => false);
       const rp = { rpId: RP_ID, origin: BASE };
-      const options = await service.registrationOptions(rp, { rpName: "Talorys", userName: "Talorys" });
+      const options = await service.registrationOptions(rp, { rpName: "Axis", userName: "Axis" });
       const key = await softPasskey();
       expect(await service.register("Phone", (await key.register(options as never, BASE)) as never, rp)).toBeNull();
       expect(service.count()).toBe(0);

@@ -45,10 +45,10 @@ describe("TOTP (RFC 6238)", () => {
     const secret = newTotpSecret();
     expect(base32Decode(secret)).toHaveLength(20);
     expect(newTotpSecret()).not.toBe(secret);
-    const uri = new URL(otpauthUri(secret, "Talorys"));
+    const uri = new URL(otpauthUri(secret, "Axis"));
     expect(uri.protocol).toBe("otpauth:");
     expect(uri.searchParams.get("secret")).toBe(secret);
-    expect(uri.searchParams.get("issuer")).toBe("Talorys");
+    expect(uri.searchParams.get("issuer")).toBe("Axis");
     expect(uri.searchParams.get("digits")).toBe("6");
     expect(base32Decode("not base32!")).toBeNull();
   });

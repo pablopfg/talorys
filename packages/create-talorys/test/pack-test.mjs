@@ -63,7 +63,7 @@ try {
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(body));
     };
-    if (path === "/") return res.end("<!doctype html><title>Talorys</title>");
+    if (path === "/") return res.end("<!doctype html><title>Axis</title>");
     if (path === "/api/auth/session") return json(200, { authenticated: false, configured: true });
     if (path === "/api/tasks") return json(401, { error: { code: "UNAUTHORIZED" } });
     if (path === "/api/health") return json(200, { ok: true, storage: "ok", schema_version: 1, configured: { password: true, session_secret: true } });
@@ -97,7 +97,7 @@ try {
     });
   const first = await run(["--yes", "--dir", "my-agent"]);
   assert.equal(first.code, 0, first.out);
-  assert.match(first.out, /Talorys is ready/);
+  assert.match(first.out, /Axis is ready/);
   assert.doesNotMatch(first.out, /packaged-Test-password-1/);
   const manifest = JSON.parse(readFileSync(join(work, "my-agent/talorys.json"), "utf8"));
   assert.equal(manifest.status, "deployed");

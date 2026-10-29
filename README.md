@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="apps/web/public/favicon.svg" alt="Logo do Talorys" width="88" height="88">
+<img src="apps/web/public/favicon.svg" alt="Símbolo do Axis: um X em íris e ciano com um losango branco no centro" width="96" height="96">
 
-# Talorys
+# Axis
 
-**Seu agente pessoal de IA. Na sua própria nuvem.**
+**Inteligente, integrado e autônomo.**
 
-Um assistente pessoal de IA gratuito e de código aberto que roda inteiramente dentro da **sua própria conta Cloudflare**.<br>
-Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talorys.
+Seu assistente pessoal de IA, gratuito e de código aberto, que roda inteiro dentro da **sua própria conta Cloudflare**.<br>
+Sem servidor, banco de dados ou conta de terceiros: as conversas, as memórias e as tarefas ficam com você.
 
-[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-1f6f63)](LICENSE)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-5b5bd6)](LICENSE)
 [![Roda na Cloudflare](https://img.shields.io/badge/roda%20na-Cloudflare-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 [![Node.js 24+](https://img.shields.io/badge/node-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
-[![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-1f6f63)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
-[![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-1f6f63)](#-onde-ficam-seus-dados)
+[![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-00a2c7)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
+[![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-5b5bd6)](#-onde-ficam-seus-dados)
 
-[Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+[Instalação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -23,22 +23,33 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 
 <div align="center">
 
-**Uma pessoa. Uma conta Cloudflare. Um comando. Um agente pessoal de IA.**
+**Uma pessoa. Uma conta Cloudflare. Um comando.**
 
 ```bash
 npx create-talorys@latest
 ```
 
-Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#um-worker-sem-pages):
-
-[![Instalar com o Appflare](https://appflare.dev/badge.svg)](https://appflare.dev/install/talorys/)
+<sub>O instalador mantém o nome técnico `create-talorys`, herdado do projeto que deu origem ao Axis. As versões deste repositório saem como pacote privado no GitHub Packages: veja <a href="docs/releases.md#instalador-no-github-packages">docs/releases.md</a>.</sub>
 
 </div>
 
 ---
 
+## Por que Axis
+
+O Axis é o eixo do seu dia: conversa, memória, tarefas, notas, lembretes e avisos num lugar só, e tudo isso funcionando sozinho enquanto você faz outra coisa.
+
+- **Inteligente.** Entende pedidos em linguagem natural, lembra do que importa para você e planeja tarefas a partir de um objetivo.
+- **Integrado.** Agenda do Google, servidores MCP, Telegram, e-mail, notificações push e eventos do n8n chegam ao mesmo lugar, com a mesma regra de prioridade.
+- **Autônomo.** Automações, rotinas e vigias rodam com os alarmes da Cloudflare, sem nada ligado no seu computador. O que pode apagar ou mudar algo importante sempre espera a sua aprovação.
+
+### A identidade Prisma
+
+O símbolo é um X formado por duas barras que se cruzam: a íris (`#5b5bd6`) é você e as suas ações, o ciano (`#00a2c7`) é o que o agente faz por você, e o losango branco no centro é o ponto onde os dois se encontram. Na interface, a íris marca botões e o item ativo do menu, e o ciano marca o que o agente já executou. A base é o cinza-azulado das escalas Radix, nos temas claro e escuro, com as fontes Funnel Display (títulos) e Funnel Sans (texto) servidas pelo próprio app, sem Google Fonts.
+
 ## Sumário
 
+- [Por que Axis](#por-que-axis)
 - [✨ Funcionalidades](#-funcionalidades)
 - [📸 Capturas de tela](#-capturas-de-tela)
 - [🧭 Como funciona](#-como-funciona)
@@ -52,7 +63,7 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 - [🩺 Solução de problemas](#-solução-de-problemas)
 - [🛠️ Desenvolvimento local](#️-desenvolvimento-local)
 - [📁 Estrutura do repositório](#-estrutura-do-repositório)
-- [🙌 Créditos](#-créditos)
+- [🙌 Origem e créditos](#-origem-e-créditos)
 - [📄 Licença](#-licença)
 
 ---
@@ -67,7 +78,7 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | 🎙️ | **Entrada por voz** | Toque no microfone, fale (até 1 minuto) e o Whisper do Workers AI transcreve na sua conta; o texto cai na caixa para você revisar antes de enviar. O áudio não é guardado e há um teto próprio de 60 minutos de áudio por dia. |
 | 🧠 | **Memória** | Fatos e preferências pessoais duradouros, que você pode ver, editar e apagar. Só as memórias mais relevantes são enviadas ao modelo a cada mensagem. |
 | 🔎 | **Busca semântica** <sub>opcional</sub> | Encontra memórias pelo significado, além das palavras-chave, lista as mais recentes primeiro com a data em que foram salvas e permite que o agente encontre tarefas, notas e automações pelo significado. [Saiba mais](docs/semantic-recall.md) |
-| 🕰️ | **Histórico da memória** | Fatos que mudam com o tempo: quando você diz que vendeu o carro, o Talorys pergunta se o antigo agora é um fato passado. Com a verificação opcional por IA, uma resposta confiante já resolve por você; conflitos pouco claros aguardam sua revisão. [Saiba mais](docs/memory-history.md) |
+| 🕰️ | **Histórico da memória** | Fatos que mudam com o tempo: quando você diz que vendeu o carro, o Axis pergunta se o antigo agora é um fato passado. Com a verificação opcional por IA, uma resposta confiante já resolve por você; conflitos pouco claros aguardam sua revisão. [Saiba mais](docs/memory-history.md) |
 
 ### Produtividade
 
@@ -77,18 +88,18 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | 🗺️ | **Planejamento de tarefas com IA** | Descreva um objetivo (_"Planeje as tarefas para lançar meu app de iOS no mês que vem"_) e receba um plano em um cartão interativo. Revise, edite ou remova tarefas, escolha um projeto e confirme: nada é criado antes disso, e a confirmação cria tudo de uma vez, uma única vez. |
 | ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
 | 🔁 | **Workflows** | Rotinas que antes ficavam no n8n, executadas pelos Workflows da Cloudflare com novas tentativas automáticas: monitor de sites (avisa quando um site cai e quando volta). Cada uma tem uma chave liga/desliga no menu **Workflows**. Plano gratuito. Veja [docs/workflows.md](docs/workflows.md). |
-| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Avisos**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Axis fechado (**Configurações → Avisos**). Usa Web Push padrão, com criptografia de ponta a ponta. |
 | 📣 | **Central de avisos** | Todo aviso tem prioridade (baixa, normal, alta ou crítica, editável em cada notificação) e categoria. Você escolhe quais categorias saem do app, limita quantas mensagens cada canal manda por hora e por dia e vê o histórico de entregas com o motivo de cada aviso não enviado. Avisos repetidos são descartados. Avisos de prioridade alta insistem (de novo em 15 min e em 1 h) até você tocar em Feito, Adiar ou Silenciar. A prioridade aprende com o seu uso (correções, rapidez, avisos ignorados), no máximo um nível por semana, e você fixa ou zera cada tipo de aviso. Vigias a cada 15 min avisam de prazos, rotinas falhando, MCP sem login, orçamento de IA e backup antigo, e o resumo do dia chega às 07:30. Mudanças de segurança (senha, token, acesso remoto, Telegram, backup) avisam por todos os canais, inclusive e-mail pelo Cloudflare Email Routing, mesmo para quem entrou no app. [Saiba mais](docs/alerts.md) |
-| ✈️ | **Avisos no Telegram** | Um bot do Telegram registra os avisos num grupo (com um tópico por categoria, se o grupo tiver tópicos) ou no chat privado. Discreto por padrão, com texto completo por categoria, e botões para marcar como feito ou adiar 1 hora. No chat privado, você conversa com o Talorys como no app, por texto ou mensagem de voz (até 5 minutos). Só a sua conta é ouvida. [Saiba mais](docs/alerts.md#telegram) |
+| ✈️ | **Avisos no Telegram** | Um bot do Telegram registra os avisos num grupo (com um tópico por categoria, se o grupo tiver tópicos) ou no chat privado. Discreto por padrão, com texto completo por categoria, e botões para marcar como feito ou adiar 1 hora. No chat privado, você conversa com o Axis como no app, por texto ou mensagem de voz (até 5 minutos). Só a sua conta é ouvida. [Saiba mais](docs/alerts.md#telegram) |
 
 > [!TIP]
-> No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.
+> No iPhone e no iPad, adicione o Axis à Tela de Início antes de ativar as notificações push.
 
 ### Integrações e design
 
 | | Funcionalidade | O que faz |
 | :---: | --- | --- |
-| 🔌 | **Servidores MCP remotos** <sub>opcional</sub> | Conecte servidores [MCP](https://modelcontextprotocol.io) remotos em **Configurações → Integrações** (sem autenticação, com token bearer ou login OAuth) e escolha quais ferramentas deles o Talorys pode usar. As ferramentas começam desligadas, e chamadas que podem alterar algo aguardam sua aprovação. As que rodam sem perguntar também podem ser liberadas para as rotinas agendadas. [Saiba mais](docs/mcp.md) |
+| 🔌 | **Servidores MCP remotos** <sub>opcional</sub> | Conecte servidores [MCP](https://modelcontextprotocol.io) remotos em **Configurações → Integrações** (sem autenticação, com token bearer ou login OAuth) e escolha quais ferramentas deles o Axis pode usar. As ferramentas começam desligadas, e chamadas que podem alterar algo aguardam sua aprovação. As que rodam sem perguntar também podem ser liberadas para as rotinas agendadas. [Saiba mais](docs/mcp.md) |
 | 👤 | **Usuário único por design** | Sem cadastro, sem contas, sem equipes. O instalador define a senha do dono. |
 | 🛟 | **Funciona sem IA** | Tarefas, notas, memórias e lembretes continuam funcionando se o Workers AI estiver indisponível ou se a sua cota gratuita acabar. |
 
@@ -162,7 +173,7 @@ Mais detalhes: [docs/architecture.md](docs/architecture.md).
 | Durable Objects (SQLite) | Todos os dados e os alarmes de agendamento | ✅ |
 | Workers AI | Modelo do chat (`@cf/zai-org/glm-4.7-flash`) | ✅ cota diária |
 
-O Talorys **não** provisiona R2, D1, KV, Vectorize, AI Search, Workflows nem qualquer serviço pago.
+O Axis **não** provisiona R2, D1, KV, Vectorize, AI Search, Workflows nem qualquer serviço pago.
 
 ---
 
@@ -243,7 +254,7 @@ Isso substitui o secret da senha e desconecta todos os aparelhos.
 Todos os dados ficam num único Durable Object com SQLite (`personal-agent`) **na sua conta Cloudflare**.
 
 > [!IMPORTANT]
-> O Talorys não tem código de telemetria, analytics, rastreamento ou publicidade e não envia nada aos seus desenvolvedores.
+> O Axis não tem código de telemetria, analytics, rastreamento ou publicidade e não envia nada aos seus desenvolvedores.
 
 A Cloudflare processa seus dados para prestar os serviços dela — inclusive a inferência do Workers AI sobre as suas mensagens do chat e as memórias relevantes incluídas em cada prompt. Leia a política de privacidade da Cloudflare e os termos do Workers AI.
 
@@ -258,7 +269,7 @@ Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia 
 
 ## 💸 O que é gratuito e o que pode custar dinheiro
 
-O Talorys foi feito para caber no **plano Free do Cloudflare Workers** e nunca ativa recursos pagos por conta própria. Mas não é "gratuito e ilimitado":
+O Axis foi feito para caber no **plano Free do Cloudflare Workers** e nunca ativa recursos pagos por conta própria. Mas não é "gratuito e ilimitado":
 
 - Os planos Free têm cotas por conta (requisições, uso de Durable Objects e uma cota diária de Neurons do Workers AI). As cotas são definidas pela Cloudflare e podem mudar.
 - Quando a cota de IA acaba, o chat mostra uma mensagem clara e volta a funcionar depois da renovação diária. Todo o resto continua funcionando, e os seus dados não são afetados.
@@ -346,7 +357,7 @@ Mais em [docs/troubleshooting.md](docs/troubleshooting.md).
 Requisito: **Node.js 24+** (recomendado: o LTS ativo, Node.js 26, fixado em `.nvmrc`; com nvm, rode `nvm use`).
 
 ```bash
-git clone https://github.com/rociiu/talorys.git
+git clone https://github.com/<seu-usuario>/talorys.git
 cd talorys
 npm install
 npm run dev
@@ -378,7 +389,7 @@ Veja [docs/development.md](docs/development.md).
 ## 📁 Estrutura do repositório
 
 ```
-apps/agent              Worker privado: API Hono, TalorysAgent, ferramentas, repositórios SQLite
+apps/agent              Worker privado: API Hono, Durable Object TalorysAgent, ferramentas, repositórios SQLite
 apps/web                App React + Vite, Pages Function (functions/api/[[path]].ts)
 packages/shared         Schemas Zod, tipos, lógica de recorrência/horário de verão, hash de senha
 packages/create-talorys Instalador de um comando só (pacote npm)
@@ -389,13 +400,15 @@ docs/                   Arquitetura, implantação, desenvolvimento, segurança,
 
 ---
 
-## 🙌 Créditos
+## 🙌 Origem e créditos
 
-Obrigado a todos que contribuíram com o Talorys:
+O Axis nasceu do [Talorys](https://github.com/rociiu/talorys), criado por Roc Yu e distribuído sob a licença MIT. Por compatibilidade com as instalações existentes, alguns nomes técnicos continuam os do projeto original: o instalador `create-talorys`, os pacotes `@talorys/*`, o Durable Object `TalorysAgent`, as tabelas `tal_*`, as variáveis `TALORYS_*` e a pasta `talorys/` criada pelo instalador. Trocar esses nomes apagaria dados ou quebraria o deploy.
+
+Obrigado a todos que contribuíram com o Axis original:
 
 | Contribuidor | Contribuição |
 | --- | --- |
-| [Roc Yu (@rociiu)](https://github.com/rociiu) | Criador e mantenedor |
+| [Roc Yu (@rociiu)](https://github.com/rociiu) | Criador e mantenedor do Axis |
 | [Derek (@KrunchMuffin)](https://github.com/KrunchMuffin) | Exigência do Node.js 22, correções na exclusão de tarefas e em turnos cancelados, suporte a build no Windows |
 | [Rudy Celekli (@rudycelekli)](https://github.com/rudycelekli) | Ciclo de vida das automações, verificação da implantação e correções nas configurações portáteis do backup |
 | [Andrew B (@who)](https://github.com/who) | Busca semântica opcional para memórias |

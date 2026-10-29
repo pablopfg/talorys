@@ -127,7 +127,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
   if (!parsed.success) throw ValidationError.fromZod(parsed.error);
   const backup = parsed.data;
   if (backup.version > BACKUP_VERSION) {
-    throw new ValidationError(`This backup was made by a newer Talorys (format v${backup.version}). Update Talorys first.`);
+    throw new ValidationError(`This backup was made by a newer Axis (format v${backup.version}). Update Axis first.`);
   }
   const previousTimezone = s.settings.get().timezone;
   const d = backup.data;
@@ -262,7 +262,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       // An imported server never connects or exposes a tool on its own: it arrives disabled, with no
       // credential and no tools, and an existing server keeps the owner's version. Unsafe URLs are skipped.
       // Ids end up inside approval targets ("server/tool") and OAuth state ("server.nonce"), so
-      // only servers with the UUIDs Talorys mints are imported.
+      // only servers with the UUIDs Axis mints are imported.
       if (!REMOTE_ID_PATTERN.test(m.id)) continue;
       if (db.one(`SELECT 1 AS x FROM tal_mcp_servers WHERE id = ?`, m.id) || s.mcp.repo.count() >= MAX_MCP_SERVERS) continue;
       let url: string;

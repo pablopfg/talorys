@@ -23,14 +23,14 @@ export function readTemplateInfo(dir = templatesDir()): TemplateInfo {
   return JSON.parse(readFileSync(path, "utf8")) as TemplateInfo;
 }
 
-/** A directory is safe to install into when it doesn't exist, is empty, or already holds a Talorys manifest. */
+/** A directory is safe to install into when it doesn't exist, is empty, or already holds an Axis manifest. */
 export function assertSafeTarget(dir: string): "new" | "existing" {
   if (!existsSync(dir)) return "new";
   if (existsSync(join(dir, MANIFEST_FILE))) return "existing";
   const entries = readdirSync(dir).filter((e) => e !== ".DS_Store");
   if (entries.length === 0) return "new";
   throw new CliError(
-    `${dir} already exists and is not a Talorys installation.`,
+    `${dir} already exists and is not an Axis installation.`,
     "Choose another directory with `--dir <path>` so nothing unrelated is overwritten.",
   );
 }
@@ -86,7 +86,7 @@ export function scaffoldProject(input: ScaffoldInput, templates = templatesDir()
 }
 
 function projectReadme(input: ScaffoldInput): string {
-  return `# Your Talorys deployment
+  return `# Your Axis deployment
 
 This directory was created by \`create-talorys\` and identifies your deployment
 (\`${input.installationId}\`). Keep it — it contains no secrets, but the

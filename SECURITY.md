@@ -1,6 +1,6 @@
 # Política de segurança
 
-O Talorys roda na conta da Cloudflare de cada usuário, então uma
+O Axis roda na conta da Cloudflare de cada usuário, então uma
 vulnerabilidade pode expor os dados pessoais de alguém. Obrigado por relatar de
 forma responsável.
 
@@ -53,7 +53,7 @@ Fora do escopo:
 
 ## Dados pessoais na sua instalação
 
-O seu Talorys registra a atividade de acesso (endereço IP, localização
+O seu Axis registra a atividade de acesso (endereço IP, localização
 aproximada informada pela Cloudflare, user agent) no seu próprio Durable
 Object, para proteger a sua conta. Os detalhes ficam 90 dias por padrão; depois
 disso, só contagens diárias por país. Você pode exportá-los ou excluí-los em

@@ -19,7 +19,7 @@ export function clip(text: string, max: number): string {
 
 /**
  * Makes model-written text safe to show as a notification: Markdown links and bare URLs become plain,
- * unclickable code, so a routine can't plant a link the owner might trust as Talorys' own.
+ * unclickable code, so a routine can't plant a link the owner might trust as Axis' own.
  * The link pattern is written so a missing `)` never makes it backtrack over the rest of the text.
  */
 export function defangLinks(text: string): string {
@@ -50,7 +50,7 @@ const LINKED_TLD = new RegExp(`^(?:${LINKED_TLDS})$`, "i");
 /**
  * Text for channels outside the app (Telegram, e-mail), where clients make links of anything that
  * looks like an address, backticks or not: "http" becomes "hxxp", "tg:" and "mailto:" lose their colon,
- * "www." becomes "www[.]" and every dot of a host that a client would link becomes "[.]". Talorys' own links (the "Open Talorys"
+ * "www." becomes "www[.]" and every dot of a host that a client would link becomes "[.]". Axis' own links (the "Open Axis"
  * button and e-mail footer) are added after this, so they stay clickable.
  */
 export function unlinkForChannels(text: string): string {

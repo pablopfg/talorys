@@ -170,12 +170,12 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
   const dir = resolve(opts.dir);
   const templates = deps.templates ?? templatesDir();
 
-  ui.intro("◆ Welcome to Talorys", "Your personal AI agent, powered by your Cloudflare account.");
+  ui.intro("◆ Welcome to Axis", "Your personal AI agent, powered by your Cloudflare account.");
 
   const template = await ui.step("Checking system requirements", async () => {
     checkNodeVersion();
     return readTemplateInfo(templates);
-  }, (t) => `System requirements OK (Node ${process.versions.node}, Talorys ${t.version})`);
+  }, (t) => `System requirements OK (Node ${process.versions.node}, Axis ${t.version})`);
 
   await ui.step("Detecting Cloudflare CLI", async () => {
     const [bundled, global] = await Promise.all([wrangler.version(), detectGlobalClis(deps.exec)]);
@@ -187,7 +187,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
   const target = assertSafeTarget(dir);
   let manifest = target === "existing" ? readManifest(dir) : null;
   if (opts.mode === "update" && !manifest) {
-    throw new CliError(`No Talorys installation found in ${dir}.`, "Run this inside your Talorys directory, or pass --dir.");
+    throw new CliError(`No Axis installation found in ${dir}.`, "Run this inside your Axis directory, or pass --dir.");
   }
   if (manifest) ui.info(`Found installation ${manifest.installation_id} — ${opts.mode === "update" ? "updating" : "resuming"} safely. Existing data is never deleted.`);
 
@@ -198,10 +198,10 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     opts.agentName ??
     (ui.interactive && !opts.yes
       ? await ui.text("Choose your agent name", {
-          initial: "Talorys",
+          initial: "Axis",
           validate: (v) => (v.trim().length > 0 && v.trim().length <= 60 ? undefined : "1–60 characters"),
         })
-      : "Talorys");
+      : "Axis");
 
   // A flag always decides; otherwise resumed installs and updates keep the recorded answer.
   const semanticDefault =
@@ -250,7 +250,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
         `Storage        SQLite-backed Durable Object`,
         `Semantic recall  ${semanticDefault ? "on" : "off"}`,
         `Address        ${domain ? `https://${domain} (your domain; pages.dev stops answering)` : "the project's pages.dev address"}`,
-        ...(domain ? [`               Add ${domain} under Workers & Pages → ${names.pagesProjectName} → Custom domains, or Talorys won't answer anywhere.`] : []),
+        ...(domain ? [`               Add ${domain} under Workers & Pages → ${names.pagesProjectName} → Custom domains, or Axis won't answer anywhere.`] : []),
         `Plan           Works on the Workers Free plan; no paid services are enabled`,
       ].join("\n"),
       manifest ? "Update" : "Deployment plan",
@@ -347,7 +347,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     manifest = markStep(dir, { ...manifest, public_url: publicUrl }, "pages");
     if (domain) {
       ui.info(
-        `Talorys answers only on ${domain}. If you haven't yet, add it in the Cloudflare dashboard: Workers & Pages → ${names.pagesProjectName} → Custom domains → Set up a custom domain.`,
+        `Axis answers only on ${domain}. If you haven't yet, add it in the Cloudflare dashboard: Workers & Pages → ${names.pagesProjectName} → Custom domains → Set up a custom domain.`,
       );
     }
 
@@ -387,7 +387,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
       "",
       `Project directory: ${dir}`,
     ].join("\n"),
-    "Talorys is ready",
+    "Axis is ready",
   );
   ui.outro("Open your agent and start chatting.");
   return manifest;
@@ -399,8 +399,8 @@ export async function resetPassword(opts: { dir: string; password?: string }, de
   const { ui, wrangler } = deps;
   const dir = resolve(opts.dir);
   const manifest = existsSync(dir) ? readManifest(dir) : null;
-  if (!manifest) throw new CliError(`No Talorys installation found in ${dir}.`, "Run this inside your Talorys directory, or pass --dir.");
-  ui.intro("◆ Reset Talorys owner password");
+  if (!manifest) throw new CliError(`No Axis installation found in ${dir}.`, "Run this inside your Axis directory, or pass --dir.");
+  ui.intro("◆ Reset Axis owner password");
   const who = await ensureAuthenticated(deps);
   const account = await chooseAccount(ui, who.accounts, manifest.account_id);
   wrangler.accountId = account.id;

@@ -185,7 +185,7 @@ describe("defangLinks", () => {
 describe("stored text stays data in the system prompt (AGT-02)", () => {
   it("keeps each memory on one line and inside its data block", () => {
     const prompt = buildSystemPrompt({
-      agentName: "Talorys",
+      agentName: "Axis",
       timezone: "UTC",
       now: new Date("2026-10-28T12:00:00Z"),
       autoMemory: false,

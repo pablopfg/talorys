@@ -1,4 +1,4 @@
-// Talorys service worker. It only shows Web Push notifications: nothing is cached, so the
+// Axis service worker. It only shows Web Push notifications: nothing is cached, so the
 // app always loads fresh from the network. Payloads arrive encrypted end to end (RFC 8291).
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -25,7 +25,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = typeof data.title === "string" && data.title ? data.title : "Talorys";
+  const title = typeof data.title === "string" && data.title ? data.title : "Axis";
   const id = typeof data.id === "string" && /^[\w-]{1,64}$/.test(data.id) ? data.id : undefined;
   // Buttons only for answers the server knows, and only as many as this browser shows.
   const max = typeof Notification !== "undefined" && Notification.maxActions ? Notification.maxActions : 2;

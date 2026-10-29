@@ -25,21 +25,21 @@ conta escolhida (veja [deployment.md](deployment.md#permissões)).
 podem levar alguns minutos para receber DNS e certificados. Rode o mesmo comando
 de novo; ele continua de onde parou sem duplicar nada.
 
-**"…already exists and is not a Talorys installation."** Escolha outra pasta com
+**"…already exists and is not an Axis installation."** Escolha outra pasta com
 `--dir`. O instalador nunca sobrescreve pastas que não são dele.
 
 **"SQLite-backed Durable Objects are not available."** Confira as configurações
 de Workers da conta; Durable Objects com SQLite fazem parte do plano Free.
 
-## Usando o Talorys
+## Usando o Axis
 
 **"Sua conta Cloudflare usou a cota do Workers AI de hoje."** A cota diária
 gratuita de Neurons acabou. O chat volta depois que a cota reinicia; tarefas,
 notas, memórias e lembretes continuam funcionando. O uso exato fica no painel da
 Cloudflare (Workers AI).
 
-**"O Talorys atingiu o limite diário de N pedidos de IA."** Esse é o limite de
-proteção do próprio Talorys; aumente-o em **Configurações → IA**.
+**"O Axis atingiu o limite diário de N pedidos de IA."** Esse é o limite de
+proteção do próprio Axis; aumente-o em **Configurações → IA**.
 
 **"Muitas tentativas sem sucesso."** Espere 15 minutos, use **Esqueceu a
 senha?** na tela de login (quando o e-mail estiver configurado) ou redefina a
