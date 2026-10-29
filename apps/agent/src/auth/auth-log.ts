@@ -127,8 +127,10 @@ export class AuthLog {
   private insert(kind: AuthEventKind, client: ClientInfo | null, extra: { reason?: string; session?: string | null; knownDevice?: boolean | null }): void {
     const nowMs = this.clock();
     const network = client?.network ?? null;
-    // A blocked network may keep sending requests: one row per window, its count written at most once a minute.
-    if (network && kind === "login_rate_limited") {
+    // A blocked network may keep sending requests (as may one refused by the robot check): one row
+    // per window, its count written at most once a minute.
+    if (network && (kind === "login_rate_limited" || kind === "login_human_check")) {
+      const pendingKey = `${kind} ${network}`;
       const row = this.db.one<{ id: number; last_at: number }>(
         `SELECT id, last_at FROM tal_auth_events WHERE network = ? AND kind = ? AND at > ? ORDER BY id DESC LIMIT 1`,
         network,
@@ -136,16 +138,16 @@ export class AuthLog {
         nowMs - FOLD_WINDOW_MS,
       );
       if (row) {
-        const pending = (this.blockedPending.get(network) ?? 0) + 1;
+        const pending = (this.blockedPending.get(pendingKey) ?? 0) + 1;
         if (nowMs - row.last_at < BLOCKED_FLUSH_MS) {
-          this.blockedPending.set(network, pending);
+          this.blockedPending.set(pendingKey, pending);
           return;
         }
-        this.blockedPending.delete(network);
+        this.blockedPending.delete(pendingKey);
         this.db.run(`UPDATE tal_auth_events SET count = count + ?, last_at = ? WHERE id = ?`, pending, nowMs, row.id);
         return;
       }
-      this.blockedPending.delete(network);
+      this.blockedPending.delete(pendingKey);
     }
     if (network && AUTH_FAILURE_KINDS.includes(kind)) {
       const recent = this.db.one<{ n: number }>(

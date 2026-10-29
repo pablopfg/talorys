@@ -11,6 +11,8 @@ import { PendingActionRepository } from "../db/repositories/pending-actions";
 import { SettingsService } from "./settings";
 import { ActivityLog, UsageService } from "./usage";
 import { AuthService } from "../auth/auth-service";
+import { turnstile } from "../auth/turnstile";
+import { allowedHosts } from "../hosts";
 import { AutomationService, type Scheduler } from "../agent/scheduling";
 import { MemoryHistoryService, type MemoryHistoryHooks } from "../memory";
 import { PushSubscriptionRepository } from "../push/repository";
@@ -138,7 +140,10 @@ export function createServices(
       authLog.record("session_ended", null, { reason });
     },
     // Only local development may skip the breach check; a deploy never accepts an unchecked password.
-    { breached: env.TALORYS_HIBP === "off" && env.TALORYS_ENV === "development" ? undefined : (password) => isBreachedPassword(password) },
+    {
+      breached: env.TALORYS_HIBP === "off" && env.TALORYS_ENV === "development" ? undefined : (password) => isBreachedPassword(password),
+      human: turnstile(env.TURNSTILE_SITE_KEY, env.TURNSTILE_SECRET_KEY, [...(allowedHosts(env) ?? [])]),
+    },
     ),
     authLog,
     automations,

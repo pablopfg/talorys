@@ -111,6 +111,32 @@ the owner on a new network can still sign in once. The owner gets a notification
 when this starts (at most every 6 hours). Responses include `Retry-After`.
 Password changes and password confirmation use the same limiter.
 
+### Robot check (Turnstile)
+
+With Cloudflare Turnstile set up (the `TURNSTILE_SITE_KEY` variable and the
+`TURNSTILE_SECRET_KEY` Worker secret; both or it stays off), sign-in asks for
+it only when a sign-in looks risky:
+
+- the network got the password wrong in the last 15 minutes, or
+- 10 failures piled up across all networks in the window (an attack in
+  progress) and the network has not signed in successfully in the last 30
+  days.
+
+Everyone else signs in with the password alone, and the check never replaces
+the limits above: a blocked network is told to wait before anything else. The
+Worker confirms the widget's token with Cloudflare's `siteverify` before the
+attempt is counted and before any password hashing, so a bot without a valid
+token costs no PBKDF2 work and no guess. Refused checks are counted per network: past 10 in
+the window, the network is told to wait like any blocked one, before any call to
+`siteverify`, and their rows in the sign-in activity fold like blocked attempts. The token must come from the `login`
+action and, with allowed hosts set, from one of those hostnames; Cloudflare
+accepts each token once. If `siteverify` does not answer, the sign-in is
+refused (fail closed) with a "try again shortly" message. The widget's script
+and frame come from `challenges.cloudflare.com`, the only third-party origin
+in the CSP, and are loaded only when the form needs them. Each refusal is a
+"Robot check not passed" row in the sign-in activity. The secret key is only
+a Worker secret, never in the repository or in GitHub.
+
 ## Sign-in activity
 
 Settings → Security → Sign-in activity lists every sign-in, failed attempt,
@@ -195,8 +221,9 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
 
 - React escapes output; Markdown is rendered without raw HTML; remote images in
   model output are not loaded; links open with `noopener noreferrer`.
-- `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
-  `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS
+- `_headers` sets a strict CSP (`script-src 'self'` plus
+  `https://challenges.cloudflare.com` for the Turnstile widget, `frame-src`
+  only that origin, `connect-src 'self'`, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS
   (`max-age=63072000; includeSubDomains`; serve Talorys on a subdomain, not the
   bare domain) and a restrictive `Permissions-Policy` (camera, geolocation and
   payment off; the microphone only for the app's own origin, for chat voice

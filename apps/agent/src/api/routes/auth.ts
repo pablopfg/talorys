@@ -18,18 +18,22 @@ async function logged<T>(c: Context<AppEnv>, client: ClientInfo, onWrong: AuthEv
     return await work();
   } catch (error) {
     const log = c.env.agent.services.authLog;
+    const humanCheck = error instanceof AppError ? (error.details as { human_check?: string } | undefined)?.human_check : undefined;
     if (error instanceof AppError && error.code === "RATE_LIMITED") log.record("login_rate_limited", client, { reason });
+    // Refused before the password was even tried: no token, a bad one, or Cloudflare didn't answer.
+    else if (error instanceof AppError && error.code !== "UNAUTHORIZED" && humanCheck) log.record("login_human_check", client, { reason: humanCheck });
     else if (error instanceof AppError && (error.code === "UNAUTHORIZED" || error.code === "FORBIDDEN")) log.record(onWrong, client, { reason });
     throw error;
   }
 }
 
 authRoutes.post("/login", async (c) => {
-  const { password, email } = await body(c, signInSchema, 4096);
+  const { password, email, turnstile_token } = await body(c, signInSchema, 8192);
   const s = c.env.agent.services;
   const client = await clientInfo(c);
+  const proof = { token: turnstile_token, ip: c.req.header("cf-connecting-ip") ?? undefined };
   const result = await logged(c, client, "login_failure", "wrong_credentials", () =>
-    s.auth.login(password, clientId(c), c.req.header("user-agent") ?? "", email),
+    s.auth.login(password, clientId(c), c.req.header("user-agent") ?? "", email, proof),
   );
   if (result.mfa) {
     // The password was right; the code comes next. This line is worth seeing if the code never does.
@@ -125,6 +129,8 @@ authRoutes.get("/session", (c) => {
     configured: s.auth.isConfigured(),
     // Only whether the sign-in form needs the field, never the address.
     email_required: authenticated ? undefined : s.auth.emailRequired(),
+    // The robot check's public key, and whether this network must solve it before signing in.
+    human_check: authenticated ? undefined : humanCheckFor(c),
     password_change_required: authenticated ? s.auth.passwordChangeRequired() : undefined,
     agent_name: authenticated ? settings.agentName : undefined,
     theme: authenticated ? settings.theme : undefined,
@@ -132,6 +138,15 @@ authRoutes.get("/session", (c) => {
     deadlines: authenticated ? (s.auth.sessionDeadlines(c.get("sessionId")!) ?? undefined) : undefined,
   });
 });
+
+/** Never fails the session check: without the client address (only off Cloudflare) it just says nothing. */
+function humanCheckFor(c: Context<AppEnv>) {
+  try {
+    return c.env.agent.services.auth.humanCheck(clientId(c));
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * The open app's signal, once a minute from one tab: keeps presence, and use when `active`.

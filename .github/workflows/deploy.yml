@@ -111,6 +111,7 @@ jobs:
           TALORYS_DEFAULT_TIMEZONE: ${{ vars.TALORYS_DEFAULT_TIMEZONE }}
           TALORYS_AGENT_NAME: ${{ vars.TALORYS_AGENT_NAME }}
           TALORYS_ALERT_EMAIL_FROM: ${{ vars.TALORYS_ALERT_EMAIL_FROM }}
+          TALORYS_TURNSTILE_SITE_KEY: ${{ vars.TALORYS_TURNSTILE_SITE_KEY }}
         run: |
           version="$(node -p 'require("./packages/create-talorys/package.json").version')+${GITHUB_SHA::7}"
           TALORYS_DEPLOYED_VERSION="$version" node scripts/deploy/render-wrangler-config.mjs \

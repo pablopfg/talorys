@@ -15,6 +15,12 @@ export interface Env {
   PASSWORD_PEPPER?: string;
   /** The owner's e-mail address. When set, signing in asks for it too. Worker secret, never in the repository. */
   OWNER_EMAIL?: string;
+  /**
+   * Cloudflare Turnstile for risky sign-ins: the widget's site key (a plain variable) and its
+   * secret key (a Worker secret). Without both, sign-in works as before, with no robot check.
+   */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
   /** "off": don't check new passwords against Have I Been Pwned (only 5 characters of a hash are ever sent). Development only. */
   TALORYS_HIBP?: string;
   /**
