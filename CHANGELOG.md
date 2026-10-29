@@ -12,6 +12,10 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
 
+### Atualização
+
+- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Nenhuma variável ou segredo novo.
+
 ## 1.0.0 — 2026-10-29
 
 ### Adicionado
