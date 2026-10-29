@@ -22,6 +22,8 @@ export interface Manifest {
   timezone: string;
   /** Installer answer to "Enable semantic recall?". Missing in older manifests, read as false. */
   semantic?: boolean;
+  /** The owner's own domain for the Pages project, if any. Missing in older manifests. */
+  custom_domain?: string | null;
   status: "provisioning" | "deployed" | "failed";
   /** Completed steps, used to report progress when resuming. */
   steps: string[];

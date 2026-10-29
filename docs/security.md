@@ -40,11 +40,14 @@ Talorys is single-user. The threat model assumes the internet can reach your
 5 failed logins per client within 15 minutes lock that client. A client is the
 IP address from `CF-Connecting-IP` (outside development a request without it
 is refused, so it can't land in a shared bucket), or its whole /64 for IPv6, since one
-subscriber usually holds a /64 and could otherwise rotate addresses. 25 failures
-overall lock login globally for the window, except for networks that signed in
-successfully within the last 30 days, so a distributed attack cannot lock the
-owner out of their usual networks (their per-client limit still applies).
-Responses include `Retry-After`. Password changes are subject to the same limiter.
+subscriber usually holds a /64 and could otherwise rotate addresses. When 25
+failures pile up across all clients in the window (a distributed attack), login is
+never locked for everyone: networks that signed in successfully within the last
+30 days keep their normal allowance, and any other network gets a single attempt
+per window. Guessing from many addresses is slowed to one guess per address, and
+the owner on a new network can still sign in once. The owner gets a notification
+when this starts (at most every 6 hours). Responses include `Retry-After`.
+Password changes and password confirmation use the same limiter.
 
 ## CSRF
 
@@ -63,14 +66,29 @@ the Worker for every route except `GET /api/health`, `POST /api/auth/login` and
 only `{ "ok": true|false }`; the version, schema and configuration details are
 for the owner. The agent instance name is fixed server-side.
 
+Two optional gates run in the Worker's entry point, before the Durable Object:
+
+- **Allowed hosts.** With `TALORYS_ALLOWED_HOSTS` (comma-separated), any other
+  host gets 404. The GitHub deploy sets it to the custom domain (or the
+  `workers.dev` host of `TALORYS_PUBLIC_URL`).
+- **Cloudflare Access.** With `TALORYS_ACCESS_TEAM_DOMAIN` and
+  `TALORYS_ACCESS_AUD`, every request needs a `Cf-Access-Jwt-Assertion` token
+  signed by that team for that application (RS256, audience, issuer, expiry and
+  signature checked against the team's published keys). A host Access does not
+  cover therefore cannot skip it. Only the anonymous `GET /api/health`, without
+  a cookie or token, is exempt, so a deploy can check itself through an Access
+  bypass rule. Half a configuration answers 503 instead of turning the check off.
+
 ## XSS and browser hardening
 
 - React escapes output; Markdown is rendered without raw HTML; remote images in
   model output are not loaded; links open with `noopener noreferrer`.
 - `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
-  `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS and a
-  restrictive `Permissions-Policy` (camera, geolocation and payment off; the
-  microphone only for the app's own origin, for chat voice input).
+  `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS
+  (`max-age=63072000; includeSubDomains`; serve Talorys on a subdomain, not the
+  bare domain) and a restrictive `Permissions-Policy` (camera, geolocation and
+  payment off; the microphone only for the app's own origin, for chat voice
+  input).
 - Voice input sends one recorded clip (at most 60 s and 2 MB) to `POST
   /api/transcribe`, which needs the owner session and is not open to remote
   access tokens. The audio goes only to Workers AI and is never stored;

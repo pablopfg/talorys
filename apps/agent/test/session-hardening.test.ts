@@ -57,7 +57,7 @@ describe("API response headers (WEB-02)", () => {
       const res = await client().call(path);
       expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
       expect(res.headers.get("x-frame-options")).toBe("DENY");
-      expect(res.headers.get("strict-transport-security")).toBe("max-age=31536000");
+      expect(res.headers.get("strict-transport-security")).toBe("max-age=63072000; includeSubDomains");
       expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     }
   });
