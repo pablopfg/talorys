@@ -505,6 +505,9 @@ sem chave de API.
   endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe. Endereços no
   título e no texto (de lembretes, rotinas ou eventos) chegam desarmados (`hxxps://`,
   `exemplo[.]com`), no e-mail e no Telegram, para nenhum aviso trazer um link de golpe.
+- O e-mail também traz o link de **Esqueceu a senha?** da tela de login (no máximo 3 por
+  dia, contados como alertas de segurança no limite acima). Veja
+  [security.md](security.md#password-recovery-by-e-mail).
 - Em **Configurações → Avisos → E-mail** aparece o destino mascarado (`d•••@exemplo.com.br`),
   quantos e-mails saíram hoje e o botão **Enviar e-mail de teste**.
 

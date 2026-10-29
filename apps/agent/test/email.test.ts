@@ -188,6 +188,25 @@ describe("e-mail alerts", () => {
     });
   });
 
+  it("sends the password recovery link to the verified address, never from the security reserve", async () => {
+    await inAgent(async (agent) => {
+      const { email, sent } = fakeEmail(agent);
+      expect(email.address()).toBe(TO);
+      expect(email.canSendRecovery()).toBe(true);
+      email.sendRecovery("https://talorys.exemplo.com.br/recover#token");
+      await email.idle();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.to).toBe(TO);
+      expect(sent[0]!.subject).toBe("Talorys: Reset your password");
+      expect(sent[0]!.text).toContain("https://talorys.exemplo.com.br/recover#token");
+      const now = new Date().toISOString();
+      const shared = EMAIL_ALERTS.perDay - EMAIL_ALERTS.reserved;
+      agent.services.settings.setJson("alerts.email.sent", Array.from({ length: shared }, () => ({ t: now, k: "routine" })));
+      expect(email.canSendRecovery()).toBe(false);
+      expect(email.full(notification())).toBe(false);
+    });
+  });
+
   it("gets every security and critical alert, other categories only when routed, and only the first try", async () => {
     await inAgent(async (agent) => {
       const { email, sent } = fakeEmail(agent);

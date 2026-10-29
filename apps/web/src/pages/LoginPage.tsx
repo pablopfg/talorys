@@ -13,7 +13,8 @@ export function LoginPage({
   ended,
   emailRequired = false,
   humanCheck,
-}: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean; humanCheck?: HumanCheck }) {
+  canRecover = false,
+}: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean; humanCheck?: HumanCheck; canRecover?: boolean }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -43,6 +44,29 @@ export function LoginPage({
   }, [humanCheck?.required, humanCheck?.site_key]);
   // A widget that can't load doesn't lock the form: the server decides whether it was needed.
   const humanMissing = humanKey !== null && !humanToken && !humanBroken;
+  // "Forgot password": the address (when asked for) and, with Turnstile on, always the robot check.
+  const [forgot, setForgot] = useState<"form" | "sent" | null>(null);
+  const [forgotToken, setForgotToken] = useState<string | null>(null);
+  const [forgotRound, setForgotRound] = useState(0);
+  const forgotKey = humanCheck?.site_key ?? null;
+
+  async function requestLink(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || pending || (forgotKey && !forgotToken && !humanBroken)) return;
+    setPending(true);
+    setError(null);
+    const token = forgotToken;
+    setForgotToken(null);
+    setForgotRound((n) => n + 1);
+    try {
+      await api("/auth/recovery", { method: "POST", body: { email, ...(token ? { turnstile_token: token } : {}) } });
+      setForgot("sent");
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === "RATE_LIMITED" ? t("login.rateLimited") : err instanceof Error ? err.message : t("login.failed"));
+    } finally {
+      setPending(false);
+    }
+  }
 
   useEffect(() => {
     if (!retryAt) return;
@@ -184,6 +208,70 @@ export function LoginPage({
           </div>
         ) : codeStep ? (
           codeForm
+        ) : forgot ? (
+          <form onSubmit={requestLink} className="space-y-3" noValidate>
+            <h2 className="text-center text-base font-semibold">{t("login.recoverTitle")}</h2>
+            {forgot === "sent" ? (
+              <p role="status" className="rounded-lg border border-border bg-surface p-3 text-center text-sm leading-6 text-fg-muted">
+                {t("login.recoverSent")}
+              </p>
+            ) : (
+              <>
+                <p className="text-center text-sm leading-6 text-fg-muted">{t("login.recoverHint")}</p>
+                <div className="relative">
+                  <label htmlFor="recover-email" className="sr-only">
+                    {t("login.email")}
+                  </label>
+                  <AtSign className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+                  <input
+                    id="recover-email"
+                    type="email"
+                    autoComplete="username"
+                    autoFocus
+                    placeholder={t("login.emailPlaceholder")}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] shadow-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  />
+                </div>
+                {forgotKey && (
+                  <TurnstileWidget
+                    key={`${forgotKey}-${forgotRound}`}
+                    siteKey={forgotKey}
+                    action="recovery"
+                    onToken={(value) => {
+                      setForgotToken(value);
+                      if (value) setHumanBroken(false);
+                    }}
+                    onError={() => setHumanBroken(true)}
+                  />
+                )}
+                <Button
+                  type="submit"
+                  className="h-12 w-full justify-center rounded-xl text-[15px]"
+                  loading={pending}
+                  disabled={!email.trim() || (!!forgotKey && !forgotToken && !humanBroken)}
+                >
+                  {t("login.recoverSend")}
+                </Button>
+                {error && (
+                  <p id="login-error" role="alert" className="text-center text-sm text-danger">
+                    {error}
+                  </p>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              className="w-full text-center text-sm text-fg-muted hover:text-fg"
+              onClick={() => {
+                setForgot(null);
+                setError(null);
+              }}
+            >
+              {t("login.recoverBack")}
+            </button>
+          </form>
         ) : (
           <form onSubmit={submit} className="space-y-3" noValidate>
             {endedReason && !error && (
@@ -266,6 +354,18 @@ export function LoginPage({
               <p id="login-error" role="alert" className="text-center text-sm text-danger">
                 {error}
               </p>
+            )}
+            {canRecover && (
+              <button
+                type="button"
+                className="w-full text-center text-sm text-accent hover:underline"
+                onClick={() => {
+                  setForgot("form");
+                  setError(null);
+                }}
+              >
+                {t("login.forgot")}
+              </button>
             )}
           </form>
         )}

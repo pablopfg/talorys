@@ -37,7 +37,8 @@ Cloudflare dashboard (Workers AI).
 **"Talorys reached its daily limit of N AI requests."** That's Talorys' own
 guardrail; raise it in Settings → AI.
 
-**"Too many failed attempts."** Wait 15 minutes, or reset the password with
+**"Too many failed attempts."** Wait 15 minutes, use **Forgot your password?**
+on the sign-in screen (when e-mail is set up), or reset the password with
 `npx create-talorys@latest reset-password`.
 
 **Reminders fire at the wrong time.** Check Settings → General → Timezone.

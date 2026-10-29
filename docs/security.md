@@ -90,12 +90,56 @@ screen but Settings (it can be put off for 3 days on a browser, never for good).
 - **Changing it.** Turning it on or off and making new recovery codes need the
   password typed within the last 15 minutes and a current code (turning off
   also takes a recovery code). Turning it on or off ends every other session
-  and notifies the owner. Wrong codes when turning it off or making new codes
-  count in the sign-in rate limit.
+  and notifies the owner. Wrong codes when turning it off, making new codes or
+  confirming identity for a sensitive action count in the sign-in rate limit
+  and as wrong two-step codes: the same 10-in-15-minutes pause and the same
+  alert after 3 in a row, so a stolen session can't guess codes either.
 - **Activity.** Each step is in the [sign-in activity](#sign-in-activity):
   code asked, wrong code (and why), which factor signed in, turned on or off,
   new codes. Codes themselves are never logged.
 - Passkeys come later, once the deployment has its own domain.
+
+## Password recovery by e-mail
+
+"Forgot your password?" on the sign-in screen e-mails a one-time link, when
+e-mail alerts are set up (Cloudflare Email Routing, see
+[Alerts](alerts.md#configurar-o-e-mail)) and the deploy knows its own address
+(`TALORYS_ALLOWED_HOSTS`, set from the custom domain or `TALORYS_PUBLIC_URL`).
+Without either, the option doesn't show and `reset-password` (CLI) remains the
+way back in.
+
+- **No enumeration.** The request always answers the same. The address typed
+  must always match the owner's (`OWNER_EMAIL`, else the alert recipient),
+  compared as keyed hashes, so someone who doesn't know it can't replace the
+  link or use up the day's e-mails. The link goes only to the verified
+  recipient (`ALERT_EMAIL_TO`, else `OWNER_EMAIL`), never to what was typed.
+- **The link can't be pointed elsewhere.** Its host comes from the deploy's
+  configuration, never from the request's `Host` header. The token (256 bits)
+  rides in the URL fragment, which browsers never send to a server, and the
+  page drops it from the address bar as soon as it reads it. Only an HMAC of
+  the token (keyed with `SESSION_SECRET`) is stored.
+- **Short-lived and single.** 30 minutes, one use, and each new e-mail
+  replaces the previous link. 5 tries per link (a wrong two-step code counts;
+  a refused new password doesn't), then it stops working. Resetting the
+  password from the CLI voids a pending link, and no link works while recovery
+  is off.
+- **Bounded.** 3 requests per network in 15 minutes, 3 recovery e-mails a day
+  in total, and the sign-in rate limits apply (a blocked network can't ask).
+  Recovery e-mails come from the ordinary alert quota, never from the share
+  kept for security alerts; when there is no room, the last link stays valid.
+  With Turnstile on, every request must pass it. A wrong token counts as a
+  failed sign-in.
+- **Two-step sign-in still applies.** With it on, the new password also needs
+  an authenticator code or a recovery code, asked only after the link checks
+  out, with the same guards as the sign-in (wrong-code pause, alert after
+  repeated wrong codes). The new password is checked (strength, breach check)
+  before the code, so a recovery code is never spent on a refused password. Losing both the
+  e-mail and the second factor still means `reset-password`.
+- **Everything ends.** Setting the new password signs out every session,
+  revokes remote access tokens and pending two-step challenges, and raises the
+  "Password reset by e-mail" security alert on every channel. The sign-in
+  activity records the request (sent, not your address, daily limit) and the
+  reset.
 
 ## Brute force
 

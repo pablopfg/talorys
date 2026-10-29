@@ -227,7 +227,7 @@ Veja [docs/deployment.md](docs/deployment.md).
 
 Abra a URL que o instalador mostrar, digite a senha do dono e comece a conversar. Entre por quantos aparelhos quiser — todos são o mesmo dono. Gerencie as sessões em **Configurações → Segurança**.
 
-Esqueceu a senha? No seu diretório `talorys/`:
+Esqueceu a senha? Com os avisos por e-mail configurados, use **Esqueceu a senha?** na tela de login: chega um link de uso único, válido por 30 minutos (com a verificação em duas etapas ligada, ele também pede o código). Sem e-mail, no seu diretório `talorys/`:
 
 ```bash
 npx create-talorys@latest reset-password

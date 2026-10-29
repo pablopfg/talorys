@@ -20,7 +20,7 @@ export interface EmailConfig {
 
 const SENT_KEY = "alerts.email.sent";
 /** What a sent e-mail was: a security or critical alert, another alert, or the test. */
-type EmailKind = "security" | "other" | "test";
+type EmailKind = "security" | "other" | "test" | "recovery";
 interface SentEmail {
   t: string;
   k: EmailKind;
@@ -108,6 +108,36 @@ export class EmailAlerts {
       ...this.footer(),
     ].join("\n");
     return (await this.send("test", this.subject("Test e-mail"), text)) > 0;
+  }
+
+  /** The verified recipient, for the "forgot password" check; null when e-mail is not set up. */
+  address(): string | null {
+    return this.configured() ? this.config.to! : null;
+  }
+
+  /** Room today for a "forgot password" e-mail, outside the reserve kept for security alerts. */
+  canSendRecovery(): boolean {
+    return this.room("recovery");
+  }
+
+  /**
+   * The "forgot password" link, to the owner's verified address only, in the background. It never
+   * uses the reserve for security alerts (the auth service also allows at most 3 a day).
+   */
+  sendRecovery(link: string): void {
+    this.track(this.recovery(link));
+  }
+
+  private async recovery(link: string): Promise<boolean> {
+    const text = [
+      this.text("Someone asked to reset your Talorys password. To choose a new one, open this link within 30 minutes:"),
+      "",
+      link,
+      "",
+      this.text("The link works once. If it wasn't you, ignore this e-mail: your password stays the same."),
+      this.text("Talorys never asks for your password or codes by e-mail."),
+    ].join("\n");
+    return (await this.send("recovery", this.subject("Reset your password"), text)) > 0;
   }
 
   /** Resolves when every send started so far has finished (tests). */

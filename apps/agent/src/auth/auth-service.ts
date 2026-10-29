@@ -1,5 +1,9 @@
 import {
   MFA_MAX_ATTEMPTS,
+  RECOVERY_EMAILS_PER_DAY,
+  RECOVERY_LINK_TTL_MS,
+  RECOVERY_MAX_ATTEMPTS,
+  RECOVERY_REQUESTS_PER_CLIENT,
   type SessionInfo,
   type SessionTimeouts,
   checkPasswordStrength,
@@ -17,7 +21,7 @@ import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
 import { AppError, ValidationError } from "../api/errors";
 import { type MfaFactor, MfaService } from "./mfa";
-import type { HumanCheck } from "./turnstile";
+import { type HumanCheck, TURNSTILE_RECOVERY_ACTION } from "./turnstile";
 
 /** A session's use and presence are written at most this often (writes on the Free plan are counted). */
 export const TOUCH_INTERVAL_MS = 60_000;
@@ -47,6 +51,17 @@ export const HUMAN_CHECK_GLOBAL_FAILURES = 10;
 export const MAX_HUMAN_CHECK_FAILURES = 10;
 /** tal_login_attempts.success for a sign-in refused by the robot check: not a password guess. */
 const HUMAN_CHECK_FAILED = 2;
+/** tal_login_attempts.success for a "forgot password" request: counted per network, never a guess. */
+const RECOVERY_REQUEST = 3;
+const RECOVERY_KEY = "auth.recovery";
+const RECOVERY_SENT_KEY = "auth.recovery_sent";
+
+/** The one recovery link that can work: only its keyed hash is stored. */
+interface RecoveryLink {
+  hash: string;
+  expires_at: number;
+  attempts: number;
+}
 /** While the global cap is tripped, the owner hears about it at most this often. */
 export const ATTACK_ALERT_INTERVAL_MS = 6 * 3600_000;
 
@@ -115,6 +130,19 @@ export interface AuthChecks {
   breached?: (password: string) => Promise<boolean | null>;
   /** Cloudflare Turnstile, asked for only on risky sign-ins. Off when not given. */
   human?: HumanCheck;
+  /**
+   * "Forgot password" by e-mail: the app's own address (never taken from the request, so a link
+   * can't point elsewhere) and the sender to the owner's verified address. Off when not given.
+   */
+  recovery?: {
+    appUrl: string;
+    /** The address the owner must type, and where the link goes (OWNER_EMAIL, else the verified recipient). */
+    address: string;
+    /** Whether the e-mail channel has room for it today (outside the reserve kept for security alerts). */
+    room(): boolean;
+    /** Sends in the background, so the answer's timing doesn't tell whether an e-mail went out. */
+    send(link: string): void;
+  };
 }
 
 /** What the browser sends with the password when the form showed the robot check. */
@@ -224,6 +252,8 @@ export class AuthService {
         // `reset-password` is also the way back in after losing the authenticator: it turns 2FA off.
         this.settings.delete("auth.mfa");
         this.settings.delete("auth.mfa_pending");
+        // A link asked for before the reset would otherwise still work, now without the second step.
+        this.settings.delete(RECOVERY_KEY);
         this.db.run(`DELETE FROM tal_mfa_challenges`);
       }
       this.settings.setJson(FINGERPRINT_KEY, fingerprint);
@@ -287,6 +317,27 @@ export class AuthService {
   }
 
   /** True when this client signed in successfully within TRUSTED_CLIENT_MS: one of the owner's own networks. */
+  /** The pause after several wrong two-step codes in a row, shared by every place that takes a code. */
+  private wrongCodesPause(client: string): AppError | null {
+    const blockedUntil = this.mfa.wrongCodesBlockedUntil();
+    if (blockedUntil === null || this.isTrustedClient(client)) return null;
+    const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
+    return new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
+      "retry-after": String(retryAfter),
+    });
+  }
+
+  /** Counts a wrong two-step code, wherever it was typed, and tells the owner at 3 in a row. */
+  private noteWrongMfaCode(): void {
+    this.mfa.noteWrongCode();
+    if (this.mfa.consecutiveFailures() === 3) {
+      this.alert(
+        "Wrong sign-in codes",
+        "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
+      );
+    }
+  }
+
   private isTrustedClient(client: string): boolean {
     const since = Date.now() - TRUSTED_CLIENT_MS;
     return !!this.db.one(`SELECT 1 AS x FROM tal_login_attempts WHERE success = 1 AND client = ? AND at > ? LIMIT 1`, client, since);
@@ -393,10 +444,10 @@ export class AuthService {
    * Runs before the attempt is counted and before any PBKDF2 work, so a bot without a token costs
    * no guess. True when a token was confirmed; beginAttempt checks again whether one was needed.
    */
-  private async assertHuman(client: string, proof: HumanProof): Promise<boolean> {
+  private async assertHuman(client: string, proof: HumanProof, opts: { always?: boolean; action?: string } = {}): Promise<boolean> {
     const human = this.checks.human;
-    if (!human || !this.humanCheckRequired(client)) return false;
-    const result = await human.verify(proof.token, proof.ip);
+    if (!human || !(opts.always || this.humanCheckRequired(client))) return false;
+    const result = await human.verify(proof.token, proof.ip, opts.action);
     if (result === "ok") return true;
     if (result === "unavailable") {
       throw new AppError("SERVICE_UNAVAILABLE", "The robot check could not be confirmed right now. Please try again shortly.", {
@@ -472,13 +523,10 @@ export class AuthService {
       if (row === "expired") noteFailure("expired");
       throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
     }
-    const blockedUntil = this.mfa.wrongCodesBlockedUntil();
-    if (blockedUntil !== null && !this.isTrustedClient(client)) {
+    const paused = this.wrongCodesPause(client);
+    if (paused) {
       noteFailure("rate_limited");
-      const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
-      throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
-        "retry-after": String(retryAfter),
-      });
+      throw paused;
     }
     const attempts = this.mfa.reserveAttempt(row.id);
     if (attempts === null) {
@@ -487,15 +535,9 @@ export class AuthService {
     }
     const factor = await this.mfa.verify(code, { recovery: true });
     if (!factor) {
-      this.mfa.noteWrongCode();
+      this.noteWrongMfaCode();
       const left = Math.max(0, MFA_MAX_ATTEMPTS - attempts);
       if (left === 0) this.mfa.deleteChallenge(row.id);
-      if (this.mfa.consecutiveFailures() === 3) {
-        this.alert(
-          "Wrong sign-in codes",
-          "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
-        );
-      }
       noteFailure(left === 0 ? "too_many" : "wrong_code");
       if (left === 0) throw new AppError("UNAUTHORIZED", "Too many wrong codes. Enter your password again.", { mfa: "expired" });
       throw new AppError("UNAUTHORIZED", "Incorrect code.", { mfa: "retry", attempts_left: left });
@@ -607,8 +649,13 @@ export class AuthService {
   /** A current code for changing the second step itself (under the sign-in rate limit). FORBIDDEN when wrong. */
   async checkMfaCode(code: string, client: string, opts: { recovery: boolean }): Promise<MfaFactor> {
     const attempt = this.beginAttempt(client);
+    const paused = this.wrongCodesPause(client);
+    if (paused) throw paused;
     const factor = await this.mfa.verify(code, opts);
-    if (!factor) throw new AppError("FORBIDDEN", "Incorrect code.");
+    if (!factor) {
+      this.noteWrongMfaCode();
+      throw new AppError("FORBIDDEN", "Incorrect code.");
+    }
     this.markAttemptSucceeded(attempt);
     return factor;
   }
@@ -622,8 +669,15 @@ export class AuthService {
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
     if (proof.code !== undefined) {
-      // With the second step on, a current authenticator code proves it's the owner as well as the password does.
-      if (!this.mfa.enabled() || !(await this.mfa.verify(proof.code, { recovery: false }))) throw new AppError("FORBIDDEN", "Incorrect code.");
+      // With the second step on, a current authenticator code proves it's the owner as well as the password does,
+      // under the same pause and alert as the sign-in's codes: 6 digits must not be guessable from a stolen session.
+      if (!this.mfa.enabled()) throw new AppError("FORBIDDEN", "Incorrect code.");
+      const paused = this.wrongCodesPause(client);
+      if (paused) throw paused;
+      if (!(await this.mfa.verify(proof.code, { recovery: false }))) {
+        this.noteWrongMfaCode();
+        throw new AppError("FORBIDDEN", "Incorrect code.");
+      }
     } else if (!(await this.checkPassword(proof.password ?? ""))) {
       throw new AppError("FORBIDDEN", "Incorrect password.");
     }
@@ -668,21 +722,178 @@ export class AuthService {
     const problem = this.passwordProblem(next);
     if (problem) throw new ValidationError(problem);
     if (next.normalize("NFKC") === current.normalize("NFKC")) throw new ValidationError("Choose a password different from the current one.");
-    if (this.checks.breached) {
-      // Unknown is refused too: a password is never accepted without the breach check.
-      const breached = await this.checks.breached(next);
-      if (breached === true) throw new ValidationError("This password appeared in a known data breach. Choose another one.");
-      if (breached === null) throw new AppError("SERVICE_UNAVAILABLE", "Couldn't check the password against known breaches right now. Try again in a minute.");
-    }
+    // Unknown is refused too: a password is never accepted without the breach check.
+    await this.assertNewPassword(next);
+    await this.storePassword(next);
+  }
+
+  /** The new password replaces the old one everywhere: every session, token, challenge and link ends. */
+  private async storePassword(next: string): Promise<void> {
     const hash = await hashPassword(next, { pepper: this.pepper() });
     this.db.transaction(() => {
       this.settings.setJson(OVERRIDE_KEY, hash);
       this.settings.delete(WEAK_PASSWORD_KEY);
+      this.settings.delete(RECOVERY_KEY);
       this.db.run(`DELETE FROM tal_sessions`);
       this.db.run(`DELETE FROM tal_remote_tokens`);
       // A sign-in started with the old password must not finish with it.
       this.db.run(`DELETE FROM tal_mfa_challenges`);
     });
+  }
+
+  /** A new password must pass the same rules as a change: strength, then the breach check (fail closed). */
+  private async assertNewPassword(next: string): Promise<void> {
+    const problem = this.passwordProblem(next);
+    if (problem) throw new ValidationError(problem);
+    if (this.checks.breached) {
+      const breached = await this.checks.breached(next);
+      if (breached === true) throw new ValidationError("This password appeared in a known data breach. Choose another one.");
+      if (breached === null) throw new AppError("SERVICE_UNAVAILABLE", "Couldn't check the password against known breaches right now. Try again in a minute.");
+    }
+  }
+
+  // ---------- "Forgot password" by e-mail ----------
+
+  /** True when a link can be e-mailed: e-mail is set up and the app knows its own address. */
+  recoveryAvailable(): boolean {
+    return !!this.checks.recovery && this.isConfigured();
+  }
+
+  /**
+   * Sends a one-time link to the owner's verified address, when the address typed is that one
+   * (OWNER_EMAIL, else the verified recipient). The caller always answers the same way, and the
+   * e-mail goes out in the background, so neither the answer nor its timing says whether it was
+   * sent. With Turnstile on, every request must pass it. Returns what happened, for the activity.
+   */
+  async requestRecovery(email: string | undefined, client: string, proof: HumanProof = {}): Promise<"sent" | "wrong_email" | "daily_limit"> {
+    this.requireConfigured();
+    await this.syncSecretFingerprint();
+    const recovery = this.checks.recovery;
+    if (!recovery) throw new AppError("NOT_CONFIGURED", "Password recovery by e-mail is not set up.");
+    this.assertLoginAllowed(client);
+    const since = Date.now() - LOGIN_WINDOW_MS;
+    const requests = this.db.one<{ n: number }>(
+      `SELECT count(*) AS n FROM tal_login_attempts WHERE success = ? AND at > ? AND client = ?`,
+      RECOVERY_REQUEST,
+      since,
+      client,
+    )!.n;
+    if (requests >= RECOVERY_REQUESTS_PER_CLIENT) {
+      const oldest = this.db.one<{ at: number }>(`SELECT min(at) AS at FROM tal_login_attempts WHERE success = ? AND at > ? AND client = ?`, RECOVERY_REQUEST, since, client);
+      const retryAfter = Math.max(1, Math.ceil(((oldest?.at ?? Date.now()) + LOGIN_WINDOW_MS - Date.now()) / 1000));
+      throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
+        "retry-after": String(retryAfter),
+      });
+    }
+    // Counted before anything slow, in the same step as the check, so parallel requests can't pass together.
+    this.db.run(`INSERT INTO tal_login_attempts (client, success, at) VALUES (?, ?, ?)`, client, RECOVERY_REQUEST, Date.now());
+    await this.assertHuman(client, proof, { always: true, action: TURNSTILE_RECOVERY_ACTION });
+    // Always the address, even without OWNER_EMAIL: someone who doesn't know it can't replace the
+    // owner's link or use up the day's e-mails.
+    const { sessionSecret } = this.requireConfigured();
+    const encode = (value: string) => new TextEncoder().encode(value);
+    const [given, expected] = await Promise.all([hmacSha256Hex(sessionSecret, normalizeEmail(email)), hmacSha256Hex(sessionSecret, normalizeEmail(recovery.address))]);
+    if (!timingSafeEqual(encode(given), encode(expected))) return "wrong_email";
+
+    const sent = (this.settings.getJson<number[]>(RECOVERY_SENT_KEY) ?? []).filter((t) => typeof t === "number" && t > Date.now() - 24 * 3600_000);
+    // Checked before the link is replaced: an e-mail that can't go out must not cost the one already sent.
+    if (sent.length >= RECOVERY_EMAILS_PER_DAY || !recovery.room()) return "daily_limit";
+    const token = randomToken(32);
+    // A new link replaces the last one: only the latest e-mail works.
+    const link: RecoveryLink = { hash: await this.recoveryHash(token), expires_at: Date.now() + RECOVERY_LINK_TTL_MS, attempts: 0 };
+    this.settings.setJson(RECOVERY_KEY, link);
+    this.settings.setJson(RECOVERY_SENT_KEY, [...sent, Date.now()]);
+    // In the fragment: browsers never send it to a server, so it stays out of logs and Referer headers.
+    recovery.send(`${recovery.appUrl.replace(/\/+$/, "")}/recover#${token}`);
+    return "sent";
+  }
+
+  private recoveryHash(token: string): Promise<string> {
+    return hmacSha256Hex(this.requireConfigured().sessionSecret, `recovery:${token}`);
+  }
+
+  /** The stored link, when it is still the one checked (another request may have used or replaced it). */
+  private recoveryLink(hash?: string): RecoveryLink | null {
+    const link = this.settings.getJson<RecoveryLink>(RECOVERY_KEY);
+    if (!link || typeof link.hash !== "string" || (hash !== undefined && link.hash !== hash)) return null;
+    return link;
+  }
+
+  /**
+   * Sets a new password from the e-mailed link. With two-step sign-in on it also needs a code
+   * (authenticator or recovery code), asked for only after the link checks out. Every session and
+   * access token ends; the browser signs in again with the new password.
+   *
+   * Only a wrong token or a wrong code counts as a failure (of the sign-in limit and of the link's
+   * tries): a refused new password, or the step that asks for the code, costs nothing.
+   */
+  async completeRecovery(token: string, next: string, code: string | undefined, client: string): Promise<{ factor: MfaFactor | null }> {
+    this.requireConfigured();
+    await this.syncSecretFingerprint();
+    const attempt = this.beginAttempt(client);
+    const expired = () => new AppError("UNAUTHORIZED", "This link has expired or was already used. Ask for a new one.", { recovery: "expired" });
+    const forget = () => this.db.run(`DELETE FROM tal_login_attempts WHERE id = ?`, attempt);
+    const link = this.recoveryLink();
+    // A link from before recovery was turned off doesn't work either.
+    if (!link || !this.checks.recovery || !(link.expires_at > Date.now()) || link.attempts >= RECOVERY_MAX_ATTEMPTS) {
+      if (link) this.settings.delete(RECOVERY_KEY);
+      throw expired();
+    }
+    const encode = (value: string) => new TextEncoder().encode(value);
+    if (!timingSafeEqual(encode(await this.recoveryHash(token)), encode(link.hash))) throw expired();
+
+    const mfaOn = this.mfa.enabled();
+    if (mfaOn && !code) {
+      forget();
+      throw new AppError("UNAUTHORIZED", "Enter the code from your authenticator app, or a recovery code.", {
+        recovery: "code_required",
+        attempts_left: RECOVERY_MAX_ATTEMPTS - link.attempts,
+      });
+    }
+    // Before the code, so a recovery code is never spent on a refused password.
+    try {
+      await this.assertNewPassword(next);
+    } catch (error) {
+      forget();
+      throw error;
+    }
+    let factor: MfaFactor | null = null;
+    if (mfaOn) {
+      // Read again after the awaits; the try is counted before the code is checked.
+      const current = this.recoveryLink(link.hash);
+      if (!current || current.attempts >= RECOVERY_MAX_ATTEMPTS) throw expired();
+      const attempts = current.attempts + 1;
+      this.settings.setJson(RECOVERY_KEY, { ...current, attempts });
+      const left = RECOVERY_MAX_ATTEMPTS - attempts;
+      // The same guards as the sign-in's second step.
+      const paused = this.wrongCodesPause(client);
+      if (paused) throw paused;
+      factor = await this.mfa.verify(code!, { recovery: true });
+      if (!factor) {
+        this.noteWrongMfaCode();
+        if (left === 0) this.settings.delete(RECOVERY_KEY);
+        throw new AppError("UNAUTHORIZED", left === 0 ? "This link has expired or was already used. Ask for a new one." : "Incorrect code.", {
+          recovery: left === 0 ? "expired" : "code_required",
+          attempts_left: left,
+        });
+      }
+    }
+    // Spent in the same step as the last check, before the slow hashing: a second request with the
+    // same link, or one that replaced it meanwhile, finds nothing.
+    if (!this.recoveryLink(link.hash)) throw expired();
+    this.settings.delete(RECOVERY_KEY);
+    await this.storePassword(next);
+    this.markAttemptSucceeded(attempt);
+    if (factor === "recovery_code") {
+      const remaining = this.mfa.status().recovery_codes_left;
+      this.alert(
+        "Recovery code used",
+        remaining > 0
+          ? `A recovery code was used to sign in. Recovery codes left: ${remaining}. If it wasn't you, change your password now.`
+          : "Your last recovery code was used to sign in. Make new ones in Settings → Security. If it wasn't you, change your password now.",
+      );
+    }
+    return { factor };
   }
 }
 

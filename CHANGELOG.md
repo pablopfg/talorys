@@ -30,6 +30,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Eventos do n8n e de outras automações.** Um token de acesso remoto com o escopo novo **events** envia avisos para `POST /api/remote/events`: cada evento vira um aviso na categoria Eventos, com título, corpo, prioridade (baixa, normal ou alta; nunca crítica), origem, tipo e um id para descartar repetições em 24 horas. No máximo 60 eventos por hora e 100 por dia, corpo de até 2 KB, título sempre com a origem e links não clicáveis em nenhum canal. Para não abafar os seus avisos, eventos usam só metade do limite de cada canal e no máximo 3 insistem ao mesmo tempo. O token **events** não lê nem altera nenhum dado, e só ele envia eventos. A prioridade aprende por origem e tipo. O guia mostra o nó HTTP Request do n8n e o Service Token do Cloudflare Access. Veja [docs/alerts.md](docs/alerts.md#eventos-do-n8n-e-de-outras-automações).
 
+- **Esqueci a senha, por e-mail.** Com os avisos por e-mail configurados, a tela de login ganha **Esqueceu a senha?**: um link de uso único, válido por 30 minutos, chega ao seu endereço verificado. Com a verificação em duas etapas ligada, a senha nova também pede o código do app autenticador ou um código de recuperação. Trocar a senha pelo link encerra todas as sessões e os tokens de acesso e gera o alerta de segurança "Senha redefinida por e-mail". O pedido exige o seu e-mail e sempre responde do mesmo jeito (ninguém descobre se acertou o endereço), com no máximo 3 pedidos por rede a cada 15 minutos e 3 e-mails por dia, e com o Turnstile ligado todo pedido passa pela verificação contra robôs. Veja [docs/security.md](docs/security.md#password-recovery-by-e-mail).
+
 ### Alterado
 
 - Cadastrar um aparelho novo no push passa a pedir a senha digitada há pouco (um login recente conta; a renovação do mesmo navegador não pede).
@@ -50,9 +52,10 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Segurança
 
-Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais da Cloudflare). Nenhum achado crítico, alto ou médio; os seis de severidade baixa foram corrigidos:
+Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais da Cloudflare). Nenhum achado crítico, alto ou médio; os sete de severidade baixa foram corrigidos:
 
 - **Links de golpe nos avisos fora do app.** O Telegram e os clientes de e-mail transformam em link qualquer endereço, mesmo entre crases. Agora todo título e texto de aviso enviado por Telegram ou e-mail chega com `hxxps://`, `tg[:]`, `www[.]` e `sub[.]exemplo[.]com` (todos os pontos do endereço); só o botão **Abrir o Talorys** e o link do rodapé do e-mail continuam clicáveis. Antes, lembretes, resumos de tarefas e respostas de rotinas de IA podiam levar um link clicável (a mensagem de um resumo de tarefas nem passava pelo filtro).
+- **Códigos de duas etapas digitados para confirmar a identidade não contavam como errados.** Com uma sessão roubada, dava para tentar códigos do autenticador em **Confirmar senha**, ao desligar a verificação em duas etapas ou ao gerar códigos de recuperação sem acionar a pausa de 15 minutos nem o alerta "Códigos de login errados". Agora esses códigos seguem as mesmas proteções do login.
 - **Remover o único aparelho do push avisava ninguém.** O alerta "Aparelho removido do push" agora sai antes da remoção, então o próprio aparelho recebe o aviso.
 - **Reconectar o Telegram religava a conversa sem alerta.** Agora gera o mesmo alerta de segurança "Conversa no Telegram ligada" que a chave em Configurações.
 - **Trocar o endereço de um servidor MCP mantinha a confiança nas ferramentas.** Apontar um servidor para outro endereço (mesmo só outro caminho no mesmo host, onde um gateway pode trocar de cliente pelo caminho) agora conta como adicionar um: pede a senha digitada há pouco, gera o alerta de segurança, apaga a credencial guardada e desliga todas as ferramentas, que voltam a pedir aprovação e saem das rotinas. Adicionar um servidor MCP também passa a pedir a senha digitada há pouco.
@@ -61,6 +64,8 @@ Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais 
 - Reforços: a checagem de origem dos PRs para a `main` recusa branches de forks com o nome `develop` ou `hotfix/*`, a interface codifica os ids que vêm da URL antes de chamar a API, e o desarme de links corta o texto antes, para não ficar lento com textos enormes.
 
 ### Atualização
+
+- A recuperação de senha por e-mail não pede migração nem segredo novo: aparece sozinha na tela de login quando os avisos por e-mail estão configurados e o deploy tem `TALORYS_CUSTOM_DOMAIN` ou `TALORYS_PUBLIC_URL` (o link usa só esse endereço).
 
 - A migração 24 roda sozinha depois do deploy e acrescenta o interruptor de sentinela às automações; as rotinas de IA que já existem continuam avisando sempre.
 
