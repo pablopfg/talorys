@@ -37,9 +37,24 @@ describe("events from outside systems", () => {
     expect(result).toMatchObject({ duplicate: false, event: { priority: "high" } });
     await inAgent((agent) => {
       const n = agent.services.notifications.get(result.event.id)!;
-      expect(n).toMatchObject({ category: "event", priority: "high", title: "n8n: Backup failed on `hxxps://evil.example`", profile: "event:n8n-backup-failed" });
-      // Not clickable anywhere: backticks for the app, hxxps for Telegram and mail clients.
-      expect(n.body).toBe("See the log (`hxxps://evil.example/log`).");
+      expect(n).toMatchObject({ category: "event", priority: "high", title: "n8n: Backup failed on `hxxps://evil[.]example`", profile: "event:n8n-backup-failed" });
+      // Not clickable anywhere: backticks for the app, hxxps and [.] for Telegram and mail clients.
+      expect(n.body).toBe("See the log (`hxxps://evil[.]example/log`).");
+    });
+  });
+
+  it("can't pass for Talorys, nor carry an address without http", async () => {
+    const b = bearer(await mint("events"));
+    const res = await b.call("/api/remote/events", {
+      method: "POST",
+      body: { title: "Password changed", body: "Check www.evil.com and evil.example/verify", source: "Talorys-Security" },
+    });
+    expect(res.status).toBe(201);
+    const result = (await res.json()) as { event: { id: string } };
+    await inAgent((agent) => {
+      const n = agent.services.notifications.get(result.event.id)!;
+      expect(n.title).toBe("remote: Password changed");
+      expect(n.body).toBe("Check `www[.]evil[.]com` and evil[.]example/verify");
     });
   });
 

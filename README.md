@@ -167,6 +167,9 @@ O Talorys **não** provisiona R2, D1, KV, Vectorize, AI Search, Workflows nem qu
 
 ## 🚀 Implantação
 
+> [!IMPORTANT]
+> **Guia completo de instalação na Cloudflare, passo a passo:** [docs/instalacao-cloudflare.md](docs/instalacao-cloudflare.md). Ele cobre conta, domínio, HTTPS, token, GitHub (regras, ambientes, Actions, secret scanning, CodeQL), primeiro deploy, segredos, Access, Turnstile, e-mail, push, Telegram, n8n, MCP e a primeira release.
+
 ```bash
 npx create-talorys@latest
 ```

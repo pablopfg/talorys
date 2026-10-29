@@ -64,9 +64,13 @@ pushRoutes.post("/push/seen", async (c) => {
 
 pushRoutes.delete("/push/subscriptions/:id", (c) => {
   const s = c.env.agent.services;
-  if (!s.push.subscriptions.remove(c.req.param("id"))) throw new NotFoundError("Device not found.");
-  s.activity.record("push.removed", "Removed a device from notifications");
+  const id = c.req.param("id");
+  if (!s.push.subscriptions.all().some((r) => r.id === id)) throw new NotFoundError("Device not found.");
+  // The alert goes out first, so the device being removed hears about it too: removing the only
+  // device must still warn the owner somewhere (the push send reads the devices synchronously).
   raiseSecurityAlert(s.alerts, "push_removed");
+  if (!s.push.subscriptions.remove(id)) throw new NotFoundError("Device not found.");
+  s.activity.record("push.removed", "Removed a device from notifications");
   return c.json(s.push.status());
 });
 

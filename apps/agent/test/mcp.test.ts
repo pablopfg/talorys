@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
-import { bearer, client, type Client, inAgent, loggedIn, readSse } from "./helpers";
+import { bearer, client, type Client, inAgent, loggedIn, password, readSse } from "./helpers";
 import { type McpFixture, createIssueTool, mcpFixture, searchTool } from "./mcp-fixture";
 import { McpService } from "../src/mcp/service";
 import { ToolExecutor } from "../src/tools";
@@ -267,6 +267,41 @@ describe("remote MCP servers: what the model can use", () => {
     expect(f.calls.map((call) => call.args.query)).toEqual(["a"]);
   });
 
+  it("treats a server pointed at another address as a new one: tools off, recent password, security alert", async () => {
+    const f = mcpFixture({ tools: [searchTool] });
+    const { c, server } = await connected(f, { search_docs: "auto" });
+    await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true });
+    const securityAlerts = () => inAgent((a) => a.services.notifications.list().filter((n) => n.category === "security").length);
+    const before = await securityAlerts();
+
+    // Renaming keeps the tools as they were.
+    await c.json(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { name: "Docs" } });
+    expect(await inAgent((a) => a.services.mcp.scheduledTools().map((t) => t.name))).toEqual(["mcp_docs_search_docs"]);
+    expect(await securityAlerts()).toBe(before);
+
+    // Another address with the very same tools: nothing runs there until the owner turns it on again.
+    await inAgent((a) => a.services.db.run(`UPDATE tal_sessions SET confirmed_at = ?`, new Date(Date.now() - 3600_000).toISOString()));
+    const refused = await c.call(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://proxy.example.net/mcp" } });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as any).error.code).toBe("REAUTH_REQUIRED");
+    expect((await c.call("/api/auth/confirm", { method: "POST", body: { password: password() } })).status).toBe(200);
+    await c.json(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://proxy.example.net/mcp" } });
+    await inAgent((a) => {
+      expect(a.services.db.one(`SELECT enabled, policy, scheduled, reviewed_hash FROM tal_mcp_tools WHERE server_id = ?`, server.id)).toEqual({
+        enabled: 0, policy: "approve", scheduled: 0, reviewed_hash: null,
+      });
+      expect(a.services.mcp.chatTools()).toEqual([]);
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+    });
+    expect(await securityAlerts()).toBe(before + 1);
+
+    // Only the path changed, on a host where the path can pick another tenant: same treatment.
+    await setTool(c, server.id, "mcp_docs_search_docs", { enabled: true });
+    await c.json(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://proxy.example.net/other/mcp" } });
+    expect(await inAgent((a) => a.services.mcp.chatTools())).toEqual([]);
+    expect(await securityAlerts()).toBe(before + 2);
+  });
+
   it("keeps tools that ask first out of scheduled runs", async () => {
     const f = mcpFixture({ tools: [searchTool, createIssueTool] });
     const { c, server } = await connected(f, { search_docs: "auto", create_issue: "approve" });
@@ -504,15 +539,17 @@ describe("remote MCP servers: endpoint safety", () => {
     expect(f.requests).toEqual([]);
   });
 
-  it("drops the stored credential when the URL moves to another origin", async () => {
+  it("drops the stored credential when the URL moves, even to another path on the same host", async () => {
     const f = mcpFixture({ tools: [searchTool], token: TOKEN });
     await withFixture(f);
     const c = await loggedIn();
     const { json } = await addServer(c, { auth_type: "bearer", token: TOKEN });
     const moved = await c.call(`/api/mcp/servers/${json.server.id}`, { method: "PATCH", body: { url: "https://other.example.com/mcp" } });
     expect(moved.status).toBe(400);
-    const samePlace = await c.json(`/api/mcp/servers/${json.server.id}`, { method: "PATCH", body: { url: "https://mcp.example.com/v2/mcp" } });
-    expect(samePlace.server).toMatchObject({ has_credential: true });
+    const otherPath = await c.call(`/api/mcp/servers/${json.server.id}`, { method: "PATCH", body: { url: "https://mcp.example.com/v2/mcp" } });
+    expect(otherPath.status).toBe(400);
+    const renamed = await c.json(`/api/mcp/servers/${json.server.id}`, { method: "PATCH", body: { name: "Docs" } });
+    expect(renamed.server).toMatchObject({ has_credential: true });
   });
 
   it("never sends the credential to a different origin, even if the transport asks", async () => {

@@ -317,6 +317,27 @@ export class AuthService {
   }
 
   /** True when this client signed in successfully within TRUSTED_CLIENT_MS: one of the owner's own networks. */
+  /** The pause after several wrong two-step codes in a row, shared by every place that takes a code. */
+  private wrongCodesPause(client: string): AppError | null {
+    const blockedUntil = this.mfa.wrongCodesBlockedUntil();
+    if (blockedUntil === null || this.isTrustedClient(client)) return null;
+    const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
+    return new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
+      "retry-after": String(retryAfter),
+    });
+  }
+
+  /** Counts a wrong two-step code, wherever it was typed, and tells the owner at 3 in a row. */
+  private noteWrongMfaCode(): void {
+    this.mfa.noteWrongCode();
+    if (this.mfa.consecutiveFailures() === 3) {
+      this.alert(
+        "Wrong sign-in codes",
+        "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
+      );
+    }
+  }
+
   private isTrustedClient(client: string): boolean {
     const since = Date.now() - TRUSTED_CLIENT_MS;
     return !!this.db.one(`SELECT 1 AS x FROM tal_login_attempts WHERE success = 1 AND client = ? AND at > ? LIMIT 1`, client, since);
@@ -502,13 +523,10 @@ export class AuthService {
       if (row === "expired") noteFailure("expired");
       throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
     }
-    const blockedUntil = this.mfa.wrongCodesBlockedUntil();
-    if (blockedUntil !== null && !this.isTrustedClient(client)) {
+    const paused = this.wrongCodesPause(client);
+    if (paused) {
       noteFailure("rate_limited");
-      const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
-      throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
-        "retry-after": String(retryAfter),
-      });
+      throw paused;
     }
     const attempts = this.mfa.reserveAttempt(row.id);
     if (attempts === null) {
@@ -517,15 +535,9 @@ export class AuthService {
     }
     const factor = await this.mfa.verify(code, { recovery: true });
     if (!factor) {
-      this.mfa.noteWrongCode();
+      this.noteWrongMfaCode();
       const left = Math.max(0, MFA_MAX_ATTEMPTS - attempts);
       if (left === 0) this.mfa.deleteChallenge(row.id);
-      if (this.mfa.consecutiveFailures() === 3) {
-        this.alert(
-          "Wrong sign-in codes",
-          "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
-        );
-      }
       noteFailure(left === 0 ? "too_many" : "wrong_code");
       if (left === 0) throw new AppError("UNAUTHORIZED", "Too many wrong codes. Enter your password again.", { mfa: "expired" });
       throw new AppError("UNAUTHORIZED", "Incorrect code.", { mfa: "retry", attempts_left: left });
@@ -637,8 +649,13 @@ export class AuthService {
   /** A current code for changing the second step itself (under the sign-in rate limit). FORBIDDEN when wrong. */
   async checkMfaCode(code: string, client: string, opts: { recovery: boolean }): Promise<MfaFactor> {
     const attempt = this.beginAttempt(client);
+    const paused = this.wrongCodesPause(client);
+    if (paused) throw paused;
     const factor = await this.mfa.verify(code, opts);
-    if (!factor) throw new AppError("FORBIDDEN", "Incorrect code.");
+    if (!factor) {
+      this.noteWrongMfaCode();
+      throw new AppError("FORBIDDEN", "Incorrect code.");
+    }
     this.markAttemptSucceeded(attempt);
     return factor;
   }
@@ -652,8 +669,15 @@ export class AuthService {
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
     if (proof.code !== undefined) {
-      // With the second step on, a current authenticator code proves it's the owner as well as the password does.
-      if (!this.mfa.enabled() || !(await this.mfa.verify(proof.code, { recovery: false }))) throw new AppError("FORBIDDEN", "Incorrect code.");
+      // With the second step on, a current authenticator code proves it's the owner as well as the password does,
+      // under the same pause and alert as the sign-in's codes: 6 digits must not be guessable from a stolen session.
+      if (!this.mfa.enabled()) throw new AppError("FORBIDDEN", "Incorrect code.");
+      const paused = this.wrongCodesPause(client);
+      if (paused) throw paused;
+      if (!(await this.mfa.verify(proof.code, { recovery: false }))) {
+        this.noteWrongMfaCode();
+        throw new AppError("FORBIDDEN", "Incorrect code.");
+      }
     } else if (!(await this.checkPassword(proof.password ?? ""))) {
       throw new AppError("FORBIDDEN", "Incorrect password.");
     }
@@ -842,22 +866,11 @@ export class AuthService {
       this.settings.setJson(RECOVERY_KEY, { ...current, attempts });
       const left = RECOVERY_MAX_ATTEMPTS - attempts;
       // The same guards as the sign-in's second step.
-      const blockedUntil = this.mfa.wrongCodesBlockedUntil();
-      if (blockedUntil !== null && !this.isTrustedClient(client)) {
-        const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
-        throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
-          "retry-after": String(retryAfter),
-        });
-      }
+      const paused = this.wrongCodesPause(client);
+      if (paused) throw paused;
       factor = await this.mfa.verify(code!, { recovery: true });
       if (!factor) {
-        this.mfa.noteWrongCode();
-        if (this.mfa.consecutiveFailures() === 3) {
-          this.alert(
-            "Wrong sign-in codes",
-            "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
-          );
-        }
+        this.noteWrongMfaCode();
         if (left === 0) this.settings.delete(RECOVERY_KEY);
         throw new AppError("UNAUTHORIZED", left === 0 ? "This link has expired or was already used. Ask for a new one." : "Incorrect code.", {
           recovery: left === 0 ? "expired" : "code_required",

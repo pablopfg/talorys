@@ -150,16 +150,24 @@ export class McpService {
     const authType = patch.auth_type ?? server.auth_type;
     if (patch.token !== undefined && authType !== "bearer") throw new ValidationError("Only bearer-token servers take a token.");
     if (authType !== "none" && authType !== server.auth_type) this.credentials.assertAvailable();
+    // Any other address counts: on a shared host the path can pick another tenant (gateway/<key>/mcp).
+    const urlChanged = !!url && url !== server.url;
     let credential: string | null | undefined; // undefined keeps the stored one
     if (authType === "none") credential = null;
     else if (patch.token) credential = await this.credentials.encrypt(id, patch.token);
-    // A different origin, or another way of signing in, must never receive the old credential.
-    else if ((url && new URL(url).origin !== new URL(server.url).origin) || authType !== server.auth_type) credential = null;
+    // A different address, or another way of signing in, must never receive the old credential.
+    else if (urlChanged || authType !== server.auth_type) credential = null;
     if (credential === null) this.repo.setAuthorize(id, null, null);
     if (authType === "bearer" && (credential === undefined ? server.credential : credential) === null && (patch.url !== undefined || patch.auth_type !== undefined)) {
       throw new ValidationError("Enter the bearer token for this server.");
     }
     this.repo.update(id, { name: patch.name, url, auth_type: patch.auth_type, credential, enabled: patch.enabled });
+    // Nor the old trust: the owner reviewed these tools for the old origin, not for whoever serves the
+    // same definitions at the new one.
+    if (urlChanged) {
+      this.repo.resetToolTrust(id);
+      this.activity.record("mcp.server_url_changed", `Pointed MCP server “${server.name}” at ${new URL(url).host}`);
+    }
     const connectionChanged = url !== undefined || patch.auth_type !== undefined || patch.token !== undefined || patch.enabled !== undefined;
     if (connectionChanged) await this.sessions.close(id);
     if (patch.enabled === false) {

@@ -3,7 +3,7 @@ import { AppError } from "../api/errors";
 import type { AlertService } from "../alerts/service";
 import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
-import { clip, defangLinks } from "../services/text";
+import { clip, unlinked } from "../services/text";
 
 const SENT_KEY = "remote.events.sent";
 const HOUR_MS = 3_600_000;
@@ -12,11 +12,6 @@ const DAY_MS = 24 * HOUR_MS;
 /** One line: the title comes from outside and must not spill into another line or header. */
 const oneLine = (text: string) => text.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ").replace(/\s+/g, " ").trim();
 
-/**
- * Links that no channel turns clickable: in backticks for the app, and "hxxp" so Telegram and mail
- * clients don't link them either (an outside system must not be able to send a sign-in link).
- */
-const unlinked = (text: string) => defangLinks(text).replace(/\b(h)tt(ps?):\/\//gi, "$1xx$2://");
 
 /**
  * Events from outside systems (n8n, scripts, monitors) sent with an `events` access token. Each
@@ -45,8 +40,12 @@ export class RemoteEvents {
     this.settings.setJson(SENT_KEY, [...recent, now]);
     const source = input.source ?? "remote";
     const kind = input.kind ?? "event";
-    // Named after where it came from, so it can't pass for one of Talorys' own alerts.
-    const title = clip(oneLine(`${source}: ${unlinked(input.title)}`), 160);
+    // Named after where it came from, so it can't pass for one of Talorys' own alerts; a source that
+    // carries the app's or the agent's name ("Talorys-Security") would undo that, so it shows as "remote".
+    const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const own = ["talorys", squash(this.settings.get().agentName)].filter(Boolean);
+    const shown = own.some((name) => squash(source).includes(name)) ? "remote" : source;
+    const title = clip(oneLine(`${shown}: ${unlinked(input.title)}`), 160);
     const n = this.alerts.raise({
       title,
       body: input.body ? clip(unlinked(input.body), 1000) : "",

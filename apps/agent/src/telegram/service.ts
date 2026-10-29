@@ -19,7 +19,7 @@ import type { SettingsService } from "../services/settings";
 import type { ActivityLog } from "../services/usage";
 import type { AlertAttempt } from "../alerts/service";
 import { AppError } from "../api/errors";
-import { clip } from "../services/text";
+import { clip, unlinkForChannels } from "../services/text";
 import { bytesToBase64, escapeHtml, TELEGRAM_WEBHOOK_PATH, TelegramClient, TelegramError, telegramWebhookSecret } from "./client";
 import { markdownToTelegramHtml, splitMessage } from "./format";
 
@@ -266,8 +266,11 @@ export class TelegramService {
     const expiresAt = Date.now() + TELEGRAM_LINK_TTL_MS;
     this.settings.setJson(CODE_KEY, { hash: await sha256Hex(code), expiresAt });
     // Connecting (which asks for the password) turns the conversation on; a link made before the
-    // conversation existed keeps it off until the owner turns it on.
+    // conversation existed keeps it off until the owner turns it on. Turning it on for a chat that
+    // is already linked is the same change as the switch in Settings, with the same alert.
+    const before = this.link();
     this.save({ bot, appUrl: origin, topicsUnavailable: false, seenUpdates: [], conversation: true });
+    if (!before.conversation && before.chatId !== null) this.alerts.security("telegram_conversation");
     this.activity.record("telegram.connect", "Started linking Telegram");
     return {
       code,
@@ -689,8 +692,10 @@ export class TelegramService {
 
   /** The alert as Telegram HTML. Discreet categories show the title only. */
   format(n: Notification, fullText: boolean, attempt?: AlertAttempt): string {
-    const title = escapeHtml(clip(this.text(n.title), 200));
-    const body = fullText ? escapeHtml(clip(this.text(n.body), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
+    // Telegram links any address it sees, backticks or not: text written by a routine, a reminder or
+    // an outside system must not arrive as a tappable link that looks like Talorys' own.
+    const title = escapeHtml(clip(unlinkForChannels(clip(this.text(n.title), 200)), 200));
+    const body = fullText ? escapeHtml(clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
     const parts = [this.text(CATEGORY_TEXT[n.category]), this.text(PRIORITY_TEXT[n.priority])];
     if (attempt) parts.push(this.text(`Try ${attempt.number} of ${ESCALATION.attempts}, not confirmed yet`));
     const why = n.priority_reason ? REASON_TEXT[n.priority_reason] : undefined;

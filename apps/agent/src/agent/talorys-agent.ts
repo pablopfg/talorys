@@ -240,7 +240,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           today.length ? `**Due today (${today.length})**\n${today.map(line).join("\n")}` : "",
           `${open} open task(s) in total.`,
         ].filter(Boolean);
-        if (a.message) parts.unshift(a.message);
+        if (a.message) parts.unshift(defangLinks(a.message));
         s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest", priority: a.priority, profileLabel: a.name });
         return { status: "success", result: `${overdue.length} overdue, ${today.length} due today` };
       }

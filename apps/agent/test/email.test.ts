@@ -136,6 +136,18 @@ describe("e-mail alerts", () => {
     });
   });
 
+  it("never sends an address a mail client would link, except its own", async () => {
+    await inAgent(async (agent) => {
+      agent.services.settings.update({ language: "en" });
+      const { email, sent } = fakeEmail(agent);
+      email.deliver(notification({ title: "Sign in at evil.com", body: "Open `https://evil.example/login` now", category: "reminder", priority: "high" }), true, () => {});
+      await email.idle();
+      expect(sent[0]!.subject).toBe("Talorys: Sign in at evil[.]com");
+      expect(sent[0]!.text).toContain("Open `hxxps://evil[.]example/login` now");
+      expect(sent[0]!.text).toContain("Open Talorys: https://talorys.exemplo.com.br/");
+    });
+  });
+
   it(`sends at most ${EMAIL_ALERTS.perDay} a day, keeps ${EMAIL_ALERTS.reserved} for security and critical alerts, and never throws`, async () => {
     await inAgent(async (agent) => {
       const failing = fakeEmail(agent, {}, { throws: true });

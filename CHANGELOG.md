@@ -6,6 +6,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Adicionado
 
+- **Guia completo de instalação na Cloudflare.** O novo [docs/instalacao-cloudflare.md](docs/instalacao-cloudflare.md) leva do zero até o ar, etapa por etapa e só pelo navegador: conta e domínio, HTTPS, subdomínio `workers.dev`, token de API, GitHub (Actions, rulesets, secret scanning, CodeQL, Dependabot, ambientes `production` e `smoke`), primeiro deploy, segredos do Worker (incluindo `PASSWORD_PEPPER` e `OWNER_EMAIL`, que não estavam no guia de deploy), Access, Turnstile, Email Routing com o aviso sobre os registros MX, push (com as chaves VAPID geradas no próprio navegador), Telegram, n8n, MCP, primeira release, conferência final, rotina e problemas comuns.
+
 - **Central de avisos.** Todo aviso do Talorys (lembretes, resumos, rotinas, alertas de sistema e de segurança) agora tem prioridade (baixa, normal, alta ou crítica) e categoria, e passa por uma central que decide por onde ele sai do app. Em **Configurações → Avisos** (aba nova, que também passa a abrigar as notificações push) você escolhe quais categorias vão para o push, limita quantas mensagens cada canal manda por hora e por dia (padrão 6 e 30) e vê as 100 entregas mais recentes, com o motivo de cada aviso que não saiu. Avisos de prioridade baixa ficam só no app; lembretes, alertas de segurança e avisos críticos nunca são segurados pelos limites; segurança e críticos saem sempre por todos os canais (não dá para desligar); e repetições do mesmo aviso são descartadas. A prioridade de cada notificação pode ser corrigida na própria central. Veja [docs/alerts.md](docs/alerts.md).
 
 - **Avisos no Telegram.** Um bot do Telegram, vinculado em **Configurações → Avisos → Telegram** com um código de uso único, passa a ser um canal da central de avisos. Os avisos vão para o seu grupo (um tópico por categoria quando o grupo tem tópicos e o bot é administrador) ou para o chat privado com o bot. Por padrão o Telegram é discreto (título, categoria e prioridade, sem o texto); ligue **Texto completo** nas categorias que quiser ler lá. Avisos de prioridade baixa e normal chegam sem som. Avisos de prioridade alta e crítica trazem os botões **Feito** e **Adiar 1 h**, e todos trazem **Abrir o Talorys**. O bot só obedece à conta que vinculou o chat. Veja [docs/alerts.md](docs/alerts.md#telegram).
@@ -47,6 +49,19 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - O histórico de entregas fala em "aparelho ou chat" nos motivos de não envio, porque vale também para o Telegram.
 
 - Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
+
+### Segurança
+
+Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais da Cloudflare). Nenhum achado crítico, alto ou médio; os sete de severidade baixa foram corrigidos:
+
+- **Links de golpe nos avisos fora do app.** O Telegram e os clientes de e-mail transformam em link qualquer endereço, mesmo entre crases. Agora todo título e texto de aviso enviado por Telegram ou e-mail chega com `hxxps://`, `tg[:]`, `www[.]` e `sub[.]exemplo[.]com` (todos os pontos do endereço); só o botão **Abrir o Talorys** e o link do rodapé do e-mail continuam clicáveis. Antes, lembretes, resumos de tarefas e respostas de rotinas de IA podiam levar um link clicável (a mensagem de um resumo de tarefas nem passava pelo filtro).
+- **Códigos de duas etapas digitados para confirmar a identidade não contavam como errados.** Com uma sessão roubada, dava para tentar códigos do autenticador em **Confirmar senha**, ao desligar a verificação em duas etapas ou ao gerar códigos de recuperação sem acionar a pausa de 15 minutos nem o alerta "Códigos de login errados". Agora esses códigos seguem as mesmas proteções do login.
+- **Remover o único aparelho do push avisava ninguém.** O alerta "Aparelho removido do push" agora sai antes da remoção, então o próprio aparelho recebe o aviso.
+- **Reconectar o Telegram religava a conversa sem alerta.** Agora gera o mesmo alerta de segurança "Conversa no Telegram ligada" que a chave em Configurações.
+- **Trocar o endereço de um servidor MCP mantinha a confiança nas ferramentas.** Apontar um servidor para outro endereço (mesmo só outro caminho no mesmo host, onde um gateway pode trocar de cliente pelo caminho) agora conta como adicionar um: pede a senha digitada há pouco, gera o alerta de segurança, apaga a credencial guardada e desliga todas as ferramentas, que voltam a pedir aprovação e saem das rotinas. Adicionar um servidor MCP também passa a pedir a senha digitada há pouco.
+- **O nome do agente entra no topo de todo prompt.** Mudar o nome agora pede a senha digitada há pouco, um backup não altera mais o nome e ele entra sempre numa linha só.
+- **Eventos de automações podiam se passar pelo Talorys.** Um evento cuja origem contém `Talorys` ou o nome do agente (como `Talorys-Security`) aparece como `remote`, e endereços sem `http` (como `www.` ou `exemplo.com/login`) também são desarmados.
+- Reforços: a checagem de origem dos PRs para a `main` recusa branches de forks com o nome `develop` ou `hotfix/*`, a interface codifica os ids que vêm da URL antes de chamar a API, e o desarme de links corta o texto antes, para não ficar lento com textos enormes.
 
 ### Atualização
 

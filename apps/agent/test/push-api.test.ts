@@ -89,6 +89,23 @@ describe("push API", () => {
     expect(afterUnsub.devices).toEqual([]);
   });
 
+  it("warns the device being removed, so removing the only one still reaches the owner", async () => {
+    const c = await loggedIn();
+    const browser = await fakeBrowser();
+    const { device } = await c.json("/api/push/subscriptions", { method: "POST", body: browser.json });
+    const stub = pushServiceStub(201);
+    await inAgent(async (agent) => {
+      await agent.services.push.idle();
+      agent.services.push.fetcher = stub.fetcher;
+    });
+    await c.json(`/api/push/subscriptions/${device.id}`, { method: "DELETE" });
+    await inAgent(async (agent) => {
+      await agent.services.push.idle();
+      expect(agent.services.push.subscriptions.devices()).toEqual([]);
+    });
+    expect(stub.sent.map((p) => p.url)).toEqual([browser.endpoint]);
+  });
+
   it("rejects unsafe endpoints and malformed keys without storing anything", async () => {
     const c = await loggedIn();
     const browser = await fakeBrowser("https://10.0.0.5/push");

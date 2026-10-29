@@ -73,7 +73,8 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     timeStyle: "short",
   }).format(ctx.now);
   const sections = [
-    BASE_SYSTEM_PROMPT.replace("{{name}}", ctx.agentName),
+    // One line only: the name is the owner's, but it sits above the rules and must not add any.
+    BASE_SYSTEM_PROMPT.replace("{{name}}", () => ctx.agentName.replace(/[\p{Cc}\p{Zl}\p{Zp}\s]+/gu, " ").trim()),
     `${SAFETY_RULES}\n${ctx.autoMemory ? AUTO_MEMORY_RULE : EXPLICIT_MEMORY_RULE}${ctx.externalTools ? `\n${EXTERNAL_TOOLS_RULE}` : ""}`,
   ];
   // Right below the rules, so they read as the owner's preferences under them, never above them.
