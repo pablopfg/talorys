@@ -35,6 +35,8 @@ export default defineConfig(async () => ({
           OWNER_PASSWORD_HASH: await pbkdf2(TEST_PASSWORD),
           SESSION_SECRET: "test-session-secret-0123456789abcdefghijklmnop",
           MCP_CREDENTIAL_KEY: "test-mcp-credential-key-0123456789abcdefghij",
+          // Telegram calls go to a fake in each test (TelegramClient.fetcher); nothing reaches the network.
+          TELEGRAM_BOT_TOKEN: "123456:test-telegram-token",
           TEST_PASSWORD,
           // No network calls from tests; the breach check has its own tests with a fake service.
           TALORYS_HIBP: "off",

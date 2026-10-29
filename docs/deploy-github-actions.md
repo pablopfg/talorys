@@ -26,7 +26,7 @@ pessoa lê o código, os workflows e os logs.
 | Dependência maliciosa roubar o token | O job que instala e roda o código do projeto (`build`) não tem segredo. O job `deploy` instala com `npm ci --ignore-scripts` (nenhum script de instalação roda ao lado do token) e não usa cache do npm. |
 | Action de terceiros alterada | Todas as actions são oficiais (`actions/*`) e fixadas pelo SHA completo do commit. |
 | Workflow com permissão demais | `permissions: contents: read` no workflow inteiro e `persist-credentials: false` no checkout. |
-| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID e `MCP_CREDENTIAL_KEY` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
+| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID, `MCP_CREDENTIAL_KEY` e `TELEGRAM_BOT_TOKEN` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
 | Dados em log público | O health check imprime só o código HTTP; o corpo (que descreve a configuração) não aparece. O ID da conta é segredo e sai mascarado. |
 | Deploy sem revisão | Opcional: o ambiente `production` pode exigir a sua aprovação antes de cada deploy. |
 | Token com poder demais | Token de **conta**, só com as permissões abaixo, só na sua conta e na sua zona, com validade. |
@@ -187,6 +187,7 @@ de novo.
 | `SESSION_SECRET` | sim | 48+ caracteres aleatórios, gerados no gerenciador de senhas. Ninguém precisa digitá-lo. |
 | `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
 | `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
+| `TELEGRAM_BOT_TOKEN` | não | Token do bot do Telegram (criado no @BotFather) para receber avisos no Telegram. Veja [alerts.md](alerts.md#configurar-o-telegram). |
 
 5. Volte ao GitHub → **Actions** → a execução que falhou → **Re-run failed
    jobs**. Agora o health check responde 200 e o job fica verde.
@@ -210,6 +211,7 @@ npx wrangler secret put OWNER_PASSWORD --name talorys     # ou OWNER_PASSWORD_HA
 npx wrangler secret put MCP_CREDENTIAL_KEY --name talorys # opcional
 npx wrangler secret put VAPID_PUBLIC_KEY --name talorys   # opcional (push)
 npx wrangler secret put VAPID_PRIVATE_KEY --name talorys  # opcional (push)
+npx wrangler secret put TELEGRAM_BOT_TOKEN --name talorys # opcional (Telegram)
 ```
 
 Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores
@@ -236,6 +238,9 @@ no cadastro, a Cloudflare pode pedir um meio de pagamento.
    - **Application domain:** o mesmo domínio, com o caminho `api/health`.
    - **Policy:** *Bypass*, incluindo **Everyone**.
    - Sem cookie nem token, essa rota responde só `{"ok": true}`.
+   - Se você usa o Telegram, crie uma **terceira aplicação** igual, com o caminho
+     `api/telegram/webhook`. O Talorys continua exigindo o cabeçalho secreto do
+     Telegram nessa rota (veja [alerts.md](alerts.md#configurar-o-telegram)).
 4. Na primeira aplicação, aba **Overview**, copie a **Application Audience
    (AUD) Tag**.
 5. No ambiente `production` do GitHub, crie as variáveis

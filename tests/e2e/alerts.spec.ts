@@ -10,9 +10,11 @@ async function login(page: Page) {
   await expect(page.getByText("What would you like to do today?")).toBeVisible();
 }
 
+const BOTH = ["push", "telegram"];
 const DEFAULTS = {
-  routes: { reminder: ["push"], digest: ["push"], routine: ["push"], task: ["push"], system: ["push"], security: ["push"], event: ["push"] },
+  routes: { reminder: BOTH, digest: BOTH, routine: BOTH, task: BOTH, system: BOTH, security: BOTH, event: BOTH },
   limits: { perHour: 6, perDay: 30 },
+  fullText: [],
 };
 
 test.describe("Alerts", () => {
@@ -40,7 +42,7 @@ test.describe("Alerts", () => {
     await digest.click();
     await expect(page.getByText("Alert preferences saved")).toBeVisible();
     await expect(digest).toHaveAttribute("aria-checked", "false");
-    expect((await (await page.request.get("/api/alerts")).json()).preferences.routes.digest).toEqual([]);
+    expect((await (await page.request.get("/api/alerts")).json()).preferences.routes.digest).toEqual(["telegram"]);
 
     await page.locator("#alerts-per-hour").fill("12");
     await page.getByRole("button", { name: "Save" }).click();
@@ -48,10 +50,30 @@ test.describe("Alerts", () => {
 
     // The reminder above went through the alert center.
     await expect(page.getByRole("heading", { name: "Recent deliveries" })).toBeVisible();
-    await expect(page.getByText(/no device registered/).first()).toBeVisible();
+    await expect(page.getByText(/no device or chat linked/).first()).toBeVisible();
     await expect(page.getByText("Not sent").first()).toBeVisible();
 
     await page.request.delete(`/api/automations/${automation.id}`, { headers: CSRF });
+  });
+
+  test("shows the Telegram card and saves which categories send their full text", async ({ page }) => {
+    await login(page);
+    await page.goto("/settings?tab=Alerts");
+    // The e2e deploy has no TELEGRAM_BOT_TOKEN.
+    await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+    await expect(page.getByText("Not set up", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Telegram is not set up on this deployment/)).toBeVisible();
+    const tg = page.getByRole("switch", { name: "Send Reminders alerts by Telegram" });
+    await expect(tg).toHaveAttribute("aria-checked", "true");
+    const full = page.getByRole("switch", { name: "Send the full text of Reminders alerts to Telegram" });
+    await expect(full).toHaveAttribute("aria-checked", "false");
+    await full.click();
+    await expect(full).toHaveAttribute("aria-checked", "true");
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences.fullText).toEqual(["reminder"]);
+    // Turning a route off keeps the full-text choice.
+    await tg.click();
+    await expect(tg).toHaveAttribute("aria-checked", "false");
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences).toMatchObject({ routes: { reminder: ["push"] }, fullText: ["reminder"] });
   });
 
   test("changes a notification's priority from the notification center", async ({ page }) => {

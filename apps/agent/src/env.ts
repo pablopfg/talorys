@@ -30,6 +30,11 @@ export interface Env {
    * installer. Without it, servers that need a bearer token can't be added; nothing else changes.
    */
   MCP_CREDENTIAL_KEY?: string;
+  /**
+   * Telegram bot token from @BotFather. Worker secret. Without it the Telegram channel is
+   * unavailable and nothing else changes. The webhook secret is derived from SESSION_SECRET.
+   */
+  TELEGRAM_BOT_TOKEN?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
   /** Most MCP tools enabled at once (default 20, at most 64). */

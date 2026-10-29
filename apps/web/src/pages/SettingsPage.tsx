@@ -18,6 +18,7 @@ import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, PageHeader, Sel
 import { SemanticRecallCard } from "../components/SemanticRecallCard";
 import { PushNotificationsCard } from "../components/PushNotificationsCard";
 import { AlertsCard } from "../components/AlertsCard";
+import { TelegramCard } from "../components/TelegramCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
@@ -103,6 +104,7 @@ export default function SettingsPage() {
         <div className="space-y-8 animate-fade-in">
           {tab === "General" && <GeneralTab settings={settings} />}
           {tab === "Alerts" && <PushNotificationsCard />}
+          {tab === "Alerts" && <TelegramCard />}
           {tab === "Alerts" && <AlertsCard />}
           {tab === "AI" && <AiTab settings={settings} />}
           {tab === "Privacy" && <PrivacyTab />}

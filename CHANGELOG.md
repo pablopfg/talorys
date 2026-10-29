@@ -8,13 +8,17 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Central de avisos.** Todo aviso do Talorys (lembretes, resumos, rotinas, alertas de sistema e de segurança) agora tem prioridade (baixa, normal, alta ou crítica) e categoria, e passa por uma central que decide por onde ele sai do app. Em **Configurações → Avisos** (aba nova, que também passa a abrigar as notificações push) você escolhe quais categorias vão para o push, limita quantas mensagens cada canal manda por hora e por dia (padrão 6 e 30) e vê as 100 entregas mais recentes, com o motivo de cada aviso que não saiu. Avisos de prioridade baixa ficam só no app; lembretes, alertas de segurança e avisos críticos nunca são segurados pelos limites; segurança e críticos saem sempre por todos os canais (não dá para desligar); e repetições do mesmo aviso são descartadas. A prioridade de cada notificação pode ser corrigida na própria central. Veja [docs/alerts.md](docs/alerts.md).
 
+- **Avisos no Telegram.** Um bot do Telegram, vinculado em **Configurações → Avisos → Telegram** com um código de uso único, passa a ser um canal da central de avisos. Os avisos vão para o seu grupo (um tópico por categoria quando o grupo tem tópicos e o bot é administrador) ou para o chat privado com o bot. Por padrão o Telegram é discreto (título, categoria e prioridade, sem o texto); ligue **Texto completo** nas categorias que quiser ler lá. Avisos de prioridade baixa e normal chegam sem som. Avisos de prioridade alta e crítica trazem os botões **Feito** e **Adiar 1 h**, e todos trazem **Abrir o Talorys**. O bot só obedece à conta que vinculou o chat. Veja [docs/alerts.md](docs/alerts.md#telegram).
+
 ### Alterado
+
+- O histórico de entregas fala em "aparelho ou chat" nos motivos de não envio, porque vale também para o Telegram.
 
 - Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
 
 ### Atualização
 
-- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Nenhuma variável ou segredo novo.
+- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Para os avisos no Telegram, um segredo novo e opcional, `TELEGRAM_BOT_TOKEN` (token do bot criado no @BotFather); sem ele o canal aparece como não configurado e nada mais muda. Quem usa o Cloudflare Access precisa de uma regra *Bypass* para o caminho `api/telegram/webhook` (veja [docs/alerts.md](docs/alerts.md#configurar-o-telegram)). Preferências de avisos salvas antes do Telegram ganham o Telegram ligado nas categorias que já saíam do app.
 
 ## 1.0.0 — 2026-10-29
 
