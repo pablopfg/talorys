@@ -279,7 +279,7 @@ quebra-cabeça na maior parte das vezes. O Talorys só a mostra quando um login
 parece arriscado: a rede errou a senha nos últimos 15 minutos, ou há muitas
 falhas vindas de várias redes ao mesmo tempo e a rede não é uma das suas. No
 uso normal, o login continua só com a senha. Detalhes em
-[security.md](security.md#robot-check-turnstile).
+[security.md](security.md#verificação-contra-robôs-turnstile).
 
 1. Painel da Cloudflare → **Turnstile** → **Add widget**:
    - **Widget name:** `Talorys`.

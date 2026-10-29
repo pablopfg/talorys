@@ -1,143 +1,148 @@
-# Google Calendar
+# Google Agenda
 
-Talorys can read your Google calendars and propose events. You connect one
-Google account in **Settings → Integrations → Google Calendar**, then choose,
-calendar by calendar, what the agent may do:
+O Talorys consegue ler as suas agendas do Google e propor eventos. Você conecta
+uma conta Google em **Configurações → Integrações → Google Agenda** e escolhe,
+agenda por agenda, o que o agente pode fazer:
 
-| Setting | What the agent can do |
+| Opção | O que o agente pode fazer |
 | --- | --- |
-| **Hidden from the agent** (default) | Nothing. The calendar isn't listed to the agent. |
-| **Read only** | List and search its events, in chat and in scheduled automations. |
-| **Read and propose changes** | Also propose creating, moving, renaming and deleting events. Each change waits on an approval card in chat. |
+| **Oculta para o agente** (padrão) | Nada. A agenda não aparece para o agente. |
+| **Só leitura** | Listar e buscar os eventos, no chat e nas automações agendadas. |
+| **Ler e propor alterações** | Também propor criar, mover, renomear e excluir eventos. Cada alteração espera um cartão de aprovação no chat. |
 
-This is optional and free. With nothing configured, Talorys makes no requests
-to Google.
+É opcional e gratuito. Sem nada configurado, o Talorys não faz nenhuma
+requisição ao Google.
 
-## What it can and can't do
+## O que ela faz e o que não faz
 
-- **One account.** Calendars shared with that account are listed too, with the
-  access Google gives the account. **Read and propose changes** is offered only
-  where Google lets the account edit (owner or writer). A calendar shared as
-  free/busy only can't be opened.
-- **Changes always ask first.** Creating, changing and deleting events are
-  approval actions, offered only in chat. Scheduled automations can read, never
-  change.
-- **Guests are never e-mailed.** Every change is sent with `sendUpdates=none`,
-  and the agent can't add guests.
-- **A change made meanwhile in Google wins.** An approved move or delete is sent
-  with the event's version (`If-Match`). If someone edited the event after the
-  proposal, Google refuses it and nothing is done.
-- **Limits:** one request reads at most 62 days and 50 events.
+- **Uma conta.** As agendas compartilhadas com essa conta também aparecem, com o
+  acesso que o Google dá à conta. **Ler e propor alterações** só é oferecido
+  onde o Google deixa a conta editar (dono ou editor). Uma agenda compartilhada
+  só com horários livres e ocupados não pode ser aberta.
+- **Alterações sempre perguntam antes.** Criar, alterar e excluir eventos são
+  ações com aprovação, oferecidas só no chat. As automações agendadas podem ler,
+  nunca alterar.
+- **Os convidados nunca recebem e-mail.** Toda alteração é enviada com
+  `sendUpdates=none`, e o agente não consegue adicionar convidados.
+- **Uma alteração feita nesse meio-tempo no Google prevalece.** Mover ou excluir
+  depois da aprovação é enviado com a versão do evento (`If-Match`). Se alguém
+  editou o evento depois da proposta, o Google recusa e nada é feito.
+- **Limites:** uma requisição lê no máximo 62 dias e 50 eventos.
 
-### Recommended: a work calendar as read only
+### Recomendado: agenda de trabalho como só leitura
 
-To let Talorys see a work calendar (a clinic's, for example) without any chance
-of changing it, share that calendar in Google Calendar with your own account as
-**See all event details**, then set it to **Read only** in Talorys. Google
-itself then refuses any change, whatever happens in Talorys.
+Para o Talorys ver uma agenda de trabalho (a de um consultório, por exemplo)
+sem nenhuma chance de alterá-la, compartilhe essa agenda no Google Agenda com a
+sua própria conta como **Ver todos os detalhes do evento** e depois escolha
+**Só leitura** no Talorys. Aí o próprio Google recusa qualquer alteração, aconteça
+o que acontecer no Talorys.
 
-## Daily routines with the calendar
+## Rotinas do dia com a agenda
 
-Talorys also reads the open calendars for itself, without the AI:
+O Talorys também lê as agendas abertas por conta própria, sem a IA:
 
-- **Daily summary.** The summary (Settings → Alerts) lists today's events on
-  every open calendar, in time order.
-- **Notice before the first event.** Under a calendar in **Settings →
-  Integrations**, choose **Notice N min before the first event** and write what
-  to remember ("turn on the air conditioning"). On days with a timed event it
-  goes out once, that many minutes before the first one. If the first event
-  moves, the notice follows it; all-day events are ignored.
-- **Routines only on days with events.** An automation can **Run only on days
-  with events** on one open calendar. On a day without events there, the run is
-  skipped (shown in its history). If Google can't be reached, it runs anyway.
-  If that calendar is hidden later, runs are skipped and you get one alert.
-  **Run now** always runs. The condition is set in the app only, never with an
-  access token.
+- **Resumo do dia.** O resumo (**Configurações → Avisos**) lista os eventos de
+  hoje de todas as agendas abertas, em ordem de horário.
+- **Aviso antes do primeiro evento.** Abaixo de uma agenda, em **Configurações →
+  Integrações**, escolha **Avisar N min antes do primeiro evento** e escreva o
+  que lembrar ("ligar o ar-condicionado"). Nos dias com um evento com horário, o
+  aviso sai uma vez, esses minutos antes do primeiro. Se o primeiro evento muda
+  de horário, o aviso acompanha; eventos de dia inteiro são ignorados.
+- **Rotinas só em dias com eventos.** Uma automação pode **Só rodar em dias com
+  eventos** numa agenda aberta. Num dia sem eventos nela, a execução é pulada
+  (e aparece no histórico). Se o Google não responder, ela roda assim mesmo. Se
+  essa agenda for ocultada depois, as execuções são puladas e você recebe um
+  aviso. **Executar agora** sempre executa. A condição só é definida no app,
+  nunca com um token de acesso.
 
-In **Automations → New → AI routine**, three ready-made routines use this:
+Em **Automações → Novo → Rotina de IA**, três rotinas prontas usam isso:
 
-| Template | When | What |
+| Modelo | Quando | O quê |
 | --- | --- | --- |
-| **Morning briefing** | Every day, 07:00 | Today's events, tasks due or overdue, reminders, what to prepare. |
-| **Closing the day** | Monday to Friday, 19:00 | What happened, what is still open, what to leave ready for tomorrow. |
-| **Saturday closing** | Saturday, 13:00 | The same, but only on Saturdays with events on the calendar you choose (a work calendar, for example). |
+| **Briefing da manhã** | Todo dia, 07:00 | Eventos de hoje, tarefas que vencem hoje ou atrasadas, lembretes, o que preparar. |
+| **Fechamento do dia** | Segunda a sexta, 19:00 | O que aconteceu, o que continua aberto, o que deixar pronto para amanhã. |
+| **Fechamento de sábado** | Sábado, 13:00 | O mesmo, mas só nos sábados com eventos na agenda que você escolher (uma agenda de trabalho, por exemplo). |
 
-Everything stays editable. Fixed bills are plain monthly reminders: create one
-7 days and another 3 days before the due date.
+Tudo continua editável. Contas fixas são lembretes mensais comuns: crie um 7
+dias e outro 3 dias antes do vencimento.
 
-## Setting it up
+## Configuração
 
-You need a free OAuth client in Google Cloud. The step-by-step guide, in
-Portuguese, is in [instalacao-cloudflare.md](instalacao-cloudflare.md#25-google-agenda).
-In short:
+Você precisa de um cliente OAuth gratuito no Google Cloud. O passo a passo
+completo está em
+[instalacao-cloudflare.md](instalacao-cloudflare.md#25-google-agenda). Em
+resumo:
 
-1. In the Google Cloud console, create a project and enable the **Google
-   Calendar API**.
-2. Configure the OAuth consent screen (Google Auth Platform), user type
-   **External** (or **Internal** on Google Workspace), and add these scopes:
+1. No console do Google Cloud, crie um projeto e ative a **Google Calendar
+   API**.
+2. Configure a tela de consentimento OAuth (Google Auth Platform), tipo de
+   usuário **External** (ou **Internal** no Google Workspace), e adicione estes
+   escopos:
    - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
    - `https://www.googleapis.com/auth/calendar.events`
-3. Publish the app (**In production**). While it is in **Testing**, Google
-   expires its sign-ins after 7 days and you would have to connect again every
-   week. As only you use it, Google's verification isn't needed: on the consent
-   page choose **Advanced → Go to (app name)**.
-4. Create an **OAuth client ID** of type **Web application** with this
-   authorized redirect URI (your Talorys address):
+3. Publique o app (**In production**). Enquanto ele estiver em **Testing**, o
+   Google expira os logins depois de 7 dias e você teria de conectar de novo
+   toda semana. Como só você usa, a verificação do Google não é necessária: na
+   página de consentimento, escolha **Advanced → Go to (nome do app)**.
+4. Crie um **OAuth client ID** do tipo **Web application** com este URI de
+   redirecionamento autorizado (o endereço do seu Talorys):
    `https://talorys.exemplo.com.br/settings/google-calendar`
-5. Add the client ID and secret as Worker secrets `GOOGLE_CLIENT_ID` and
-   `GOOGLE_CLIENT_SECRET`. `MCP_CREDENTIAL_KEY` must also be set: it seals
-   Google's tokens.
-6. In Talorys, open **Settings → Integrations → Google Calendar → Connect
-   Google**, allow both permissions, and choose a setting for each calendar.
+5. Adicione o ID e o segredo do cliente como os segredos `GOOGLE_CLIENT_ID` e
+   `GOOGLE_CLIENT_SECRET` do Worker. `MCP_CREDENTIAL_KEY` também precisa estar
+   definido: ele lacra os tokens do Google.
+6. No Talorys, abra **Configurações → Integrações → Google Agenda → Conectar
+   Google**, permita as duas permissões e escolha uma opção para cada agenda.
 
-## Privacy
+## Privacidade
 
-- Talorys asks Google only for the list of calendars and their events. It can't
-  see Gmail, Drive, contacts or anything else in the account.
-- Events are read when the agent needs them and are not stored in Talorys. What
-  the agent reads becomes part of that conversation, like any tool result.
-- Event titles, places and descriptions are written by whoever created the
-  event, possibly a stranger who sent an invite. They are handed to the model as
-  untrusted data, inside a data block, with control characters removed, and the
-  model is told never to follow instructions in them.
-- The activity log records connecting, disconnecting, setting changes and each
-  approved change, never event contents.
+- O Talorys pede ao Google só a lista de agendas e os eventos delas. Ele não vê
+  o Gmail, o Drive, os contatos nem nada mais da conta.
+- Os eventos são lidos quando o agente precisa deles e não ficam guardados no
+  Talorys. O que o agente lê passa a fazer parte daquela conversa, como
+  qualquer resultado de ferramenta.
+- Títulos, locais e descrições dos eventos são escritos por quem criou o
+  evento, possivelmente um estranho que mandou um convite. Eles chegam ao
+  modelo como dados não confiáveis, dentro de um bloco de dados, sem caracteres
+  de controle, e o modelo é instruído a nunca seguir instruções que estejam
+  neles.
+- O registro de atividade guarda conexões, desconexões, mudanças de opção e cada
+  alteração aprovada, nunca o conteúdo dos eventos.
 
-## Security model
+## Modelo de segurança
 
-- **Owner only.** Connecting, opening calendars and disconnecting are done in
-  the app with an owner session. Access tokens (remote access, n8n) can't manage
-  the connection, and no tool lets the agent connect an account or open a
-  calendar to itself.
-- **Recent password.** Connecting an account and opening a calendar to the
-  agent need the password typed in the last minutes. Hiding a calendar never
-  does.
-- **OAuth with PKCE and a single-use state.** The state is stored hashed, the
-  PKCE verifier sealed, and both expire in 10 minutes. The callback page
-  forwards Google's answer with the owner's session; a state can't be reused.
-  If Google grants fewer permissions than asked, nothing is saved and, unless
-  an account is already connected (revoking would end its grant too), the
-  access is given back at once.
-- **Sealed tokens.** The refresh and access tokens are encrypted with
-  AES-256-GCM using `MCP_CREDENTIAL_KEY` and are never in backups, exports or
-  API responses. After restoring a backup, connect again.
-- **Narrow network use.** Requests go only to Google's fixed OAuth and Calendar
-  addresses, never follow redirects, time out after 10 seconds and read at most
-  1 MB.
-- **Alert.** Connecting an account raises a security alert, so a connection you
-  didn't make doesn't go unnoticed.
-- **Disconnecting** deletes the tokens and calendar settings and revokes the
-  access at Google.
+- **Só o dono.** Conectar, abrir agendas e desconectar são feitos no app, com
+  uma sessão do dono. Tokens de acesso (acesso remoto, n8n) não conseguem
+  gerenciar a conexão, e nenhuma ferramenta deixa o agente conectar uma conta ou
+  abrir uma agenda para si mesmo.
+- **Senha recente.** Conectar uma conta e abrir uma agenda para o agente pedem a
+  senha digitada nos últimos minutos. Ocultar uma agenda nunca pede.
+- **OAuth com PKCE e state de uso único.** O state é guardado como hash, o
+  verificador PKCE fica lacrado e os dois expiram em 10 minutos. A página de
+  retorno repassa a resposta do Google com a sessão do dono; um state não pode
+  ser reutilizado. Se o Google conceder menos permissões do que o pedido, nada é
+  salvo e, a menos que uma conta já esteja conectada (revogar encerraria a
+  concessão dela também), o acesso é devolvido na hora.
+- **Tokens lacrados.** Os tokens de atualização e de acesso são cifrados com
+  AES-256-GCM usando `MCP_CREDENTIAL_KEY` e nunca entram em backups, exportações
+  ou respostas da API. Depois de restaurar um backup, conecte de novo.
+- **Uso restrito da rede.** As requisições vão só para os endereços fixos de
+  OAuth e de Agenda do Google, nunca seguem redirecionamentos, expiram em 10
+  segundos e leem no máximo 1 MB.
+- **Alerta.** Conectar uma conta gera um alerta de segurança, para que uma
+  conexão que você não fez não passe despercebida.
+- **Desconectar** apaga os tokens e as opções das agendas e revoga o acesso no
+  Google.
 
-If you suspect misuse, disconnect in Talorys and also remove Talorys at
-<https://myaccount.google.com/connections>, then change your Talorys password.
+Se suspeitar de uso indevido, desconecte no Talorys, remova também o Talorys em
+<https://myaccount.google.com/connections> e depois troque a sua senha do
+Talorys.
 
-## Troubleshooting
+## Solução de problemas
 
-| Message | What to do |
+| Mensagem | O que fazer |
 | --- | --- |
-| Google Calendar isn't set up | Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `MCP_CREDENTIAL_KEY` to the Worker. |
-| `redirect_uri_mismatch` on Google's page | The authorized redirect URI must be exactly your Talorys address followed by `/settings/google-calendar`. |
-| Allow both permissions | On Google's page, tick both boxes, then connect again. |
-| Google access was revoked or expired | Connect again. If it happens every week, the app is still in **Testing**: publish it. |
-| A calendar is missing | Press **Update list** after sharing or creating it in Google. |
+| A Google Agenda não está configurada | Adicione `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `MCP_CREDENTIAL_KEY` ao Worker. |
+| `redirect_uri_mismatch` na página do Google | O URI de redirecionamento autorizado precisa ser exatamente o endereço do seu Talorys seguido de `/settings/google-calendar`. |
+| Permita as duas permissões | Na página do Google, marque as duas caixas e conecte de novo. |
+| O acesso ao Google foi revogado ou expirou | Conecte de novo. Se acontece toda semana, o app ainda está em **Testing**: publique-o. |
+| Falta uma agenda | Toque em **Atualizar lista** depois de compartilhar ou criar a agenda no Google. |

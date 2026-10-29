@@ -1,208 +1,230 @@
-# Architecture
+# Arquitetura
 
-## Components
+## Componentes
 
-| Component | Location | Runs on |
+| Componente | Local | Roda em |
 | --- | --- | --- |
-| Web app (React, Vite, Tailwind, TanStack Query, React Router) | `apps/web/src` | Cloudflare Pages (static) |
-| API proxy | `apps/web/functions/api/[[path]].ts` | Pages Function |
-| Agent Worker (Hono API + `TalorysAgent`) | `apps/agent/src` | Cloudflare Workers + Durable Objects |
-| Shared schemas, recurrence, crypto | `packages/shared` | Bundled into all of the above |
-| Installer | `packages/create-talorys` | The owner's machine (Node.js) |
+| App web (React, Vite, Tailwind, TanStack Query, React Router) | `apps/web/src` | Cloudflare Pages (estático) |
+| Proxy da API | `apps/web/functions/api/[[path]].ts` | Pages Function |
+| Worker do agente (API Hono + `TalorysAgent`) | `apps/agent/src` | Cloudflare Workers + Durable Objects |
+| Schemas compartilhados, recorrência, criptografia | `packages/shared` | Empacotado em todos os anteriores |
+| Instalador | `packages/create-talorys` | A máquina do dono (Node.js) |
 
-## Request flow
+## Fluxo de uma requisição
 
-1. The browser loads static assets from `https://<project>.pages.dev`.
-2. Calls to `/api/*` (same origin, cookie auth) invoke the Pages Function.
-3. The function forwards the **original request** to `env.AGENT.fetch(request)` —
-   a service binding to the private Worker. URL, method, headers and body are
-   preserved, so the Worker can validate `Origin`. Responses (including SSE
-   streams) are returned without buffering.
-4. The Worker forwards `/api/*` to `getAgentByName(env.TalorysAgent, "personal-agent")`.
-   The instance name is fixed server-side; clients cannot address other agents.
-   WebSocket upgrades are refused (the app uses HTTP + SSE only).
-5. `TalorysAgent.onRequest` runs the Hono app next to its SQLite database.
+1. O navegador carrega os arquivos estáticos de `https://<projeto>.pages.dev`.
+2. As chamadas a `/api/*` (mesma origem, autenticação por cookie) acionam a Pages Function.
+3. A função repassa a **requisição original** para `env.AGENT.fetch(request)`,
+   um service binding para o Worker privado. URL, método, cabeçalhos e corpo são
+   preservados, então o Worker consegue validar o `Origin`. As respostas
+   (inclusive streams SSE) voltam sem buffer.
+4. O Worker repassa `/api/*` para `getAgentByName(env.TalorysAgent, "personal-agent")`.
+   O nome da instância é fixo no servidor; os clientes não conseguem endereçar
+   outros agentes. Upgrades de WebSocket são recusados (o app usa só HTTP + SSE).
+5. `TalorysAgent.onRequest` roda o app Hono ao lado do seu banco SQLite.
 
 ## TalorysAgent
 
-`apps/agent/src/agent/talorys-agent.ts` extends the Agents SDK `Agent` class.
+`apps/agent/src/agent/talorys-agent.ts` estende a classe `Agent` do Agents SDK.
 
-- **Storage**: Durable Object SQLite via `ctx.storage.sql`, wrapped by
-  `db/database.ts` and per-entity repositories in `db/repositories/`. Talorys
-  tables are prefixed `tal_` and never touch the SDK's `cf_agents_*` tables.
-- **Migrations**: `db/migrations.ts` — versioned, append-only, each applied in a
-  transaction with its version bump. Run lazily on first use after every deploy.
-- **Full-text search**: FTS5 external-content indexes for memories and notes,
-  kept in sync with triggers. Tasks and conversations use escaped `LIKE`.
-- **Scheduling**: each enabled automation owns exactly one pending one-shot SDK
-  schedule (`this.schedule(date, "runAutomation", { automationId })`). When it
-  fires, `AutomationService.fire` runs it, records the run, and computes the next
-  occurrence in the owner's timezone. `onStart` reconciles lost or interrupted
-  schedules (a run missed by < 24 h executes once). Finishing an active run
-  preserves owner pauses, deletions and replacement schedules; duplicate callbacks
-  do not execute again while that run is active.
-- **Agent turns**: `agent/runner.ts` builds context (system prompt, relevant
-  memories, running summary, recent history within the token budget), calls the
-  provider with tools, streams events, persists the result and records usage.
-  Memories come from keyword recall (`agent/memory.ts`) or, when enabled,
-  semantic recall (`semantic/`), then are labelled current / unsure / past and
-  kept within a token budget of 20% of the context limit (max 1,500 tokens).
+- **Armazenamento**: SQLite do Durable Object via `ctx.storage.sql`, encapsulado
+  por `db/database.ts` e por repositórios por entidade em `db/repositories/`. As
+  tabelas do Talorys têm o prefixo `tal_` e nunca tocam nas tabelas
+  `cf_agents_*` do SDK.
+- **Migrations**: `db/migrations.ts`, versionadas e só de acréscimo, cada uma
+  aplicada numa transação junto com o aumento de versão. Rodam sob demanda no
+  primeiro uso depois de cada deploy.
+- **Busca de texto completo**: índices FTS5 de conteúdo externo para memórias e
+  notas, mantidos em sincronia por triggers. Tarefas e conversas usam `LIKE`
+  com escape.
+- **Agendamento**: cada automação ligada tem exatamente um agendamento único
+  pendente do SDK (`this.schedule(date, "runAutomation", { automationId })`).
+  Quando ele dispara, `AutomationService.fire` executa a automação, registra a
+  execução e calcula a próxima ocorrência no fuso horário do dono. `onStart`
+  reconcilia agendamentos perdidos ou interrompidos (uma execução perdida há
+  menos de 24 h roda uma vez). Terminar uma execução em andamento preserva as
+  pausas, exclusões e agendamentos substitutos feitos pelo dono; callbacks
+  duplicados não rodam de novo enquanto aquela execução está ativa.
+- **Turnos do agente**: `agent/runner.ts` monta o contexto (prompt de sistema,
+  memórias relevantes, resumo corrente, histórico recente dentro do orçamento de
+  tokens), chama o provedor com as ferramentas, transmite os eventos, persiste o
+  resultado e registra o uso. As memórias vêm da busca por palavra-chave
+  (`agent/memory.ts`) ou, quando ligada, da busca semântica (`semantic/`); depois
+  são rotuladas como atual / incerta / passada e mantidas dentro de um orçamento
+  de 20% do limite de contexto (no máximo 1.500 tokens).
 
-## Memory history
+## Histórico de memória
 
-`apps/agent/src/memory/` — see [memory-history.md](memory-history.md) for the
-user-facing description.
+`apps/agent/src/memory/`; veja [memory-history.md](memory-history.md) para a
+descrição voltada ao usuário.
 
-| Module | Responsibility |
+| Módulo | Responsabilidade |
 | --- | --- |
-| `conflict.ts` | Deterministic relationship rules; optional Clef (Workers AI decision model) check: request, response validation, decision |
-| `lifecycle.ts` | Supersede / status changes / history / review resolution; cycle prevention; stated-date extraction |
-| `intent.ts` | Detects questions about the past |
-| `service.ts` | `MemoryHistoryService`: write paths, conflict pipeline, complete deletion (incl. semantic vectors), prompt labels |
+| `conflict.ts` | Regras determinísticas de relação; verificação opcional pelo Clef (modelo de decisão do Workers AI): requisição, validação da resposta, decisão |
+| `lifecycle.ts` | Substituição / mudanças de status / histórico / resolução de revisões; prevenção de ciclos; extração de datas informadas |
+| `intent.ts` | Detecta perguntas sobre o passado |
+| `service.ts` | `MemoryHistoryService`: caminhos de escrita, pipeline de conflitos, exclusão completa (inclusive vetores semânticos), rótulos do prompt |
 
-Write paths (`POST/PATCH /api/memories`, `/correct`, the `remember` and
-`update_memory` tools) save the memory first, then run conflict detection. It
-never runs per chat message and uses no AI unless the owner enables the
-AI conflict check. Then rule hits and semantically similar memories
-(`semantic/neighbors.ts`) only nominate, and one Clef call per save decides. Both recall paths leave past (`historical`) memories out unless
-the question is about the past; then earlier versions of the recalled facts are
-added.
+Os caminhos de escrita (`POST/PATCH /api/memories`, `/correct`, as ferramentas
+`remember` e `update_memory`) salvam a memória primeiro e depois rodam a
+detecção de conflitos. Ela nunca roda a cada mensagem do chat e não usa IA, a
+menos que o dono ligue a verificação de conflitos por IA. Nesse caso, as regras
+que batem e as memórias semanticamente parecidas (`semantic/neighbors.ts`) só
+indicam candidatas, e uma chamada ao Clef por gravação decide. Os dois caminhos
+de busca deixam de fora as memórias passadas (`historical`), a menos que a
+pergunta seja sobre o passado; aí as versões anteriores dos fatos encontrados
+são acrescentadas.
 
-## AI provider abstraction
+## Abstração do provedor de IA
 
-`ai/provider.ts` defines `AIProvider` (`generate`, `stream`, `generateWithTools`).
+`ai/provider.ts` define `AIProvider` (`generate`, `stream`, `generateWithTools`).
 
-- `CloudflareWorkersAIProvider` (`ai/workers-ai.ts`) uses the AI SDK with the
-  official `workers-ai-provider`. Reasoning ("thinking") is disabled to save
-  Neurons. On the final allowed step, or once the tool budget is spent,
-  `toolChoice: "none"` forces a text answer.
-- `MockAIProvider` (`ai/mock.ts`) is deterministic, used for local development,
-  tests and the opt-in Demo mode. It routes simple intents through the real tool
-  pipeline.
+- `CloudflareWorkersAIProvider` (`ai/workers-ai.ts`) usa o AI SDK com o
+  `workers-ai-provider` oficial. O raciocínio ("thinking") fica desligado para
+  economizar Neurons. No último passo permitido, ou quando o orçamento de
+  ferramentas acaba, `toolChoice: "none"` força uma resposta em texto.
+- `MockAIProvider` (`ai/mock.ts`) é determinístico e usado no desenvolvimento
+  local, nos testes e no modo Demo opcional. Ele encaminha intenções simples
+  pelo pipeline real de ferramentas.
 
-Adding a provider (OpenRouter, Gemini, …) means implementing `AIProvider` and
-selecting it in `TalorysAgent.aiProvider()`.
+Adicionar um provedor (OpenRouter, Gemini, …) significa implementar
+`AIProvider` e selecioná-lo em `TalorysAgent.aiProvider()`.
 
-Usage is additive per model step, including summaries and memory
-inference. Input and output tokens each preserve provider-reported values when
-present (including zero); missing directions use a separate fallback estimate.
-Embedding calls are metered too, but do not consume the chat-model request cap.
-Every semantic embedder is wrapped in `MeteredEmbedder`, so each call is recorded
-whichever code path makes it. Mock calls carry estimated tokens and are nonbillable.
+O uso é somado por passo do modelo, incluindo resumos e inferência de memórias.
+Os tokens de entrada e de saída preservam, cada um, os valores informados pelo
+provedor quando existem (inclusive zero); as direções que faltam usam uma
+estimativa separada. As chamadas de embedding também são medidas, mas não
+consomem o limite de requisições do modelo de chat. Todo embedder semântico é
+encapsulado em `MeteredEmbedder`, então cada chamada é registrada seja qual for
+o caminho de código que a faz. Chamadas do mock trazem tokens estimados e não
+são cobráveis.
 
-One rule covers failures: every model call that reached the binding is metered,
-whether it finished, failed or was aborted. Received counts are kept and missing
-directions are estimated. This applies alike to chat steps, summaries, scheduled
-runs, Clef memory checks and embeddings. A call rejected before inference may be
-over-counted this way; the totals are estimates, and under-counting a call that
-did run would be worse.
+Uma regra vale para as falhas: toda chamada de modelo que chegou ao binding é
+medida, tenha terminado, falhado ou sido abortada. As contagens recebidas são
+mantidas e as direções que faltam são estimadas. Isso vale igualmente para
+passos do chat, resumos, execuções agendadas, verificações de memória do Clef e
+embeddings. Uma chamada recusada antes da inferência pode ser contada a mais
+assim; os totais são estimativas, e contar a menos uma chamada que de fato rodou
+seria pior.
 
-The Workers AI adapter observes raw response usage before SDK normalization,
-which otherwise turns missing counts into zero. Streaming usage is emitted per
-step, not from cumulative turn totals, and before an error is rethrown, so steps
-that end in an error, break off mid-stream or fail outright are recorded too.
-Interrupted steps retain received counts and estimate missing directions from the
-actual SDK-built request and the larger of the output the SDK surfaced and the raw
-text seen in the binding's response. A failed `generate()` attaches its usage to
-the error for the caller to record. Generation beyond the observed stream cannot
-be measured.
+O adaptador do Workers AI observa o uso bruto da resposta antes da normalização
+do SDK, que de outra forma transforma contagens ausentes em zero. O uso em
+streaming é emitido por passo, não a partir dos totais acumulados do turno, e
+antes de um erro ser relançado, então passos que terminam em erro, se
+interrompem no meio do stream ou falham de vez também são registrados. Passos
+interrompidos mantêm as contagens recebidas e estimam as direções que faltam a
+partir da requisição real montada pelo SDK e do maior entre a saída que o SDK
+expôs e o texto bruto visto na resposta do binding. Um `generate()` que falha
+anexa seu uso ao erro para quem chamou registrar. A geração além do stream
+observado não pode ser medida.
 
-The SSE usage observer declares `eventsource-parser` directly instead of relying
-on an SDK's transitive dependency.
-Its native buffer limit bounds pending event data, not heartbeat traffic.
-Oversized incomplete events stop usage observation without aborting inference.
+O observador de uso do SSE declara `eventsource-parser` diretamente, em vez de
+depender de uma dependência transitiva de um SDK. O limite de buffer nativo dele
+restringe os dados de eventos pendentes, não o tráfego de heartbeat. Eventos
+incompletos grandes demais interrompem a observação do uso sem abortar a
+inferência.
 
-Local Neuron and USD estimates use a static model-specific published rate table
-at record time and persist the result rather than repricing history. Unknown
-models are counted as unpriced; mixed coverage is a partial subtotal, never an
-exact bill. Legacy mixed chat tokens retain unknown model/provenance and are
-excluded from pricing. Historical embedding estimates join them in the legacy
-bucket (unknown model and provenance, unpriced) rather than counting as current
-estimates or unpriced calls. Cached input receives
-a separate rate only when both its count and that model's cached rate are known.
-With no priced billable calls, estimates are unavailable, not zero.
-The UI exposes the pricing date and source. Accounting needs no account
-credentials or additional network requests, excludes account-wide usage and
-free allowances, and does not measure Cloudflare's remaining quota.
+As estimativas locais de Neurons e de USD usam, no momento do registro, uma
+tabela estática de preços publicados por modelo e persistem o resultado, em vez
+de reprecificar o histórico. Modelos desconhecidos contam como sem preço;
+cobertura mista é um subtotal parcial, nunca uma conta exata. Os tokens de chat
+mistos antigos mantêm modelo e procedência desconhecidos e ficam fora da
+precificação. As estimativas antigas de embedding se juntam a eles no grupo
+legado (modelo e procedência desconhecidos, sem preço), em vez de contar como
+estimativas atuais ou chamadas sem preço. A entrada em cache recebe um preço
+separado só quando a contagem dela e o preço de cache daquele modelo são
+conhecidos. Sem chamadas cobráveis com preço, as estimativas ficam
+indisponíveis, não zeradas. A interface mostra a data e a fonte dos preços. A
+contabilidade não precisa de credenciais da conta nem de requisições de rede
+adicionais, exclui o uso da conta inteira e as franquias gratuitas, e não mede a
+cota restante na Cloudflare.
 
-## Tools
+## Ferramentas
 
-Tools live in `apps/agent/src/tools/` and are registered in `tools/index.ts`.
-Each has a unique name, description, Zod input schema, permission
-(`read` | `write` | `destructive`), per-turn cap, UI label and typed result.
-`ToolExecutor` enforces validation, the global call budget, per-tool caps,
-duplicate-call (loop) detection, owner approval for destructive actions
-(bound to a hash of the target as it was proposed), and read-only access for
-scheduled runs. Tools only use the service layer — no
-shell, code execution, network or credentials.
+As ferramentas ficam em `apps/agent/src/tools/` e são registradas em
+`tools/index.ts`. Cada uma tem nome único, descrição, schema Zod de entrada,
+permissão (`read` | `write` | `destructive`), limite por turno, rótulo na
+interface e resultado tipado. O `ToolExecutor` aplica a validação, o orçamento
+global de chamadas, os limites por ferramenta, a detecção de chamadas
+duplicadas (laços), a aprovação do dono para ações destrutivas (vinculada a um
+hash do alvo como ele foi proposto) e o acesso só de leitura para execuções
+agendadas. As ferramentas usam só a camada de serviços: nada de shell, execução
+de código, rede ou credenciais.
 
-Tools from remote MCP servers (`apps/agent/src/mcp/`) are adapted into the
-same `ToolDefinition` shape and appended after the built-in (or semantic)
-tools, so they can never shadow one; built-in names may not start with the
-reserved `mcp_` prefix. The owner enables tools per server. A tool set to run
-without asking becomes a `read` tool; every other enabled tool becomes a
-`destructive` one whose `commit` makes the call after approval, with the
-approval bound to a hash of the server and tool permission state. Their JSON
-Schema inputs are converted to Zod (`z.fromJSONSchema`), so validation, the
-call budget, per-tool caps and duplicate detection all apply. External tools
-carry an `external` marker and `ToolExecutor` never offers them outside chat.
-`McpService` keeps configuration and the last discovered catalog in SQLite
-(`tal_mcp_servers`, `tal_mcp_tools`, migration 12) and opens Streamable HTTP
-sessions on demand with the official MCP client through a guarded `fetch`
-(origin lock, credential injection, no redirects, size limits). OAuth servers
-use the SDK's OAuth client through `TalorysOAuthProvider` (`mcp/oauth.ts`),
-whose state lives encrypted in the server's `credential` column; the
-authorization server's origin is admitted by the same guard after the endpoint
-and DNS checks. The browser returns to the SPA page `/settings/mcp-oauth`, which
-posts the code and state to `POST /api/mcp/oauth/callback`. It does not use
-the Agents SDK's `MCPClientManager`, which would store connection headers in
-plain text and reconnect servers on wake outside those checks. See
-[mcp.md](mcp.md).
+As ferramentas de servidores MCP remotos (`apps/agent/src/mcp/`) são adaptadas
+para o mesmo formato `ToolDefinition` e acrescentadas depois das ferramentas
+nativas (ou semânticas), então nunca conseguem encobrir uma delas; os nomes
+nativos não podem começar com o prefixo reservado `mcp_`. O dono liga as
+ferramentas por servidor. Uma ferramenta configurada para rodar sem perguntar
+vira uma ferramenta `read`; todas as outras ferramentas ligadas viram
+`destructive`, cujo `commit` faz a chamada depois da aprovação, com a aprovação
+vinculada a um hash do estado de permissões do servidor e da ferramenta. As
+entradas em JSON Schema são convertidas para Zod (`z.fromJSONSchema`), então a
+validação, o orçamento de chamadas, os limites por ferramenta e a detecção de
+duplicadas valem para elas também. As ferramentas externas levam a marca
+`external` e o `ToolExecutor` nunca as oferece fora do chat. O `McpService`
+guarda a configuração e o último catálogo descoberto no SQLite
+(`tal_mcp_servers`, `tal_mcp_tools`, migration 12) e abre sessões Streamable
+HTTP sob demanda com o cliente MCP oficial, por meio de um `fetch` protegido
+(trava de origem, injeção de credenciais, sem redirecionamentos, limites de
+tamanho). Servidores com OAuth usam o cliente OAuth do SDK por meio do
+`TalorysOAuthProvider` (`mcp/oauth.ts`), cujo estado fica cifrado na coluna
+`credential` do servidor; a origem do servidor de autorização é admitida pela
+mesma proteção depois das verificações de endpoint e de DNS. O navegador volta
+para a página `/settings/mcp-oauth` do SPA, que envia o código e o estado para
+`POST /api/mcp/oauth/callback`. O `MCPClientManager` do Agents SDK não é usado,
+porque ele guardaria os cabeçalhos de conexão em texto puro e reconectaria os
+servidores ao acordar, fora dessas verificações. Veja [mcp.md](mcp.md).
 
-`propose_task_plan` (a `write` tool, so never offered to scheduled runs, once per
-turn) is neither immediate nor destructive in effect: it validates the model's
-proposal with the shared Zod schema (`packages/shared/src/plans.ts`), drops
-duplicate tasks, resolves the project and stores a draft in
-`tal_task_plan_drafts` through `TaskPlanService`. It creates no tasks. The draft
-travels on the chat message's tool activity (`ToolActivity.plan`) and is
-refreshed from the table whenever a conversation is read, so the card survives
-reloads. The owner edits (`PATCH /api/conversations/:cid/task-plans/:id`),
-confirms (`POST …/confirm`) or cancels (`POST …/cancel`); each call names the
-conversation and the revision the owner saw. Confirmation re-validates the final
-plan, claims the draft with a conditional update and creates the project and
-tasks in the same SQLite transaction, so it is atomic and runs at most once; a
-repeated call returns the first result. No model call is made for editing or
-confirming. A turn the owner stops withdraws any plan it proposed.
+`propose_task_plan` (uma ferramenta `write`, então nunca oferecida a execuções
+agendadas, uma vez por turno) não é imediata nem destrutiva no efeito: ela
+valida a proposta do modelo com o schema Zod compartilhado
+(`packages/shared/src/plans.ts`), descarta tarefas duplicadas, resolve o projeto
+e guarda um rascunho em `tal_task_plan_drafts` por meio do `TaskPlanService`.
+Ela não cria tarefas. O rascunho viaja na atividade de ferramentas da mensagem
+do chat (`ToolActivity.plan`) e é atualizado a partir da tabela sempre que uma
+conversa é lida, então o cartão sobrevive a recarregamentos. O dono edita
+(`PATCH /api/conversations/:cid/task-plans/:id`), confirma (`POST …/confirm`) ou
+cancela (`POST …/cancel`); cada chamada informa a conversa e a revisão que o
+dono viu. A confirmação valida de novo o plano final, reivindica o rascunho com
+uma atualização condicional e cria o projeto e as tarefas na mesma transação do
+SQLite, então ela é atômica e roda no máximo uma vez; uma chamada repetida
+devolve o primeiro resultado. Editar ou confirmar não faz nenhuma chamada ao
+modelo. Um turno que o dono interrompe retira qualquer plano que tenha proposto.
 
-## Data model
+## Modelo de dados
 
 `tal_settings`, `tal_conversations`, `tal_messages`, `tal_memories`,
 `tal_projects`, `tal_tasks`, `tal_notes`, `tal_automations`,
 `tal_automation_runs`, `tal_notifications`, `tal_activity`, `tal_sessions`,
 `tal_login_attempts`, `tal_usage_daily`, `tal_model_usage_daily`,
-`tal_memory_reviews`, `tal_push_subscriptions`, plus FTS tables. Migration 3
-added `tal_messages.source` (chat or import); migration 4 added memory lifecycle
-columns (`status`, `superseded_by`, `valid_from`, `valid_until`) and the
-`tal_memory_reviews` table; existing memories default to `active`. Migration 5
-added approval binding columns to `tal_pending_actions` (`target_version`,
-`payload`, `preview`); migration 6 added `tal_push_subscriptions` for Web Push devices.
-Migration 7 adds per-day, per-model provenance and persisted price estimates,
-leaving legacy chat tokens untouched. Existing semantic embedding counters are
-copied into its legacy token bucket without creating semantic tables when the
-feature has never been enabled. Migrations 8–10 add remote access tokens and
-their counters; migration 11 adds `tal_task_plan_drafts` for proposed task plans.
+`tal_memory_reviews`, `tal_push_subscriptions`, além das tabelas FTS. A
+migration 3 acrescentou `tal_messages.source` (chat ou importação); a migration
+4 acrescentou as colunas do ciclo de vida das memórias (`status`,
+`superseded_by`, `valid_from`, `valid_until`) e a tabela `tal_memory_reviews`;
+as memórias existentes ficam `active` por padrão. A migration 5 acrescentou
+colunas de vínculo de aprovação a `tal_pending_actions` (`target_version`,
+`payload`, `preview`); a migration 6 acrescentou `tal_push_subscriptions` para
+os dispositivos de Web Push. A migration 7 acrescenta procedência por dia e por
+modelo e estimativas de preço persistidas, sem mexer nos tokens de chat antigos.
+Os contadores de embedding semântico existentes são copiados para o grupo de
+tokens legado sem criar as tabelas semânticas quando o recurso nunca foi ligado.
+As migrations 8 a 10 acrescentam os tokens de acesso remoto e seus contadores; a
+migration 11 acrescenta `tal_task_plan_drafts` para os planos de tarefas
+propostos.
 
-## Free-tier choices
+## Escolhas para o plano gratuito
 
-No KV/D1/R2/Vectorize/Workflows. One Durable Object holds everything. Static
-assets are served without invoking Functions (Pages routes only `/api/*` to the
-function). Reminders and digests are deterministic. Chat context is bounded and
-summarized only after enough history overflows.
+Sem KV/D1/R2/Vectorize/Workflows. Um único Durable Object guarda tudo. Os
+arquivos estáticos são servidos sem acionar Functions (o Pages encaminha só
+`/api/*` para a função). Lembretes e resumos são determinísticos. O contexto do
+chat é limitado e só é resumido depois que histórico suficiente transborda.
 
-Chat voice input is one Whisper call per recorded clip (`POST /api/transcribe`),
-billed by audio minute (about 46.6 Neurons a minute). Clips are capped at 60 s
-and audio at 60 minutes a day (`TRANSCRIPTION_LIMITS`), apart from the daily AI
-request budget, and recorded in the usage ledger like any other model call.
-Telegram voice messages (up to 5 minutes and 5 MB) go through the same
-`TalorysAgent.transcribeClip`, so they share the one-at-a-time lock and the
-daily audio cap with the app.
+A entrada de voz no chat é uma chamada ao Whisper por clipe gravado
+(`POST /api/transcribe`), cobrada por minuto de áudio (cerca de 46,6 Neurons por
+minuto). Os clipes têm limite de 60 s e o áudio, de 60 minutos por dia
+(`TRANSCRIPTION_LIMITS`), à parte do orçamento diário de requisições de IA, e
+são registrados no histórico de uso como qualquer outra chamada de modelo. As
+mensagens de voz do Telegram (até 5 minutos e 5 MB) passam pelo mesmo
+`TalorysAgent.transcribeClip`, então compartilham a trava de um por vez e o
+limite diário de áudio com o app.

@@ -1,33 +1,33 @@
-# Deployment
+# Deploy
 
-## One command
+## Um comando
 
 ```bash
 npx create-talorys@latest
 ```
 
-### Steps the installer performs
+### Etapas que o instalador executa
 
-| Step | Implementation |
+| Etapa | Implementação |
 | --- | --- |
-| Check Node.js ≥ 24, templates, bundled Wrangler | `requirements.ts`, `scaffold.ts` |
-| Detect global `wrangler` / `cf` (informational) | `requirements.ts` |
-| Verify login or open browser OAuth (`wrangler login`) | `install.ts › ensureAuthenticated` |
-| Choose account (`wrangler whoami --json`) | `install.ts › chooseAccount` |
-| Allocate collision-free names | `install.ts › allocateNames` |
-| Prompt for password (hidden, strength-checked) | `ui.ts`, `secrets.ts` |
-| Write manifest `talorys.json` (no secrets) | `manifest.ts` |
-| Write Worker bundle, frontend, generated `wrangler.jsonc` files | `scaffold.ts`, `config.ts` |
-| Check the Workers AI model exists (no inference) | `wrangler ai models schema` |
-| Deploy the private Worker (creates the SQLite DO on first deploy) | `wrangler deploy` |
-| Store `OWNER_PASSWORD_HASH`, `SESSION_SECRET` and the Web Push keys (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`) via stdin | `wrangler secret bulk` |
-| Create/reconcile the Pages project and deploy it | `wrangler pages project create`, `wrangler pages deploy` |
-| Verify through the public URL | `verify.ts` |
+| Conferir Node.js ≥ 24, templates e o Wrangler embutido | `requirements.ts`, `scaffold.ts` |
+| Detectar `wrangler` / `cf` globais (só informativo) | `requirements.ts` |
+| Verificar o login ou abrir o OAuth no navegador (`wrangler login`) | `install.ts › ensureAuthenticated` |
+| Escolher a conta (`wrangler whoami --json`) | `install.ts › chooseAccount` |
+| Reservar nomes sem colisão | `install.ts › allocateNames` |
+| Pedir a senha (oculta, com verificação de força) | `ui.ts`, `secrets.ts` |
+| Gravar o manifesto `talorys.json` (sem segredos) | `manifest.ts` |
+| Gravar o bundle do Worker, o frontend e os arquivos `wrangler.jsonc` gerados | `scaffold.ts`, `config.ts` |
+| Conferir se o modelo do Workers AI existe (sem inferência) | `wrangler ai models schema` |
+| Fazer o deploy do Worker privado (cria o DO com SQLite no primeiro deploy) | `wrangler deploy` |
+| Guardar `OWNER_PASSWORD_HASH`, `SESSION_SECRET` e as chaves do Web Push (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`) via stdin | `wrangler secret bulk` |
+| Criar ou reconciliar o projeto do Pages e fazer o deploy dele | `wrangler pages project create`, `wrangler pages deploy` |
+| Verificar pela URL pública | `verify.ts` |
 
-The Worker is always deployed before Pages, because the Pages service binding
-refers to it.
+O Worker sempre sobe antes do Pages, porque o service binding do Pages aponta
+para ele.
 
-### Generated Worker config
+### Configuração gerada do Worker
 
 ```jsonc
 {
@@ -44,7 +44,7 @@ refers to it.
 }
 ```
 
-### Generated Pages config
+### Configuração gerada do Pages
 
 ```jsonc
 {
@@ -55,146 +55,156 @@ refers to it.
 }
 ```
 
-## One Worker, without Pages
+## Um Worker, sem Pages
 
-To publish this build automatically on every merge into `main`, see
-[Automatic deploy from GitHub](deploy-github-actions.md).
+Para publicar este build automaticamente a cada merge na `main`, veja
+[Deploy automático pelo GitHub](deploy-github-actions.md).
 
-`apps/agent/wrangler.standalone.jsonc` deploys the agent Worker with the web UI
-as static assets, so one Worker serves both. The Worker runs before every asset
-(`run_worker_first`), so the UI gets the same gates as the API: plain HTTP is
-moved to HTTPS (a request with a body is refused instead), hosts outside
-`TALORYS_ALLOWED_HOSTS` get 404, Cloudflare Access is checked, and the
-security headers from `apps/web/public/_headers` are added. Use it with tools
-that deploy a single Worker:
+`apps/agent/wrangler.standalone.jsonc` faz o deploy do Worker do agente com a
+interface web como arquivos estáticos, então um único Worker serve as duas
+coisas. O Worker roda antes de qualquer arquivo (`run_worker_first`), então a
+interface passa pelas mesmas barreiras da API: HTTP simples é levado para HTTPS
+(uma requisição com corpo é recusada), hosts fora de `TALORYS_ALLOWED_HOSTS`
+recebem 404, o Cloudflare Access é verificado e os cabeçalhos de segurança de
+`apps/web/public/_headers` são acrescentados. Use com ferramentas que fazem o
+deploy de um único Worker:
 
 ```bash
 npm run build -w @talorys/web
 cd apps/agent
 npx wrangler secret put OWNER_PASSWORD -c wrangler.standalone.jsonc
-npx wrangler secret put SESSION_SECRET -c wrangler.standalone.jsonc   # 32+ random characters
+npx wrangler secret put SESSION_SECRET -c wrangler.standalone.jsonc   # 32+ caracteres aleatórios
 npx wrangler deploy -c wrangler.standalone.jsonc
 ```
 
-Push notifications are optional here; see [Push notifications](#push-notifications)
-to add the keys. To connect MCP servers that need a token, also set
-`MCP_CREDENTIAL_KEY` (see [Remote MCP servers](mcp.md#configuration)). For
-alerts on Telegram, set `TELEGRAM_BOT_TOKEN` (see [Alerts](alerts.md#configurar-o-telegram)).
-For Google Calendar, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and
-`MCP_CREDENTIAL_KEY` (see [Google Calendar](google-calendar.md#setting-it-up)).
-For alerts by e-mail through Cloudflare Email Routing (free to your verified address),
-add the `send_email` binding, the `ALERT_EMAIL_FROM` variable and the `ALERT_EMAIL_TO`
-secret (see [Alerts](alerts.md#configurar-o-e-mail)). To ask risky sign-ins for
-Cloudflare Turnstile (free), set the `TURNSTILE_SITE_KEY` variable and the
-`TURNSTILE_SECRET_KEY` secret (see [Security](security.md#robot-check-turnstile)).
+As notificações push são opcionais aqui; veja
+[Notificações push](#notificações-push) para acrescentar as chaves. Para
+conectar servidores MCP que pedem token, defina também `MCP_CREDENTIAL_KEY`
+(veja [Servidores MCP remotos](mcp.md#configuração)). Para avisos no Telegram,
+defina `TELEGRAM_BOT_TOKEN` (veja [Avisos](alerts.md#configurar-o-telegram)).
+Para a Google Agenda, defina `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e
+`MCP_CREDENTIAL_KEY` (veja [Google Agenda](google-calendar.md#configuração)).
+Para avisos por e-mail pelo Cloudflare Email Routing (gratuito para o seu
+endereço verificado), acrescente o binding `send_email`, a variável
+`ALERT_EMAIL_FROM` e o segredo `ALERT_EMAIL_TO` (veja
+[Avisos](alerts.md#configurar-o-e-mail)). Para pedir o Cloudflare Turnstile
+(gratuito) nos logins arriscados, defina a variável `TURNSTILE_SITE_KEY` e o
+segredo `TURNSTILE_SECRET_KEY` (veja
+[Segurança](security.md#verificação-contra-robôs-turnstile)).
 
-`OWNER_PASSWORD` is the plain password, for deploys that cannot hash it
-beforehand. It must pass the installer's strength check (10+ characters, mixed
-classes or 16+ characters, no common words); a weak one counts as not configured
-and `/api/health` reports `"password": false`. When `OWNER_PASSWORD_HASH` is set,
-it takes precedence.
+`OWNER_PASSWORD` é a senha em texto puro, para deploys que não conseguem gerar o
+hash antes. Ela precisa passar na verificação de força do instalador (10+
+caracteres com tipos variados ou 16+ caracteres, sem palavras comuns); uma senha
+fraca conta como não configurada e `/api/health` informa `"password": false`.
+Quando `OWNER_PASSWORD_HASH` está definido, ele tem prioridade.
 
-In this mode, changing `SESSION_SECRET` also discards a password changed in the
-UI: login reverts to `OWNER_PASSWORD`, and every device is signed out.
+Nesse modo, trocar `SESSION_SECRET` também descarta uma senha trocada pela
+interface: o login volta para `OWNER_PASSWORD` e todos os dispositivos são
+desconectados.
 
-The config names the Worker `talorys`, and `wrangler deploy` replaces any Worker
-of that name in the account. Change `name` (or pass `--name`) to deploy under
-another one.
+A configuração dá ao Worker o nome `talorys`, e `wrangler deploy` substitui
+qualquer Worker com esse nome na conta. Troque `name` (ou passe `--name`) para
+fazer o deploy com outro nome.
 
-## Push notifications
+## Notificações push
 
-Web Push needs a VAPID key pair stored as two Worker secrets. The installer
-creates them on a fresh install, and `npx create-talorys@latest update` adds
-them to an installation made before push existed. Existing keys are never
-replaced, because new keys would disconnect every subscribed device.
+O Web Push precisa de um par de chaves VAPID guardado como dois segredos do
+Worker. O instalador os cria numa instalação nova, e
+`npx create-talorys@latest update` os acrescenta a uma instalação feita antes de
+o push existir. Chaves existentes nunca são substituídas, porque chaves novas
+desconectariam todos os dispositivos inscritos.
 
-Without the keys everything else works: `/api/health` reports `"push": false`
-and Settings shows push as unavailable. To add them by hand (for example to a
-one-Worker deploy), generate a P-256 pair in the usual base64url form, such as
-with `npx web-push generate-vapid-keys`, and store both:
+Sem as chaves, todo o resto funciona: `/api/health` informa `"push": false` e
+as Configurações mostram o push como indisponível. Para acrescentá-las à mão
+(por exemplo, num deploy de um Worker só), gere um par P-256 no formato
+base64url de costume, por exemplo com `npx web-push generate-vapid-keys`, e
+guarde as duas:
 
 ```bash
-npx wrangler secret put VAPID_PUBLIC_KEY    # add -c wrangler.standalone.jsonc for a one-Worker deploy
+npx wrangler secret put VAPID_PUBLIC_KEY    # acrescente -c wrangler.standalone.jsonc num deploy de um Worker só
 npx wrangler secret put VAPID_PRIVATE_KEY
 ```
 
-The optional `VAPID_SUBJECT` (`mailto:you@example.com` or an `https://` URL)
-is the contact push services see. It defaults to the app's own URL as recorded
-when each device subscribed. Set it with `npx wrangler secret put VAPID_SUBJECT`;
-a plain variable would be dropped when an update regenerates the Worker config.
+O `VAPID_SUBJECT` opcional (`mailto:voce@exemplo.com` ou uma URL `https://`) é o
+contato que os serviços de push veem. Por padrão é a URL do próprio app,
+registrada quando cada dispositivo se inscreveu. Defina-o com
+`npx wrangler secret put VAPID_SUBJECT`; uma variável comum seria descartada
+quando uma atualização gerasse de novo a configuração do Worker.
 
-## Your own domain
+## Seu próprio domínio
 
 ```bash
-npx create-talorys@latest update --domain talorys.example.com
+npx create-talorys@latest update --domain talorys.exemplo.com
 ```
 
-`--domain` makes the installer use that address for everything: the health
-checks, `status`, `doctor` and the URL it prints. It also sets
-`TALORYS_ALLOWED_HOSTS` on the Worker, so the API answers only on that domain
-and the project's `*.pages.dev` addresses (old deployments included) stop
-working. The domain is recorded in `talorys.json`; later updates keep it, and
-`--domain none` goes back to `pages.dev`.
+`--domain` faz o instalador usar esse endereço para tudo: as verificações de
+saúde, `status`, `doctor` e a URL que ele imprime. Ele também define
+`TALORYS_ALLOWED_HOSTS` no Worker, então a API só responde nesse domínio e os
+endereços `*.pages.dev` do projeto (inclusive os de deploys antigos) param de
+funcionar. O domínio fica registrado em `talorys.json`; as próximas
+atualizações o mantêm, e `--domain none` volta para o `pages.dev`.
 
-Wrangler cannot attach a domain to a Pages project, so do that once in the
-dashboard: Workers & Pages → your project → **Custom domains** → *Set up a
-custom domain*. Until the certificate is active the health check fails; re-run
-the same command a few minutes later.
+O Wrangler não consegue ligar um domínio a um projeto do Pages, então faça isso
+uma vez no painel: Workers & Pages → seu projeto → **Custom domains** → *Set up
+a custom domain*. Enquanto o certificado não estiver ativo, a verificação de
+saúde falha; rode o mesmo comando de novo alguns minutos depois.
 
-Use a subdomain such as `talorys.example.com`, not the bare domain: the app
-sends HSTS with `includeSubDomains`, so browsers would then insist on HTTPS for
-every host under that domain for two years.
+Use um subdomínio como `talorys.exemplo.com`, não o domínio raiz: o app envia
+HSTS com `includeSubDomains`, então os navegadores passariam a exigir HTTPS em
+todos os hosts daquele domínio por dois anos.
 
-Push subscriptions belong to the address a device subscribed on. After a move,
-devices from the old address are dropped when you open Settings on the new one;
-turn push on again there.
+As inscrições de push pertencem ao endereço em que o dispositivo se inscreveu.
+Depois de uma mudança de endereço, os dispositivos do endereço antigo são
+removidos quando você abre as Configurações no novo; ligue o push de novo lá.
 
-## Idempotency and recovery
+## Idempotência e recuperação
 
-- The manifest records the installation id; re-runs reuse the same names.
-- Secrets that already exist are never overwritten (the password is not re-asked).
-- Existing Pages projects are reused; Workers are updated in place.
-- Failures mark the manifest `failed` with completed steps; re-running resumes.
-- The installer never runs delete commands.
-- A non-empty directory without a manifest is refused, so nothing unrelated is overwritten.
-- New resource names are checked against existing Workers and Pages projects.
+- O manifesto registra o id da instalação; novas execuções reutilizam os mesmos nomes.
+- Segredos que já existem nunca são sobrescritos (a senha não é pedida de novo).
+- Projetos do Pages existentes são reutilizados; os Workers são atualizados no lugar.
+- Falhas marcam o manifesto como `failed`, com as etapas concluídas; rodar de novo continua de onde parou.
+- O instalador nunca roda comandos de exclusão.
+- Uma pasta não vazia sem manifesto é recusada, para que nada alheio seja sobrescrito.
+- Os nomes de recursos novos são conferidos com os Workers e projetos do Pages existentes.
 
-## Updates
+## Atualizações
 
-`npx create-talorys@latest update` refreshes artifacts, keeps the same names
-and Durable Object class, appends (never edits) migrations, keeps secrets, and
-re-verifies. Schema migrations run transactionally inside the Durable Object.
+`npx create-talorys@latest update` renova os artefatos, mantém os mesmos nomes e
+a mesma classe do Durable Object, acrescenta (nunca edita) migrations, mantém os
+segredos e verifica tudo de novo. As migrations de schema rodam em transação
+dentro do Durable Object.
 
-Cloudflare Pages keeps every earlier deployment reachable at its own
-`<hash>.<project>.pages.dev` address, wired to the same backend. After an
-update that fixes the web UI, delete older deployments in the dashboard
-(Workers & Pages → your project → Deployments) or with
-`npx wrangler pages deployment delete <id> --project-name <project>`, so an
-old copy of the UI can't be used to phish the owner's password.
+O Cloudflare Pages mantém todos os deploys anteriores acessíveis no endereço
+`<hash>.<projeto>.pages.dev` de cada um, ligados ao mesmo backend. Depois de uma
+atualização que corrige a interface web, exclua os deploys antigos no painel
+(Workers & Pages → seu projeto → Deployments) ou com
+`npx wrangler pages deployment delete <id> --project-name <projeto>`, para que
+uma cópia antiga da interface não possa ser usada para roubar a senha do dono.
 
-## Permissions
+## Permissões
 
-OAuth login (default) uses Wrangler's standard scopes. API tokens need Workers
-Scripts:Edit, Cloudflare Pages:Edit, Workers AI:Read and Account Settings:Read.
-A Global API Key is never required.
+O login por OAuth (padrão) usa os escopos padrão do Wrangler. Tokens de API
+precisam de Workers Scripts:Edit, Cloudflare Pages:Edit, Workers AI:Read e
+Account Settings:Read. Uma Global API Key nunca é necessária.
 
-## Publishing the npm package (maintainers)
+## Publicar o pacote npm (mantenedores)
 
-This fork publishes the installer automatically, as the private
-`@pablopfg/create-talorys` on GitHub Packages, after each release: see
-[releases.md](releases.md#instalador-no-github-packages). By hand:
+Este fork publica o instalador automaticamente, como o pacote privado
+`@pablopfg/create-talorys` no GitHub Packages, depois de cada release: veja
+[releases.md](releases.md#instalador-no-github-packages). À mão:
 
 ```bash
-npm run build -w create-talorys   # builds dist/ and templates/
-npm run test:pack                 # verifies the tarball outside the monorepo
+npm run build -w create-talorys   # gera dist/ e templates/
+npm run test:pack                 # verifica o tarball fora do monorepo
 cd packages/create-talorys && npm publish
 ```
 
-`TALORYS_VERSION` in `packages/shared/src/constants.ts` must equal the package version.
+`TALORYS_VERSION` em `packages/shared/src/constants.ts` precisa ser igual à
+versão do pacote.
 
-## Real-account smoke test
+## Teste rápido numa conta real
 
 ```bash
 CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… npm run test:smoke
-# add TALORYS_SMOKE_AI=1 to include one streamed Workers AI chat turn
+# acrescente TALORYS_SMOKE_AI=1 para incluir um turno de chat do Workers AI em streaming
 ```
