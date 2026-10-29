@@ -68,13 +68,26 @@ export function createServices(
   const notifications = new NotificationRepository(db);
   const activity = new ActivityLog(db);
   const automations = new AutomationService(automationsRepo, settings, activity, scheduler);
+  const alertTimers = scheduler.scheduleAlert
+    ? {
+        schedule: (at: Date, id: string, step: number) =>
+          background(scheduler.scheduleAlert!(at, id, step).catch((error) => console.warn("Alert retry not scheduled", error instanceof Error ? error.message : String(error)))),
+      }
+    : undefined;
   const fullText = (category: AlertCategory) => alerts.preferences().fullText.includes(category);
-  const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, notifications, automations, activity, background, fullText);
+  const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, {
+    respond: (id, action, opts) => alerts.respond(id, action, opts),
+    acknowledgeAll: () => alerts.acknowledgeAll(),
+  }, activity, background);
   const channels = {
     push: pushChannel(push),
     telegram: telegramChannel(telegram, (n) => fullText(n.category)),
   };
-  const alerts: AlertService = new AlertService(notifications, new AlertDeliveryRepository(db), settings, channels);
+  const alerts: AlertService = new AlertService(notifications, new AlertDeliveryRepository(db), settings, channels, {
+    timers: alertTimers,
+    automations,
+    activity,
+  });
   const memories = new MemoryRepository(db);
   const usage = new UsageService(db, () => settings.get().timezone);
   const tasks = new TaskRepository(db);

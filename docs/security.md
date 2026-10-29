@@ -210,6 +210,17 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   redirects, with the file path checked and the read cut off past 5 MB. They
   share the same transcription lock and daily cap, and the audio is never
   stored.
+- Security alerts (new sign-in, two-step changes, many failed sign-ins, a
+  recovery code used) are critical, go to every channel and insist (again after
+  15 minutes and 1 hour). Nothing done inside the app stops that: reading,
+  lowering, muting or deleting them does not, so someone in the owner's session
+  can't silence the warning about what they just did. Only an answer from the
+  owner's Telegram (a button, or a message in the bot's private chat) confirms
+  them. Push notifications of these alerts carry no buttons. See
+  [alerts.md](alerts.md#insistência).
+- Push notification buttons (Done, Snooze, Mute) call
+  `POST /api/notifications/:id/action` from the service worker with the session
+  cookie and the CSRF header, like the app; remote access tokens can't reach it.
 - API responses carry their own `Content-Security-Policy: default-src 'none';
   frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer
   opened directly can't load anything or be framed.

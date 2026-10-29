@@ -2,7 +2,7 @@ import { z } from "zod";
 import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
-import type { AlertCategory, AlertPriority } from "./alerts";
+import { AUTOMATION_PRIORITIES, type AlertCategory, type AlertEscalation, type AlertPriority, type AutomationPriority } from "./alerts";
 
 // ---------- Primitives ----------
 
@@ -178,6 +178,8 @@ export interface Automation {
   schedule: z.infer<typeof scheduleSpecSchema>;
   schedule_description: string;
   enabled: boolean;
+  /** Priority of the alerts this automation raises; a high reminder insists until confirmed. */
+  priority: AutomationPriority;
   status: AutomationStatus;
   schedule_id: string | null;
   next_run: string | null;
@@ -210,6 +212,12 @@ export interface Notification {
   /** What the alert is about; see ALERT_CATEGORIES. */
   category: AlertCategory;
   read_at: string | null;
+  /** Insistence of a high or critical alert; null for alerts that never insist. */
+  escalation: AlertEscalation | null;
+  /** Tries sent so far (1 = only the first). */
+  attempts: number;
+  /** When the next try goes out (or the alert is recorded as unacknowledged), while insisting. */
+  next_attempt_at: string | null;
   created_at: string;
 }
 
@@ -308,6 +316,7 @@ export const automationCreateSchema = z.object({
   message: z.string().trim().max(4000).optional().default(""),
   schedule: scheduleSpecSchema,
   enabled: z.boolean().optional().default(true),
+  priority: z.enum(AUTOMATION_PRIORITIES).optional().default("normal"),
 });
 export const automationUpdateSchema = z
   .object({
@@ -315,6 +324,7 @@ export const automationUpdateSchema = z
     message: z.string().trim().max(4000),
     schedule: scheduleSpecSchema,
     enabled: z.boolean(),
+    priority: z.enum(AUTOMATION_PRIORITIES),
   })
   .partial();
 

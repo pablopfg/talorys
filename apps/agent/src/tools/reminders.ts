@@ -21,6 +21,15 @@ const routineInput = z.object({
   schedule: scheduleSpecSchema,
 });
 
+/**
+ * Only when the owner asks for it: a high reminder is sent again until confirmed (ESCALATION). The
+ * agent may make one-time reminders insistent only; recurring ones are set in the app.
+ */
+const insistent = z
+  .boolean()
+  .optional()
+  .describe("true only when the owner asks to be reminded until they confirm: it is sent again after 15 min and 1 h until they tap Done");
+
 /** Target id of a proposed AI routine, which doesn't exist until the owner approves it. */
 const NEW_ROUTINE_TARGET = "new-ai-routine";
 
@@ -35,6 +44,7 @@ export const reminderTools = [
       message: z.string().min(1).max(500),
       at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).optional(),
       in_minutes: z.number().int().min(1).max(60 * 24 * 365).optional(),
+      insistent,
     }),
     label: (i) => `Setting reminder “${i.message}”`,
     execute: async (i, ctx) => {
@@ -48,8 +58,9 @@ export const reminderTools = [
         message: defangLinks(i.message),
         schedule: { type: "once", at },
         enabled: true,
+        priority: i.insistent ? "high" : "normal",
       });
-      return { reminder: { id: a.id, message: a.message, when: formatLocal(a.next_run, ctx.timezone) } };
+      return { reminder: { id: a.id, message: a.message, when: formatLocal(a.next_run, ctx.timezone), insistent: a.priority === "high" } };
     },
   }),
   defineTool({
@@ -126,6 +137,7 @@ export const reminderTools = [
         kind: a.kind,
         schedule: a.schedule_description,
         enabled: a.enabled,
+        insistent: a.priority === "high",
         next_run: formatLocal(a.next_run, ctx.timezone),
       })),
     }),

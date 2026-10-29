@@ -518,6 +518,19 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS tal_alert_deliveries_created ON tal_alert_deliveries(created_at)`,
     ],
   },
+  {
+    version: 20,
+    name: "insistent alerts",
+    statements: [
+      // A high or critical alert is sent again until the owner confirms it (ESCALATION).
+      `ALTER TABLE tal_notifications ADD COLUMN escalation TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN attempts INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE tal_notifications ADD COLUMN next_attempt_at TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_escalation ON tal_notifications(escalation, next_attempt_at)`,
+      // The priority of the alerts an automation raises; existing ones stay normal.
+      `ALTER TABLE tal_automations ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -17,6 +17,11 @@ describe("localizeServerText", () => {
     expect(localizeServerText("The new memory explicitly updates your car.", "pt-BR")).toBe("A nova memória atualiza explicitamente seu carro.");
   });
 
+  it("translates a later try of an alert, title included", () => {
+    expect(localizeServerText("New sign-in (2/3)", "pt-BR")).toBe("Novo login (2/3)");
+    expect(localizeServerText("Alert not confirmed after 3 tries: “New sign-in”", "pt-BR")).toBe("Aviso não confirmado depois de 3 tentativas: “Novo login”");
+  });
+
   it("keeps the field of a validation error", () => {
     expect(localizeServerText("timezone: Unknown IANA timezone", "pt-BR")).toBe("timezone: Fuso horário IANA desconhecido");
   });

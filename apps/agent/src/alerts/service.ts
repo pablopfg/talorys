@@ -9,11 +9,21 @@ import {
   type AlertsOverview,
   alertPreferencesSchema,
   DEFAULT_ALERT_PREFERENCES,
+  confirmedOnlyOutOfBand,
+  ESCALATION,
+  isInsistent,
+  MAX_ACTIVE_ESCALATIONS,
   type Notification,
+  type NotificationAction,
+  type NotificationActionResult,
 } from "@talorys/shared";
 import type { NotificationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
-import { ValidationError } from "../api/errors";
+import type { ActivityLog } from "../services/usage";
+import type { AutomationService } from "../agent/scheduling";
+import { AppError, NotFoundError, ValidationError } from "../api/errors";
+import { clip } from "../services/text";
+import { toLocalMinute } from "../services/time";
 import type { AlertDeliveryRepository } from "./repository";
 
 /** Alerts no route setting can keep in the app. */
@@ -29,12 +39,33 @@ export function isUnlimited(n: Pick<Notification, "category" | "priority">): boo
   return isAlwaysSent(n) || n.category === "reminder";
 }
 
+/** A later try of an insistent alert: which one, and whether it goes to the owner directly. */
+export interface AlertAttempt {
+  /** 2 or 3 of ESCALATION.attempts. */
+  number: number;
+  /** The last try goes to the owner's private chat instead of the group. */
+  direct: boolean;
+}
+
 /** A way to reach the owner outside the app. Sending runs in the background and reports how many it reached. */
 export interface AlertChannelAdapter {
   readonly id: AlertChannel;
   /** Why the channel can't send right now, or null when it can. */
   unavailable(): Extract<AlertDeliveryReason, "not_configured" | "no_device"> | null;
-  send(n: Notification, done: (reached: number) => void): void;
+  send(n: Notification, done: (reached: number) => void, attempt?: AlertAttempt): void;
+}
+
+/** Wakes the alert center for an insistent alert's next step (a Durable Object alarm). */
+export interface AlertTimers {
+  /** `step` is the try (or 4 for the give-up check) the alarm is for, so one alarm per step is kept. */
+  schedule(at: Date, notificationId: string, step: number): void;
+}
+
+/** What the alert center needs besides storage: the clock for retries, and snoozes and the log. */
+export interface AlertServiceDeps {
+  timers?: AlertTimers;
+  automations?: AutomationService;
+  activity?: ActivityLog;
 }
 
 export interface RaiseInput {
@@ -50,6 +81,8 @@ export interface RaiseInput {
 }
 
 export const DEFAULT_COOLDOWN_MINUTES = 6 * 60;
+export const SNOOZE_MINUTES = 60;
+const MINUTE_MS = 60_000;
 const PREFERENCES_KEY = "alerts.preferences";
 const HOUR_MS = 3_600_000;
 
@@ -65,6 +98,7 @@ export class AlertService {
     private readonly settings: SettingsService,
     /** A channel left out (in tests, or one this deployment lacks) is simply not used. */
     private readonly channels: Partial<Record<AlertChannel, AlertChannelAdapter>>,
+    private readonly deps: AlertServiceDeps = {},
   ) {}
 
   /** Returns the stored notification, or null when the same alert was raised within its cooldown. */
@@ -82,46 +116,169 @@ export class AlertService {
       category: input.category,
       dedupe_key: input.dedupeKey ?? null,
     });
-    this.dispatch(n);
+    const sending = this.dispatch(n);
+    // Only an alert that left the app can insist: with every channel off there is nobody to remind.
+    const security = confirmedOnlyOutOfBand(n);
+    if (sending > 0 && isInsistent(n.priority) && this.deps.timers && (security || this.notifications.activeEscalations() < MAX_ACTIVE_ESCALATIONS)) {
+      const next = this.stepTime(n, 2);
+      this.notifications.setEscalation(n.id, "active", 1, next.toISOString());
+      this.deps.timers.schedule(next, n.id, 2);
+      return this.notifications.get(n.id) ?? n;
+    }
     return n;
   }
 
-  private dispatch(n: Notification): void {
+  /** The channels an alert goes to. Returns how many sends were started. */
+  private dispatch(n: Notification, attempt?: AlertAttempt): number {
     const prefs = this.preferences();
     // Security and critical alerts always reach every channel: someone in the owner's session must
     // not be able to switch off the warnings about what they do next.
     const channels = isAlwaysSent(n) ? ALERT_CHANNELS : prefs.routes[n.category];
+    let sending = 0;
     for (const channel of channels) {
       const adapter = this.channels[channel];
       if (!adapter) continue;
       // A broken channel must never stop the others or the work that raised the alert.
       try {
-        this.deliver(n, adapter, prefs);
+        if (this.deliver(n, adapter, prefs, attempt)) sending++;
       } catch (error) {
         console.warn("Alert delivery failed", channel, error instanceof Error ? error.message : String(error));
       }
     }
     this.deliveries.prune();
+    return sending;
   }
 
-  private deliver(n: Notification, channel: AlertChannelAdapter, prefs: AlertPreferences): void {
+  private deliver(n: Notification, channel: AlertChannelAdapter, prefs: AlertPreferences, attempt?: AlertAttempt): boolean {
     if (n.priority === "low") {
       this.deliveries.record(n, channel.id, "skipped", "low_priority");
-      return;
+      return false;
     }
     const unavailable = channel.unavailable();
     if (unavailable) {
       this.deliveries.record(n, channel.id, "skipped", unavailable);
-      return;
+      return false;
     }
-    if (!isUnlimited(n) && this.overLimit(channel.id, prefs)) {
+    // A later try is never held back: the owner asked to be reminded until they confirm.
+    if (!attempt && !isUnlimited(n) && this.overLimit(channel.id, prefs)) {
       this.deliveries.record(n, channel.id, "skipped", "rate_limited");
-      return;
+      return false;
     }
-    const row = this.deliveries.record(n, channel.id, "pending");
+    // "{alert} (2/3)": the catalog translates the alert's title inside it.
+    const row = this.deliveries.record(attempt ? { ...n, title: `${n.title} (${attempt.number}/${ESCALATION.attempts})` } : n, channel.id, "pending");
     channel.send(n, (reached) => {
       this.deliveries.finish(row.id, reached > 0 ? "sent" : "failed", reached > 0 ? null : "unreachable", reached);
+    }, attempt);
+    return true;
+  }
+
+  /**
+   * When an insistent alert's next step is due: try 2 and 3 at ESCALATION.afterMinutes after the
+   * first, and the give-up check after the last try. Counted from the first send, so a late alarm
+   * never pushes the whole ladder back.
+   */
+  private stepTime(n: Pick<Notification, "created_at">, step: number): Date {
+    const minutes = step <= ESCALATION.attempts ? ESCALATION.afterMinutes[step - 2]! : ESCALATION.giveUpAfterMinutes;
+    return new Date(Date.parse(n.created_at) + minutes * MINUTE_MS);
+  }
+
+  /**
+   * The alarm for an insistent alert went off: send the next try, or record it as unacknowledged
+   * after the last one. Does nothing once the owner confirmed, muted, read or deleted the alert, or
+   * lowered its priority, so a stale alarm is harmless.
+   */
+  escalate(id: string): void {
+    const n = this.notifications.get(id);
+    if (n?.escalation !== "active") return;
+    // A security alert keeps insisting even when read or lowered in the app; only Telegram stops it.
+    const security = confirmedOnlyOutOfBand(n);
+    if (n.read_at !== null && !security) {
+      this.notifications.acknowledge(n.id);
+      return;
+    }
+    if (!isInsistent(n.priority) && !security) {
+      this.notifications.setEscalation(n.id, null, n.attempts, null);
+      return;
+    }
+    // An early alarm (a reconcile that ran ahead) waits for its time.
+    if (n.next_attempt_at && Date.parse(n.next_attempt_at) > Date.now() + MINUTE_MS) {
+      this.deps.timers?.schedule(new Date(n.next_attempt_at), n.id, n.attempts + 1);
+      return;
+    }
+    if (n.attempts >= ESCALATION.attempts) {
+      this.notifications.setEscalation(n.id, "unacknowledged", n.attempts, null);
+      this.deps.activity?.record("alert.unacknowledged", `Alert not confirmed after ${ESCALATION.attempts} tries: “${clip(n.title, 80)}”`);
+      return;
+    }
+    const number = n.attempts + 1;
+    const next = this.stepTime(n, number + 1);
+    // Saved before sending, so a send that throws can't make the same try go out twice.
+    this.notifications.setEscalation(n.id, "active", number, next.toISOString());
+    // Lowered in the app or not, a security alert's tries go out as critical.
+    this.dispatch(security ? { ...n, priority: "critical" } : n, { number, direct: number === ESCALATION.attempts });
+    this.deps.timers?.schedule(next, n.id, number + 1);
+  }
+
+  /**
+   * Runs the steps whose alarm was lost (a restart in the middle). Each alert moves one step at a
+   * time, so an outage never fires a burst of tries at once.
+   */
+  reconcile(): number {
+    const due = this.notifications.dueEscalations(new Date(Date.now() - MINUTE_MS).toISOString());
+    for (const n of due) this.escalate(n.id);
+    return due.length;
+  }
+
+  /**
+   * The owner answered an alert: Done (read), Snooze (read, and a one-off reminder in an hour) or
+   * Mute (stop insisting, keep it unread). A second answer does nothing twice. `outOfBand` is an
+   * answer from Telegram, the only place a security alert stops insisting.
+   */
+  async respond(id: string, action: NotificationAction, opts: { outOfBand?: boolean } = {}): Promise<NotificationActionResult> {
+    const n = this.notifications.get(id);
+    if (!n) throw new NotFoundError("This alert no longer exists.");
+    const outOfBand = !!opts.outOfBand;
+    const locked = confirmedOnlyOutOfBand(n) && !outOfBand;
+    if (action === "mute") {
+      if (n.escalation !== "active") return "already";
+      if (locked) throw new ValidationError("Security alerts stop insisting only from Telegram.");
+      this.notifications.setEscalation(n.id, "muted", n.attempts, null);
+      return "muted";
+    }
+    // A security alert read in the app is still waiting for Telegram: the answer there confirms it.
+    const pending = n.escalation === "active" && outOfBand;
+    if (n.read_at !== null && !pending) return "already";
+    this.notifications.markRead(n.id);
+    if (outOfBand) this.notifications.acknowledge(n.id, { outOfBand });
+    if (action === "done") return "done";
+    const automations = this.deps.automations;
+    if (!automations) return "done";
+    // The reminder is sent as a reminder: it carries the text only if the alert's own category may.
+    const showText = n.category === "reminder" || this.preferences().fullText.includes(n.category);
+    await automations.create({
+      name: clip(n.title, 120),
+      kind: "reminder",
+      message: showText ? n.body : "Snoozed alert. Its full text is in the notification center.",
+      schedule: { type: "once", at: toLocalMinute(new Date(Date.now() + SNOOZE_MINUTES * MINUTE_MS + 59_000), this.settings.get().timezone) },
+      enabled: true,
+      // A snoozed insistent alert insists again when it comes back.
+      priority: isInsistent(n.priority) ? "high" : "normal",
     });
+    return "snoozed";
+  }
+
+  /** The owner wrote to the bot: every alert still insisting counts as seen, security ones too. */
+  acknowledgeAll(): boolean {
+    return this.notifications.acknowledge(undefined, { outOfBand: true });
+  }
+
+  /** Deleting a security alert that is still insisting would silence it; it waits for Telegram. */
+  delete(id: string): void {
+    const n = this.notifications.get(id);
+    if (n && n.escalation === "active" && confirmedOnlyOutOfBand(n)) {
+      throw new AppError("CONFLICT", "This security alert is still waiting for your confirmation on Telegram.");
+    }
+    this.notifications.delete(id);
   }
 
   private overLimit(channel: AlertChannel, prefs: AlertPreferences): boolean {
@@ -162,8 +319,14 @@ export class AlertService {
     return next;
   }
 
+  /** The owner corrects how loud an alert is; lowering it below high stops its insistence. */
   setPriority(id: string, priority: AlertPriority): Notification | null {
-    return this.notifications.setPriority(id, priority);
+    const n = this.notifications.setPriority(id, priority);
+    if (n?.escalation === "active" && !isInsistent(priority) && !confirmedOnlyOutOfBand(n)) {
+      this.notifications.setEscalation(n.id, null, n.attempts, null);
+      return this.notifications.get(n.id);
+    }
+    return n;
   }
 
   overview(): AlertsOverview {

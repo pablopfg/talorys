@@ -244,6 +244,13 @@ const PT_BR: Catalog = {
   "Marked as done.": "Marcado como feito.",
   "Done": "Feito",
   "Snooze 1 h": "Adiar 1 h",
+  "Mute this alert": "Silenciar este aviso",
+  "Muted. Talorys stops insisting on this alert.": "Silenciado. O Talorys para de insistir neste aviso.",
+  "Try {attempt} of {max}, not confirmed yet": "Tentativa {attempt} de {max}, ainda sem confirmação",
+  "Alert not confirmed after {max} tries: “{alert}”": "Aviso não confirmado depois de {max} tentativas: “{alert}”",
+  "{alert} ({attempt}/{max})": "{alert} ({attempt}/{max})",
+  "Security alerts stop insisting only from Telegram.": "Alertas de segurança só param de insistir pelo Telegram.",
+  "This security alert is still waiting for your confirmation on Telegram.": "Este alerta de segurança ainda espera a sua confirmação no Telegram.",
   "Open Talorys": "Abrir o Talorys",
   "Open Talorys to read it.": "Abra o Talorys para ler.",
   "Reminders": "Lembretes",
@@ -376,7 +383,7 @@ const PT_BR: Catalog = {
 const CATALOGS: Partial<Record<Language, Catalog>> = { "pt-BR": PT_BR };
 
 /** Placeholders whose value is itself server text (a topic, a priority), translated too. */
-const NESTED = new Set(["topic", "priority"]);
+const NESTED = new Set(["topic", "priority", "alert"]);
 
 interface Pattern {
   regex: RegExp;

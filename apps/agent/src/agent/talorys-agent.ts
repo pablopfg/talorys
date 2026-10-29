@@ -27,6 +27,12 @@ interface AutomationPayload {
   automationId: string;
 }
 
+interface AlertPayload {
+  notificationId: string;
+  /** The try the alarm is for; the alert's own state decides what happens. */
+  step?: number;
+}
+
 const api = createApi();
 
 /**
@@ -53,6 +59,10 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           await this.cancelSchedule(id);
         },
         exists: async (id) => (await this.getScheduleById(id)) !== undefined,
+        // One alarm per alert and step: a reconcile after a restart never adds a second one.
+        scheduleAlert: async (at, notificationId, step) => {
+          await this.schedule<AlertPayload>(at, "escalateAlert", { notificationId, step }, { idempotent: true });
+        },
       };
       this._services = createServices(
         this.ctx.storage,
@@ -86,6 +96,11 @@ export class TalorysAgent extends Agent<Env, AgentState> {
       if (repaired > 0) services.activity.record("automation.reconciled", `Recovered ${repaired} schedule(s) after restart`);
     } catch (error) {
       console.error("Schedule reconciliation failed", error);
+    }
+    try {
+      services.alerts.reconcile();
+    } catch (error) {
+      console.error("Alert retry reconciliation failed", error);
     }
   }
 
@@ -168,6 +183,11 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     this.refreshUnread();
   }
 
+  /** Scheduled callback: the next try of an insistent alert (AlertService.escalate). */
+  async escalateAlert(payload: AlertPayload): Promise<void> {
+    this.services.alerts.escalate(payload.notificationId);
+  }
+
   /** "Run now" from the UI: executes immediately without touching the schedule. */
   async runAutomationNow(id: string) {
     const run = await this.services.automations.runNow(id, (a) => this.executeAutomation(a));
@@ -181,7 +201,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     switch (a.kind) {
       case "reminder": {
         // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.
-        s.alerts.raise({ title: "Reminder", body: defangLinks(a.message || a.name), automationId: a.id, category: "reminder" });
+        s.alerts.raise({ title: "Reminder", body: defangLinks(a.message || a.name), automationId: a.id, category: "reminder", priority: a.priority });
         return { status: "success", result: "Reminder delivered" };
       }
       case "task_digest": {
@@ -199,7 +219,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           `${open} open task(s) in total.`,
         ].filter(Boolean);
         if (a.message) parts.unshift(a.message);
-        s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest" });
+        s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest", priority: a.priority });
         return { status: "success", result: `${overdue.length} overdue, ${today.length} due today` };
       }
       case "agent_prompt": {
@@ -213,7 +233,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           throw error;
         }
         // The reply is model-written: links in it stay visible but can't be clicked.
-        s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine" });
+        s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine", priority: a.priority });
         return { status: "success", result: text };
       }
     }

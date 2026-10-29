@@ -34,8 +34,8 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 | --- | --- | --- | --- |
 | Baixa | Não, fica só no app | — | (reservada para vigias e resumos futuros) |
 | Normal | Sim, nos canais da categoria | Sim | Lembretes, resumos, rotinas, avisos de sistema |
-| Alta | Sim | Sim | (lembretes insistentes, numa próxima entrega) |
-| Crítica | Sim, **por todos os canais**, mesmo com a categoria desligada | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
+| Alta | Sim, e **insiste** até você confirmar (veja [Insistência](#insistência)) | Sim (as novas tentativas, não) | Lembretes e automações marcados como **Alta** (lembretes insistentes) |
+| Crítica | Sim, **por todos os canais**, mesmo com a categoria desligada, e **insiste** | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
 
 Você pode **mudar a prioridade de qualquer notificação** na própria central (o seletor
 embaixo de cada aviso). Essas correções são a base do aprendizado de prioridade, que
@@ -77,6 +77,67 @@ alguém que entre na sua sessão não consegue calar os avisos sobre o que fizer
 4. **Sem horário silencioso.** Por decisão do dono, tudo sai na hora; o volume é
    controlado pela prioridade e pelos limites.
 
+## Insistência
+
+Um aviso de prioridade **Alta** ou **Crítica** que você não confirmou é enviado de novo,
+numa escada de 3 tentativas contadas a partir do primeiro envio:
+
+| Tentativa | Quando | Por onde |
+| --- | --- | --- |
+| 1 | Na hora | Os canais da categoria (todos, se for crítico) |
+| 2 | 15 minutos depois | Os mesmos canais, com som. No push o título ganha "(2/3)"; no Telegram, o rodapé diz "Tentativa 2 de 3, ainda sem confirmação" |
+| 3 | 1 hora depois | Os mesmos canais, mas no Telegram vai para o **chat privado** com o bot em vez do grupo; "(3/3)" |
+| — | 1 h 15 min depois | Se ainda ninguém confirmou, o aviso fica marcado como **Não confirmado** na central e no registro de atividade |
+
+**O que confirma** (qualquer um encerra a escada, menos nos alertas de segurança, veja abaixo):
+
+- tocar em **Feito** ou **Adiar 1 h** no Telegram ou na notificação push;
+- tocar em **Silenciar este aviso** (para de insistir, mas o aviso continua não lido no
+  app) no Telegram, no push ou no botão **Silenciar** da central;
+- abrir o aviso no app (marcar como lido, ou **Marcar todas como lidas**);
+- escrever qualquer coisa no chat privado do bot (vale para todos os avisos insistindo);
+- baixar a prioridade do aviso para Normal ou Baixa na central, ou apagá-lo.
+
+**Alertas de segurança só param pelo Telegram.** Login novo, verificação em duas etapas
+ligada ou desligada, muitas tentativas de login e código de recuperação usado são
+alertas críticos e também insistem. Para eles, nada feito **dentro do app** encerra a
+escada: abrir, marcar como lido, baixar a prioridade, silenciar e apagar não param as
+tentativas (silenciar e apagar são recusados enquanto ele insiste). Só **Feito**,
+**Adiar** ou **Silenciar** no Telegram, ou uma mensagem sua no chat privado do bot,
+confirmam. Assim, alguém que entrou na sua sessão não consegue calar o aviso sobre o que
+acabou de fazer. As notificações push desses alertas ficam na tela, mas sem botões. Sem o
+Telegram configurado, eles insistem pelo push nas 3 tentativas e depois ficam como **Não
+confirmado**. Isso vale também para as suas próprias ações: depois de ligar a verificação
+em duas etapas, por exemplo, confirme o aviso no Telegram para ele parar.
+
+**Detalhes:**
+
+- Só insiste um aviso que saiu do app: com a categoria desligada em todos os canais, ou
+  sem nenhum aparelho e chat disponíveis, não há por onde insistir.
+- No máximo **20 avisos insistem ao mesmo tempo** (os de segurança não entram na conta).
+  Passou disso, o aviso novo sai uma vez só, como os outros.
+- As novas tentativas **não são seguradas** pelos limites por canal (você pediu para ser
+  lembrado até confirmar), mas aparecem nas "Entregas recentes" com "(2/3)" e "(3/3)".
+- **Adiar 1 h** de um aviso insistente cria um lembrete único também insistente: ele volta
+  daqui a uma hora e começa a escada de novo.
+- Cada tentativa é um alarme do Durable Object. Se o Worker reiniciar e um alarme se
+  perder, o Talorys retoma na próxima vez que acordar, um passo de cada vez (nunca dispara
+  várias tentativas de uma vez).
+- No push, os botões aparecem nos navegadores que mostram ações em notificações. O
+  Chrome e o Edge mostram 2 (**Feito** e **Adiar 1 h**; **Silenciar** fica no Telegram e
+  na central); o Safari e o iPhone não mostram botões, então lá o toque abre o app. O aviso insistente fica na tela
+  até você agir. Se a sessão no navegador tiver expirado, o botão abre o app para você
+  confirmar lá.
+
+**Como criar um lembrete insistente:**
+
+- No app: **Automações → Novo**, escolha **Prioridade do aviso: Alta**. A lista mostra o
+  selo **Insistente**. Vale também para resumos e rotinas.
+- No chat (app ou Telegram): peça "me lembre às 15h de tomar o remédio **até eu
+  confirmar**". O agente só cria um lembrete insistente quando você pede, e só lembretes
+  únicos; um lembrete recorrente insistente é criado no app.
+- A prioridade **Crítica** fica reservada para os alertas de segurança.
+
 ## Telegram
 
 O bot do Telegram é o canal principal fora do app. Ele **envia** avisos, entende os
@@ -94,8 +155,9 @@ Mandar áudio chega na próxima entrega.
   lembrete no grupo, ligue **Texto completo** em **Lembretes**.
 - **Som.** Avisos de prioridade baixa e normal chegam em silêncio; alta e crítica tocam.
 - **Botões.** Todo aviso tem **Abrir o Talorys**. Avisos de prioridade alta e crítica
-  também têm **Feito** (marca como lido no app) e **Adiar 1 h** (cria um lembrete único
-  para daqui a uma hora, com o mesmo título e texto, e marca o aviso como lido). Depois de
+  também têm **Feito** (marca como lido no app), **Adiar 1 h** (cria um lembrete único
+  para daqui a uma hora, com o mesmo título e texto, e marca o aviso como lido) e
+  **Silenciar este aviso** (para a [insistência](#insistência) sem marcar como lido). Depois de
   tocar, os botões somem da mensagem; um segundo toque responde "Este aviso já foi
   tratado." O lembrete do **Adiar** só leva o texto do aviso quando a categoria original
   pode mostrar o texto completo no Telegram (ou é um lembrete); senão ele diz que o texto
@@ -279,7 +341,10 @@ Nada a instalar no banco: a migração 19 roda sozinha na primeira requisição 
 deploy. Ela acrescenta prioridade, categoria e chave de repetição às notificações (as
 antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Quem já tinha
 salvo as preferências antes do Telegram existir ganha o Telegram ligado em toda categoria
-que já saía do app; as que estavam só no app continuam só no app.
+que já saía do app; as que estavam só no app continuam só no app. A migração 20 acrescenta às
+notificações o estado da insistência (`escalation`, `attempts`, `next_attempt_at`) e às
+automações a prioridade (`priority`); as automações existentes ficam como Normal, então
+nada passa a insistir sozinho.
 
 Para o Telegram, siga [Configurar o Telegram](#configurar-o-telegram). Para o push,
 depois do deploy:
@@ -301,7 +366,9 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | `GET /api/alerts` | — | `{ preferences, deliveries, channels }` |
 | `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...] }` (todas as categorias, até 8 KB; `fullText` opcional, padrão vazio) | `{ preferences }`; 400 se inválido |
 | `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }`; 404 se não existir |
-| `GET /api/notifications` | — | Agora cada notificação traz `priority` e `category` |
+| `GET /api/notifications` | — | Cada notificação traz `priority`, `category`, `escalation` (`null`, `"active"`, `"acknowledged"`, `"muted"` ou `"unacknowledged"`), `attempts` e `next_attempt_at` |
+| `POST /api/notifications/:id/action` | `{ action: "done" \| "snooze" \| "mute" }` | `{ result: "done" \| "snoozed" \| "muted" \| "already", notification, unread }`; 404 se não existir. Usada pelos botões do push |
+| `POST/PATCH /api/automations` | Campo novo `priority: "low" \| "normal" \| "high"` (padrão `"normal"`) | `"critical"` é recusado (400) |
 | `GET /api/telegram` | — | `{ status: { configured, bot, chat, group, topics, linked_at, conversation, conversation_id } }` |
 | `POST /api/telegram/connect` | — | Registra o webhook e devolve `{ code, expires_at, chat_link, group_link, status }`; pede a senha recente; 503 sem token ou com o Telegram fora do ar |
 | `POST /api/telegram/test` | — | `{ sent, status }`; 503 sem chat vinculado |
@@ -318,12 +385,18 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   enviar (`unavailable()`) e envia em segundo plano, informando quantos destinos alcançou.
   Um canal que falha ou lança erro nunca impede os outros nem o trabalho que gerou o aviso.
 - Os tipos compartilhados (prioridades, categorias, canais, preferências, estado do
-  Telegram) ficam em `packages/shared/src/alerts.ts`.
+  Telegram, `ESCALATION`, ações) ficam em `packages/shared/src/alerts.ts`.
+- A insistência: `AlertService.raise()` marca o aviso como `active` e agenda o alarme
+  (`TalorysAgent.escalateAlert`); `AlertService.escalate()` envia a próxima tentativa ou
+  marca `unacknowledged`, e não faz nada se o aviso já foi lido, silenciado, apagado ou
+  rebaixado. `AlertService.respond()` trata Feito, Adiar e Silenciar para o Telegram, o
+  push (`apps/web/public/sw.js`) e a central. `reconcile()` roda no `onStart`.
 - O bot fica em `apps/agent/src/telegram/`: `client.ts` (chamadas à Bot API, sem seguir
   redirecionamentos, com tempo limite de 10 s; o erro nunca leva o token), `service.ts`
   (vinculação, envio, tópicos, botões, conversa), `format.ts` (Markdown para o HTML do
   Telegram e divisão de respostas longas) e `routes.ts` (webhook e rotas do dono). O estado
   fica nas configurações, chaves `telegram.link` e `telegram.code`.
 - Testes: `apps/agent/test/alerts.test.ts` (regras, preferências, API),
+  `apps/agent/test/escalation.test.ts` (escada, confirmação, respostas, push com botões),
   `apps/agent/test/telegram.test.ts` (Bot API falsa: vinculação, envio, tópicos, botões,
   webhook, Access) e `tests/e2e/alerts.spec.ts` (tela).
