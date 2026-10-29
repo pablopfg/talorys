@@ -153,8 +153,19 @@ describe("requirements", () => {
     const wranglerPkg = JSON.parse(readFileSync(join(__dirname, "../../../node_modules/wrangler/package.json"), "utf8"));
     const [major = 0, minor = 0] = String(wranglerPkg.engines.node).replace(/^>=\s*/, "").split(".").map(Number);
     expect(MIN_NODE[0] > major || (MIN_NODE[0] === major && MIN_NODE[1] >= minor)).toBe(true);
-    expect(() => checkNodeVersion("20.18.0")).toThrow(CliError);
-    expect(() => checkNodeVersion("22.0.0")).not.toThrow();
+    expect(() => checkNodeVersion("22.23.4")).toThrow(CliError);
+    expect(() => checkNodeVersion("24.0.0")).not.toThrow();
+    expect(() => checkNodeVersion("26.13.0")).not.toThrow();
+  });
+
+  it("keeps engines, the CLI check and .nvmrc on the same Node.js line", () => {
+    const root = join(__dirname, "../../..");
+    for (const pkg of ["package.json", "packages/create-talorys/package.json"]) {
+      expect(JSON.parse(readFileSync(join(root, pkg), "utf8")).engines.node).toBe(`>=${MIN_NODE[0]}`);
+    }
+    const nvmrc = Number(readFileSync(join(root, ".nvmrc"), "utf8").trim());
+    expect(nvmrc).toBeGreaterThanOrEqual(MIN_NODE[0]);
+    expect(nvmrc % 2).toBe(0);
   });
 });
 

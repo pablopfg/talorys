@@ -1,14 +1,16 @@
-import { MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
+import { type Language, localizeServerText, MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
 import { clip } from "../services/text";
 import { encryptPayload } from "./ece";
 import { fromB64url } from "./encoding";
 import type { PushSubscriptionRepository, PushSubscriptionRow } from "./repository";
 import { importVapidKeys, type VapidKeys, vapidAuthorization } from "./vapid";
+import { allowedHosts } from "../hosts";
 
 export interface PushEnv {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  TALORYS_ALLOWED_HOSTS?: string;
 }
 
 export interface PushMessage {
@@ -47,13 +49,37 @@ export class PushService {
     readonly subscriptions: PushSubscriptionRepository,
     private readonly env: PushEnv,
     private readonly background: (work: Promise<unknown>) => void,
+    /** The owner's language: notifications are written in English and translated when sent. */
+    private readonly language: () => Language = () => "en",
   ) {}
 
   configured(): boolean {
     return !!this.env.VAPID_PUBLIC_KEY && !!this.env.VAPID_PRIVATE_KEY;
   }
 
+  /**
+   * After a move to a new domain (DOM-02), devices subscribed on the old address would get
+   * notifications whose click opens an address that no longer answers. They are dropped when the
+   * owner opens the push settings on an allowed address, so the app there shows push as off and
+   * they turn it on again. Never from a scheduled send: a mistyped setting must not silently
+   * delete every device before anyone has reached the app.
+   */
+  private dropMovedDevices(): void {
+    const hosts = allowedHosts(this.env);
+    if (!hosts) return;
+    for (const sub of this.subscriptions.all()) {
+      let host = "";
+      try {
+        host = new URL(sub.origin).hostname.toLowerCase();
+      } catch {
+        // An unreadable origin can't be one of ours.
+      }
+      if (!hosts.has(host)) this.subscriptions.remove(sub.id);
+    }
+  }
+
   status(): PushStatus {
+    this.dropMovedDevices();
     const available = this.configured();
     return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES };
   }
@@ -66,7 +92,9 @@ export class PushService {
   /** Called for every new notification. Returns at once; delivery continues in the background. */
   notify(n: Notification): void {
     if (!this.configured() || this.subscriptions.all().length === 0) return;
-    const work: Promise<void> = this.sendToAll(toPushMessage(n))
+    const language = this.language();
+    const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
+    const work: Promise<void> = this.sendToAll(toPushMessage(localized))
       .then(() => undefined)
       .catch((error) => console.warn("Push delivery failed", error instanceof Error ? error.message : String(error)))
       .finally(() => this.pending.delete(work));

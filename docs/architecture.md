@@ -198,3 +198,8 @@ No KV/D1/R2/Vectorize/Workflows. One Durable Object holds everything. Static
 assets are served without invoking Functions (Pages routes only `/api/*` to the
 function). Reminders and digests are deterministic. Chat context is bounded and
 summarized only after enough history overflows.
+
+Chat voice input is one Whisper call per recorded clip (`POST /api/transcribe`),
+billed by audio minute (about 46.6 Neurons a minute). Clips are capped at 60 s
+and audio at 60 minutes a day (`TRANSCRIPTION_LIMITS`), apart from the daily AI
+request budget, and recorded in the usage ledger like any other model call.

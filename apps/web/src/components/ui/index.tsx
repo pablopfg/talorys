@@ -6,6 +6,7 @@ import {
   type TextareaHTMLAttributes,
   forwardRef,
   useEffect,
+  useId,
   useRef,
 } from "react";
 import { Loader2, X } from "lucide-react";
@@ -165,6 +166,7 @@ export function Dialog({
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -174,6 +176,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       // Only user-initiated closes; the effect's own el.close() (open → false) must not re-trigger onClose.
       onClose={() => {
         if (open) onClose();
@@ -193,7 +196,9 @@ export function Dialog({
       {open && (
         <div className="animate-slide-up">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h2 className="text-base font-semibold">{title}</h2>
+            <h2 id={titleId} className="text-base font-semibold">
+              {title}
+            </h2>
             <button type="button" onClick={onClose} className="rounded-md p-1 text-fg-subtle hover:bg-muted hover:text-fg" aria-label={t("common.close")}>
               <X className="h-4 w-4" />
             </button>

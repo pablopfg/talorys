@@ -25,9 +25,9 @@ describe("installer: fresh installation", () => {
     const worker = state.workers.acc1![manifest.worker_name]!;
     expect(worker.workers_dev).toBe(false);
     expect(worker.migrations).toEqual([{ tag: "v1", new_sqlite_classes: ["TalorysAgent"] }]);
-    expect(Object.keys(worker.secrets).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
+    expect(Object.keys(worker.secrets).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "PASSWORD_PEPPER", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
     expect(worker.secrets.VAPID_PUBLIC_KEY!.length).toBe(87);
-    expect(worker.secrets.OWNER_PASSWORD_HASH!.prefix).toBe("pbkdf2-sha256$");
+    expect(worker.secrets.OWNER_PASSWORD_HASH!.prefix).toBe("pbkdf2-sha256-");
     expect(worker.secrets.SESSION_SECRET!.length).toBeGreaterThanOrEqual(43);
     // URL comes from Cloudflare (note the suffix the fake account assigned), not from the project name.
     expect(manifest.public_url).toBe(`https://${manifest.pages_project_name}-x7.pages.dev`);
@@ -45,6 +45,36 @@ describe("installer: fresh installation", () => {
     expect(pagesCfg).toContain(`"service": "${manifest.worker_name}"`);
     expect(pagesCfg).toContain(`"binding": "AGENT"`);
     expect(ui.log.some((l) => l.includes("Talorys is ready"))).toBe(true);
+  });
+
+  it("serves on the owner's domain and closes pages.dev when --domain is given (DOM-01)", async () => {
+    const sb = makeSandbox();
+    const site = fakeSite();
+    const ui = new ScriptedUi(freshAnswers());
+    const manifest = await install({ dir: sb.dir, domain: "Talorys.Example.com.", ...FAST }, { ui, wrangler: sb.wrangler(), fetch: site, templates: sb.templates });
+    expect(manifest.public_url).toBe("https://talorys.example.com");
+    expect(manifest.custom_domain).toBe("talorys.example.com");
+    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBe("talorys.example.com");
+    expect(site.calls.every((u) => u.startsWith("https://talorys.example.com/"))).toBe(true);
+    expect(ui.log.some((l) => l.includes("Custom domains"))).toBe(true);
+
+    // An update keeps the domain; "none" goes back to pages.dev and reopens it.
+    const kept = await install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    expect(kept.public_url).toBe("https://talorys.example.com");
+    const back = await install({ dir: sb.dir, mode: "update", yes: true, domain: "none", ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    expect(back.public_url).toMatch(/\.pages\.dev$/);
+    expect(back.custom_domain).toBeNull();
+    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBeUndefined();
+  });
+
+  it("refuses a domain with a scheme, path or port before touching Cloudflare", async () => {
+    for (const domain of ["https://a.example.com", "a.example.com/x", "a.example.com:8443", "*.example.com", "localhost"]) {
+      const sb = makeSandbox();
+      await expect(
+        install({ dir: sb.dir, yes: true, password: STRONG_PASSWORD, domain, ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
+      ).rejects.toThrow(/not a valid domain/);
+      expect(sb.state().calls.some((c) => c.key === "deploy")).toBe(false);
+    }
   });
 
   it("never writes secrets or the password to disk", async () => {
@@ -152,7 +182,7 @@ describe("installer: idempotency and recovery", () => {
     const ui = new ScriptedUi([STRONG_PASSWORD, STRONG_PASSWORD, true]);
     const m = await install({ dir: sb.dir, ...FAST }, { ui, wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
     expect(m.status).toBe("deployed");
-    expect(Object.keys(sb.state().workers.acc1![m.worker_name]!.secrets)).toHaveLength(5);
+    expect(Object.keys(sb.state().workers.acc1![m.worker_name]!.secrets)).toHaveLength(6);
   });
 
   it("waits for propagation and succeeds once the site responds", async () => {
@@ -171,6 +201,18 @@ describe("installer: idempotency and recovery", () => {
     expect((error as CliError).details).toMatch(/Owner secrets are not configured/);
     expect(ui.log.some((l) => l.includes("is ready"))).toBe(false);
     expect(readManifest(sb.dir)?.status).toBe("failed");
+  });
+
+  it("checks health from a signed-out answer that has only ok", async () => {
+    const sb = makeSandbox();
+    const ok = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite({ minimalHealth: true }), templates: sb.templates });
+    expect(ok).toBeTruthy();
+    const sb2 = makeSandbox();
+    const error = await install(
+      { dir: sb2.dir, ...FAST },
+      { ui: new ScriptedUi(freshAnswers()), wrangler: sb2.wrangler(), fetch: fakeSite({ healthy: false, minimalHealth: true }), templates: sb2.templates },
+    ).catch((e) => e);
+    expect((error as CliError).details).toMatch(/not ready yet \(HTTP 503\)/);
   });
 
   it("explains missing permissions", async () => {
@@ -224,7 +266,7 @@ describe("installer: upgrades and password reset", () => {
     const after = sb.state().workers.acc1![first.worker_name]!.secrets;
     expect(after.OWNER_PASSWORD_HASH).toEqual(before.OWNER_PASSWORD_HASH);
     expect(after.SESSION_SECRET).toEqual(before.SESSION_SECRET);
-    expect(Object.keys(after).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
+    expect(Object.keys(after).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "PASSWORD_PEPPER", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
     expect(ui.prompts).toEqual([]);
   });
 
@@ -253,6 +295,21 @@ describe("installer: upgrades and password reset", () => {
     ).rejects.toThrow(/No Talorys installation/);
   });
 
+  it("refuses a manifest that points at resources Talorys did not create", async () => {
+    const sb = makeSandbox();
+    const m = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    const writes = () => sb.state().calls.filter((c) => /deploy|secret|create/.test(c.key)).length;
+    const deploys = writes();
+    for (const edit of [{ worker_name: "billing-api" }, { pages_project_name: "--help" }, { installation_id: "../x" }]) {
+      writeFileSync(join(sb.dir, "talorys.json"), JSON.stringify({ ...m, ...edit }));
+      await expect(
+        install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([]), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
+      ).rejects.toThrow(/did not create/);
+      await expect(resetPassword({ dir: sb.dir }, { ui: new ScriptedUi([]), wrangler: sb.wrangler(), templates: sb.templates })).rejects.toThrow(/did not create/);
+    }
+    expect(writes()).toBe(deploys);
+  });
+
   it("reset-password replaces only the password hash", async () => {
     const sb = makeSandbox();
     const m = await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
@@ -269,8 +326,10 @@ describe("password hashing interop", () => {
   it("hashes produced by the CLI verify with the Worker's verifier", async () => {
     const { buildOwnerSecrets } = await import("../src/secrets");
     const secrets = await buildOwnerSecrets(STRONG_PASSWORD, { includeSessionSecret: true });
-    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!)).toBe(true);
-    expect(await verifyPassword("wrong-password-123", secrets.OWNER_PASSWORD_HASH!)).toBe(false);
+    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!, secrets.PASSWORD_PEPPER)).toBe(true);
+    expect(await verifyPassword("wrong-password-123", secrets.OWNER_PASSWORD_HASH!, secrets.PASSWORD_PEPPER)).toBe(false);
+    // The hash is useless without the pepper, which is a separate secret.
+    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!)).toBe(false);
   });
 });
 

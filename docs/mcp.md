@@ -13,7 +13,10 @@ no extra requests. Adding or removing a server never needs a redeploy.
 - **Transport:** Streamable HTTP only, over `https://`. The older HTTP+SSE
   transport, stdio and local MCP servers are not supported.
 - **Authentication:** none, a bearer token, or [OAuth sign-in](#oauth-sign-in).
-- **Chat only:** MCP tools are never offered to scheduled AI routines.
+- **Scheduled AI routines:** off by default. A tool set to **Run without
+  asking** can also be allowed in scheduled automations with its **Also use in
+  scheduled automations** switch. Tools that ask first are never used there,
+  since nobody is present to approve the call.
 - **Tools only:** MCP prompts, resources and sampling are not used.
 
 ## Connecting a server
@@ -85,9 +88,11 @@ conversation.
 - **Limits.** Every MCP call goes through the same pipeline as built-in tools:
   input validation, the per-turn call budget, at most 3 calls per tool per turn,
   and duplicate-call detection. Connections time out after 10 s, tool calls
-  after 30 s, and responses over 2 MB are refused. The model sees at most 8,000
-  characters of a result. Tools with oversized, overly nested or unsupported
-  input schemas are listed but can't be turned on.
+  after 30 s, responses over 2 MB are refused, and no response may stay open
+  longer than 35 s. The model sees at most 8,000 characters of a result. Tools
+  with oversized, overly nested or unsupported input schemas are listed but
+  can't be turned on. Regular expressions in a schema (`pattern`,
+  `patternProperties`) are not run by Talorys; the server validates them.
 - **No background traffic.** Sessions are opened on demand and kept in memory
   for up to two minutes. There is no polling, no long-lived event stream and no
   automatic reconnect loop.

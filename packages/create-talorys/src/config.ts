@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DEFAULT_TIMEZONE } from "@talorys/shared/constants";
 
 /** Compatibility date for generated Worker and Pages configs. */
 export const COMPATIBILITY_DATE = "2026-10-01";
@@ -20,6 +21,17 @@ export interface ResourceNames {
 }
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+/** A plain hostname with at least two labels: no scheme, port, path or wildcard. */
+const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
+
+/** The custom domain in canonical form, or null for none. Throws on anything but a bare hostname. */
+export function normalizeDomain(value: string | undefined | null): string | null {
+  const domain = (value ?? "").trim().toLowerCase().replace(/\.$/, "");
+  if (!domain) return null;
+  if (!HOSTNAME.test(domain)) throw new Error(`Not a valid domain: ${value}`);
+  return domain;
+}
 
 /** Collision-resistant, DNS-safe installation id (8 chars ≈ 41 bits). */
 export function generateInstallationId(bytes = randomBytes(8)): string {
@@ -47,6 +59,8 @@ export interface AgentConfigInput {
   main?: string;
   /** Emits TALORYS_SEMANTIC_DEFAULT "on" so the agent seeds semantic recall once on first boot. */
   semanticDefault?: boolean;
+  /** The owner's own domain: the API then answers only there, not on *.pages.dev (DOM-01, AUTH-03). */
+  domain?: string | null;
 }
 
 /** wrangler.jsonc for the private agent Worker. */
@@ -70,6 +84,7 @@ export function generateAgentConfig(input: AgentConfigInput): Record<string, unk
       TALORYS_AGENT_NAME: input.agentName,
       // Only a Yes adds a var, so a No install's config matches upstream exactly.
       ...(input.semanticDefault ? { TALORYS_SEMANTIC_DEFAULT: "on" } : {}),
+      ...(input.domain ? { TALORYS_ALLOWED_HOSTS: input.domain } : {}),
     },
     observability: { enabled: true },
   };
@@ -93,8 +108,8 @@ export function toJsonc(config: Record<string, unknown>): string {
 
 export function detectTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
   } catch {
-    return "UTC";
+    return DEFAULT_TIMEZONE;
   }
 }

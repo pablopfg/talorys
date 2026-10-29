@@ -37,8 +37,8 @@ export function relativeTime(iso: string | null | undefined, { locale, t }: Pick
 
 /** Formats an instant in the owner's timezone. */
 export function formatDateTime(iso: string | null | undefined, timeZone: string, locale: string, opts: { dateOnly?: boolean } = {}): string {
-  if (!iso) return "";
-  const d = new Date(iso);
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat(locale, {
     timeZone,
     month: "short",
@@ -50,7 +50,7 @@ export function formatDateTime(iso: string | null | undefined, timeZone: string,
 
 /** Due dates stored as 23:59 local mean "by end of day" and are shown without a time. */
 export function formatDue(iso: string | null, timeZone: string, locale: string): string {
-  if (!iso) return "";
+  if (!iso || Number.isNaN(Date.parse(iso))) return "";
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
   return formatDateTime(iso, timeZone, locale, { dateOnly: parts === "23:59" });
 }
@@ -76,4 +76,11 @@ export function toLocalInput(iso: string | null | undefined, timeZone: string): 
 
 export function copyText(text: string): Promise<void> {
   return navigator.clipboard.writeText(text);
+}
+
+/** "Chrome on macOS" from a user agent, for the session and sign-in lists. */
+export function describeAgent(ua: string, t: I18n["t"]): string {
+  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : t("settings.browser");
+  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  return os ? t("settings.browserOn", { browser, os }) : browser;
 }

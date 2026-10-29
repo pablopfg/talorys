@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
 
 async function login(page: Page) {
   await page.goto("/");
@@ -263,21 +263,26 @@ test.describe("Talorys owner experience", () => {
     await page.getByRole("tab", { name: "Security" }).click();
     await expect(page.getByText("This device", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Privacy" }).click();
-    await expect(page.getByRole("link", { name: "Download backup" })).toHaveAttribute("href", "/api/export");
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download backup" }).click();
+    expect((await download).suggestedFilename()).toBe("talorys-backup.json");
   });
 
   test("the language setting is saved with the account and sets <html lang>", async ({ page }) => {
     await login(page);
     await page.getByRole("link", { name: "Settings" }).first().click();
     const language = page.getByRole("combobox", { name: "Language" });
-    await expect(language).toHaveValue("system");
+    await expect(language).toHaveValue("en");
     await expect(language.getByRole("option", { name: "Browser default (English)" })).toHaveCount(1);
-    await language.selectOption("en");
-    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await language.selectOption("pt-BR");
+    await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
     await page.reload();
-    await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
-    await page.getByRole("combobox", { name: "Language" }).selectOption("system");
+    await expect(page.getByRole("combobox", { name: "Idioma" })).toHaveValue("pt-BR");
+    await expect(page.getByRole("link", { name: "Configurações" }).first()).toBeVisible();
+    await page.getByRole("combobox", { name: "Idioma" }).selectOption("system");
     await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("system");
+    await page.getByRole("combobox", { name: "Language" }).selectOption("en");
+    await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
   });
 
   test("lock signs out", async ({ page }) => {

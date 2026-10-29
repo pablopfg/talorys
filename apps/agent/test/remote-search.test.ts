@@ -141,4 +141,17 @@ describe("remote semantic search", () => {
     const keyword = (await w.json("/api/semantic/search?q=plants&types=memory,task")) as { hits: Hit[] };
     expect(keyword.hits.find((h) => h.id === taskId)).toMatchObject({ type: "task", cosine: null, match: "keyword" });
   });
+
+  it("an access token can spend only half of the day's embedding cap; the owner keeps the rest", async () => {
+    await seed(bearer(await mint("write")));
+    const spent = (await usage()).memory;
+    await enableQuietly({ maxEmbeddingsPerDay: spent + 4 });
+    const r = bearer(await mint("read"));
+    for (let i = 0; i < 10; i++) expect((await r.call(`/api/semantic/search?q=${encodeURIComponent(`plants ${i}`)}`)).status).toBe(200);
+    const afterToken = (await usage()).memory;
+    expect(afterToken).toBeLessThanOrEqual(Math.max(spent, Math.floor((spent + 4) / 2)));
+    const cookie = await loggedIn();
+    expect((await cookie.call("/api/semantic/search?q=owner%20query")).status).toBe(200);
+    expect((await usage()).memory).toBe(afterToken + 1);
+  });
 });

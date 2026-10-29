@@ -2,6 +2,8 @@ import type { TalorysAgent } from "./agent/talorys-agent";
 
 export interface Env {
   AI?: Ai;
+  /** The built web UI, in the one-Worker deploy only (wrangler.standalone.jsonc). */
+  ASSETS?: Fetcher;
   TalorysAgent: DurableObjectNamespace<TalorysAgent>;
   /** PBKDF2 hash of the owner password, set by the installer as a Worker secret. */
   OWNER_PASSWORD_HASH?: string;
@@ -9,6 +11,12 @@ export interface Env {
   OWNER_PASSWORD?: string;
   /** Random 256-bit secret used to key session token hashes. Worker secret. */
   SESSION_SECRET?: string;
+  /** Random secret (32+ characters) mixed into password hashes, so a leaked hash can't be guessed offline without it. Worker secret. */
+  PASSWORD_PEPPER?: string;
+  /** The owner's e-mail address. When set, signing in asks for it too. Worker secret, never in the repository. */
+  OWNER_EMAIL?: string;
+  /** "off": don't check new passwords against Have I Been Pwned (only 5 characters of a hash are ever sent). Development only. */
+  TALORYS_HIBP?: string;
   /**
    * Web Push (VAPID) key pair, base64url: the uncompressed public point and the private scalar.
    * Set by the installer as Worker secrets; without them push is unavailable and nothing else changes.
@@ -32,9 +40,16 @@ export interface Env {
   TALORYS_MOCK_AI?: string;
   /** Development only: extra allowed origins (comma separated), e.g. the Vite dev server. */
   TALORYS_DEV_ORIGINS?: string;
+  /** Comma-separated hostnames the API answers on; any other host gets 404. Unset: every host. */
+  TALORYS_ALLOWED_HOSTS?: string;
+  /** Cloudflare Access in front of the app: the team domain (team.cloudflareaccess.com) and the application's AUD tag. Both or neither. */
+  TALORYS_ACCESS_TEAM_DOMAIN?: string;
+  TALORYS_ACCESS_AUD?: string;
   /** Installer defaults: the owner's timezone and chosen agent name. */
   TALORYS_DEFAULT_TIMEZONE?: string;
   TALORYS_AGENT_NAME?: string;
+  /** Language of a new installation ("system", "en", "ko" or "pt-BR"); pt-BR when unset. */
+  TALORYS_DEFAULT_LANGUAGE?: string;
   /** Informational, written by the installer. */
   TALORYS_INSTALLATION_ID?: string;
   TALORYS_DEPLOYED_VERSION?: string;

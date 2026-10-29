@@ -10,7 +10,7 @@
     "packages/create-talorys"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "node scripts/dev-setup.mjs && node scripts/ensure-dist.mjs && concurrently -k -n agent,pages,web -c cyan,magenta,green \"npm:dev:agent\" \"npm:dev:pages\" \"npm:dev:web\"",
@@ -25,18 +25,26 @@
     "test:e2e": "playwright test",
     "test:pack": "npm run test:pack -w create-talorys",
     "test:smoke": "node tests/smoke/real-deploy.mjs",
+    "test:deploy": "node --test scripts/deploy/*.test.mjs",
+    "test:release": "node --test scripts/release.test.mjs",
+    "release:prepare": "node scripts/release.mjs prepare",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
-    "concurrently": "^10.0.6",
-    "vitest": "^4.1.11",
-    "typescript": "^6.0.3",
-    "@playwright/test": "^1.64.0"
+    "@biomejs/biome": "2.5.15",
+    "concurrently": "10.0.6",
+    "vitest": "4.1.12",
+    "typescript": "6.0.3",
+    "@playwright/test": "1.64.0"
   },
   "overrides": {
     "tsup": {
-      "esbuild": "^0.28.1"
+      "esbuild": "0.28.1"
     }
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "workerd": false,
+    "core-js-pure": false
   }
 }

@@ -71,9 +71,15 @@ Keys are grouped by where the text appears: `nav.*` for the app shell,
 such as Cancel, Delete and Close, live under `common.*`.
 
 Pass `locale` from `useI18n()` to `formatDateTime`, `relativeTime`,
-`toLocaleString` and other display formatters. With the default "Browser
-default" language it is the browser's locale, so nothing changes for owners who
-never pick a language.
+`toLocaleString` and other display formatters, so dates and numbers follow the
+chosen language.
+
+The default language is Brazilian Portuguese (`DEFAULT_LANGUAGE` in
+`packages/shared/src/constants.ts`). It applies to new installations, and to
+"Browser default" when the browser asks for a language Talorys doesn't have.
+A deployment can pick another default with the `TALORYS_DEFAULT_LANGUAGE`
+Worker variable (`en`, `ko`, `pt-BR` or `system`); the agent tests and the e2e
+server set it to `en`, and the e2e browser starts in English.
 
 To add a language:
 
@@ -84,10 +90,28 @@ To add a language:
 3. Register it in `translations` in `apps/web/src/lib/i18n/core.ts` and add its
    name, in that language, to `LANGUAGE_NAMES` in `apps/web/src/lib/i18n/index.tsx`.
 
-Text generated on the server stays in English for now: reminder, digest and
-push notifications, and API error messages. The agent's system prompt and tool
-descriptions are not translated; the model answers in the language the owner
-writes in.
+Text generated on the server (API errors, notifications, digests, tool and
+approval labels, automation errors) is written in English and stored that way.
+`packages/shared/src/server-text.ts` translates it from a catalog keyed by the
+English text, with `{name}` placeholders for the parts that vary. The web app
+shows it through `serverText(text)` from `useI18n()`, and Web Push translates
+title and body before sending, using the owner's language setting. Text the
+catalog doesn't know, such as what the model wrote, is shown as it is. The
+agent's system prompt and tool descriptions are not translated; the model
+answers in the language the owner writes in.
+
+CI keeps translations complete as the code changes:
+
+- `apps/web/test/i18n-coverage.test.ts` fails when an English key has no
+  `pt-BR` message, when a translation drops a placeholder, or when a component
+  writes UI text directly instead of using `t()`. A developer-only string can
+  opt out with an `// i18n-ignore` comment on the line above.
+- `apps/web/test/server-text-coverage.test.ts` fails when the agent throws an
+  error or sets a label, summary, reason, title or body whose text is not in
+  the server-text catalog.
+
+So a change that adds text adds it to `en.ts` and `pt-BR.ts` (or to the
+server-text catalog) in the same pull request.
 
 ### Adding a migration
 

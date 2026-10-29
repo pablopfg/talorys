@@ -1,15 +1,62 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
-import { Bell, Brain, CalendarClock, CheckSquare, LogOut, type LucideIcon, MessageSquare, NotebookPen, Settings } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { Bell, Brain, CalendarClock, CheckSquare, LogOut, type LucideIcon, MessageSquare, NotebookPen, Settings, ShieldAlert } from "lucide-react";
 import { Logo } from "./Logo";
 import { NotificationCenter } from "./NotificationCenter";
+import { SessionGuard } from "./SessionGuard";
 import { useKeyboardOpenFlag } from "../hooks/keyboard";
 import { useSession } from "../hooks/session";
-import { useNotifications, useSettings } from "../hooks/queries";
+import { useMfaStatus, useNotifications, useSettings } from "../hooks/queries";
 import { cn } from "../lib/utils";
 import { type MessageKey, useI18n } from "../lib/i18n";
 
 type NavKey = Extract<MessageKey, `nav.${string}`>;
+
+/** "Remind me later" hides the two-step sign-in reminder for this long, on this browser. */
+const MFA_REMINDER_SNOOZE_MS = 3 * 24 * 3600_000;
+const MFA_REMINDER_KEY = "talorys.mfaReminderSnoozedUntil";
+
+function snoozedUntil(): number {
+  try {
+    return Number(localStorage.getItem(MFA_REMINDER_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Keeps asking for two-step sign-in until it's on; it can be put off for a few days, never for good. */
+function MfaReminder() {
+  const { t } = useI18n();
+  const status = useMfaStatus();
+  const location = useLocation();
+  const [snoozed, setSnoozed] = useState(() => snoozedUntil() > Date.now());
+  if (!status.data || status.data.enabled || snoozed || location.pathname.startsWith("/settings")) return null;
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-warning/40 bg-warning/10 px-4 py-2 text-sm">
+      <ShieldAlert className="h-4 w-4 shrink-0 text-warning" />
+      <span className="min-w-0 flex-1">{t("mfa.banner")}</span>
+      <span className="flex gap-3">
+        <Link to="/settings?tab=Security" className="font-medium text-accent hover:underline">
+          {t("mfa.bannerAction")}
+        </Link>
+        <button
+          type="button"
+          className="text-fg-muted hover:text-fg"
+          onClick={() => {
+            try {
+              localStorage.setItem(MFA_REMINDER_KEY, String(Date.now() + MFA_REMINDER_SNOOZE_MS));
+            } catch {
+              // Private windows: it hides for this visit only.
+            }
+            setSnoozed(true);
+          }}
+        >
+          {t("mfa.bannerLater")}
+        </button>
+      </span>
+    </div>
+  );
+}
 
 const NAV: readonly { to: string; label: NavKey; mobileLabel?: NavKey; icon: LucideIcon }[] = [
   { to: "/chat", label: "nav.chat", icon: MessageSquare },
@@ -48,6 +95,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
+      <SessionGuard />
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-subtle md:flex">
         <div className="flex h-14 items-center justify-between px-4">
@@ -112,6 +160,7 @@ export function AppShell() {
           </div>
         </header>
 
+        <MfaReminder />
         <main className={cn("min-h-0 flex-1", isChat ? "overflow-hidden" : "overflow-y-auto pb-20 md:pb-0")}>
           <Outlet />
         </main>

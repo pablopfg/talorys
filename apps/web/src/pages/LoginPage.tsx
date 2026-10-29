@@ -1,21 +1,29 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { AtSign, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { Button } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 
-export function LoginPage({ configured }: { configured: boolean }) {
+export function LoginPage({ configured, ended, emailRequired = false }: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [pending, setPending] = useState(false);
+  // The second step: after a right password, when two-step sign-in is on.
+  const [codeStep, setCodeStep] = useState(false);
+  const [code, setCode] = useState("");
+  const [recovery, setRecovery] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
+  // Kept from the moment the lock screen appeared, so a later session refresh doesn't erase it.
+  const [endedReason] = useState(ended);
 
   useEffect(() => {
     if (!retryAt) return;
@@ -26,12 +34,18 @@ export function LoginPage({ configured }: { configured: boolean }) {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!password || pending || waitSeconds > 0) return;
+    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0) return;
     setPending(true);
     setError(null);
     try {
-      await api("/auth/login", { method: "POST", body: { password } });
+      const result = await api<{ authenticated: boolean; mfa_required?: boolean }>("/auth/login", { method: "POST", body: emailRequired ? { email, password } : { password } });
       setPassword("");
+      if (result.mfa_required) {
+        setCodeStep(true);
+        setCode("");
+        setRecovery(false);
+        return;
+      }
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
       if (err instanceof ApiError && err.code === "RATE_LIMITED") {
@@ -48,6 +62,82 @@ export function LoginPage({ configured }: { configured: boolean }) {
     }
   }
 
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    if (!code.trim() || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      await api("/auth/mfa", { method: "POST", body: { code } });
+      await qc.invalidateQueries({ queryKey: ["session"] });
+    } catch (err) {
+      setCode("");
+      setError(err instanceof Error ? err.message : t("login.failed"));
+      // A challenge that ran out (time or tries) starts again from the password.
+      if (err instanceof ApiError && (err.details as { mfa?: string } | undefined)?.mfa === "expired") {
+        setCodeStep(false);
+        inputRef.current?.focus();
+      } else {
+        codeRef.current?.focus();
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const codeForm = (
+    <form onSubmit={submitCode} className="space-y-3" noValidate>
+      <p className="text-center text-sm leading-6 text-fg-muted">{recovery ? t("login.recoveryHint") : t("login.codeHint")}</p>
+      <label htmlFor="code" className="sr-only">
+        {recovery ? t("login.recoveryCode") : t("login.code")}
+      </label>
+      <div className="relative">
+        <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+        <input
+          ref={codeRef}
+          id="code"
+          key={recovery ? "recovery" : "totp"}
+          type="text"
+          autoComplete="one-time-code"
+          inputMode={recovery ? "text" : "numeric"}
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={recovery ? 24 : 8}
+          autoFocus
+          placeholder={recovery ? "XXXX-XXXX-XXXX-XXXX" : "123456"}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          aria-invalid={!!error}
+          aria-describedby={error ? "login-error" : undefined}
+          className="h-12 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] tracking-widest shadow-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+        />
+      </div>
+      <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!code.trim()}>
+        {t("login.verify")}
+      </Button>
+      {error && (
+        <p id="login-error" role="alert" className="text-center text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-between text-sm">
+        <button type="button" className="text-fg-muted hover:text-fg" onClick={() => {
+            setCodeStep(false);
+            setError(null);
+          }}>
+          {t("login.back")}
+        </button>
+        <button type="button" className="text-accent hover:underline" onClick={() => {
+            setRecovery((r) => !r);
+            setCode("");
+            setError(null);
+          }}>
+          {recovery ? t("login.useApp") : t("login.useRecovery")}
+        </button>
+      </div>
+    </form>
+  );
+
   return (
     <div className="flex min-h-full items-center justify-center bg-bg p-6">
       <div className="w-full max-w-[360px] animate-slide-up">
@@ -61,8 +151,37 @@ export function LoginPage({ configured }: { configured: boolean }) {
           <div role="alert" className="rounded-lg border border-border bg-surface p-4 text-sm leading-6 text-fg-muted">
             {rich("login.notConfigured", { command: <code className="rounded bg-muted px-1">npx create-talorys@latest</code> })}
           </div>
+        ) : codeStep ? (
+          codeForm
         ) : (
           <form onSubmit={submit} className="space-y-3" noValidate>
+            {endedReason && !error && (
+              <p role="status" className="rounded-lg border border-border bg-surface p-3 text-center text-sm leading-6 text-fg-muted">
+                {endedReason === "idle" ? t("login.endedIdle") : t("login.ended")}
+              </p>
+            )}
+            {emailRequired && (
+              <>
+                <label htmlFor="email" className="sr-only">
+                  {t("login.email")}
+                </label>
+                <div className="relative">
+                  <AtSign className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    autoFocus
+                    placeholder={t("login.emailPlaceholder")}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={!!error}
+                    aria-describedby={error ? "login-error" : undefined}
+                    className="h-12 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] shadow-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  />
+                </div>
+              </>
+            )}
             <label htmlFor="password" className="sr-only">
               {t("login.password")}
             </label>
@@ -73,7 +192,7 @@ export function LoginPage({ configured }: { configured: boolean }) {
                 id="password"
                 type={show ? "text" : "password"}
                 autoComplete="current-password"
-                autoFocus
+                autoFocus={!emailRequired}
                 placeholder={t("login.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -90,7 +209,7 @@ export function LoginPage({ configured }: { configured: boolean }) {
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || waitSeconds > 0}>
+            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0}>
               {waitSeconds > 0 ? t("login.tryAgainIn", { seconds: waitSeconds }) : t("login.unlock")}
             </Button>
             {error && (

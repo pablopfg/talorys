@@ -352,7 +352,12 @@ function itemSearchHits(
  * `types`, hits for each listed type follow, tagged with `type`; without it the response is memory hits only.
  */
 semanticRoutes.get("/semantic/search", async (c) => {
-  const config = requireEnabled(c);
+  const owner = requireEnabled(c);
+  // An access token's searches may use only the first half of each daily embedding cap, so a
+  // script (or a leaked read token) can't switch off meaning-based recall for the owner's chat.
+  const config = c.get("remote")
+    ? { ...owner, maxEmbeddingsPerDay: Math.floor(owner.maxEmbeddingsPerDay / 2), maxItemEmbeddingsPerDay: Math.floor(owner.maxItemEmbeddingsPerDay / 2) }
+    : owner;
   const { q, limit, types } = query(c, searchQuerySchema);
   const s = c.env.agent.services;
   const timezone = s.settings.get().timezone;

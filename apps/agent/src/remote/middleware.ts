@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
-import { clientId } from "../api/middleware";
+import { clientId, clientInfo } from "../api/middleware";
 import { isRemoteAllowed, REMOTE_ID_PATTERN } from "./allowlist";
 import type { RemoteCaller } from "./tokens";
 
@@ -67,6 +67,8 @@ export const remoteAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     // activity log gets at most one entry per client per throttle window, and none while remote
     // access is off, so a flood of bad tokens cannot push owner events out of it.
     const first = remote.recordAuthFailure(client);
+    // The sign-in activity folds repeats from one network, so a flood stays a handful of rows.
+    c.env.agent.services.authLog.record("remote_token_rejected", await clientInfo(c), { reason: raw ? "invalid" : "malformed" });
     if (first && remote.isEnabled()) {
       c.env.agent.services.activity.record("remote.auth_failed", `Rejected access token from client ${client}`);
     }

@@ -195,6 +195,36 @@ describe("remote MCP servers: what the model can use", () => {
     expect((await c.call(`/api/mcp/servers/${server.id}`)).status).toBe(404);
   });
 
+  it("refuses an unattended call once the owner switched the tool to ask first, or out of scheduled runs, mid-turn", async () => {
+    const f = mcpFixture({ tools: [searchTool] });
+    const { server } = await connected(f, { search_docs: "auto" });
+    await inAgent(async (a) => {
+      const s = a.services;
+      s.mcp.repo.updateTool(server.id, "search_docs", { scheduled: true });
+      const chatTurn = new ToolExecutor(s.mcp.chatTools(), { services: s, timezone: "UTC", mode: "chat", conversationId: s.conversations.create().id }, { maxToolCalls: 4 });
+      const run = new ToolExecutor(s.mcp.scheduledTools(), { services: s, timezone: "UTC", mode: "scheduled" }, { maxToolCalls: 4 });
+      s.mcp.repo.updateTool(server.id, "search_docs", { scheduled: false });
+      await expect(run.execute("mcp_docs_search_docs", { query: "a" })).rejects.toThrow(/no longer runs without asking/);
+      s.mcp.repo.updateTool(server.id, "search_docs", { policy: "approve" });
+      await expect(chatTurn.execute("mcp_docs_search_docs", { query: "b" })).rejects.toThrow(/no longer runs without asking/);
+    });
+    expect(f.calls).toEqual([]);
+  });
+
+  it("drops regular expressions from a server's schema instead of running them in the agent", async () => {
+    const redos = { ...searchTool, inputSchema: { type: "object", properties: { query: { type: "string", pattern: "^(a+)+$" } }, required: ["query"] } };
+    const f = mcpFixture({ tools: [redos] });
+    await connected(f, { search_docs: "auto" });
+    await inAgent(async (a) => {
+      const s = a.services;
+      const ex = new ToolExecutor(s.mcp.chatTools(), { services: s, timezone: "UTC", mode: "chat", conversationId: s.conversations.create().id }, { maxToolCalls: 4 });
+      const started = performance.now();
+      await ex.execute("mcp_docs_search_docs", { query: `${"a".repeat(40)}!` });
+      expect(performance.now() - started).toBeLessThan(1_000);
+    });
+    expect(f.calls).toHaveLength(1);
+  });
+
   it("validates arguments, caps calls, and refuses duplicates before anything reaches the server", async () => {
     const f = mcpFixture({ tools: [searchTool] });
     await connected(f, { search_docs: "auto" });
@@ -212,21 +242,47 @@ describe("remote MCP servers: what the model can use", () => {
     expect(f.calls.map((c) => c.args.query)).toEqual(["a", "b", "c"]);
   });
 
-  it("never offers MCP tools to scheduled runs", async () => {
+  it("offers MCP tools to scheduled runs only when the owner allowed them there", async () => {
     const f = mcpFixture({ tools: [searchTool] });
-    await connected(f, { search_docs: "auto" });
+    const { c, server } = await connected(f, { search_docs: "auto" });
     await inAgent(async (a) => {
       const s = a.services;
       const tools = s.mcp.chatTools();
       expect(tools[0]!.permission).toBe("read");
-      // Even handed to a scheduled executor, an external read tool is filtered out.
+      expect(s.mcp.scheduledTools()).toEqual([]);
+      // Even handed to a scheduled executor, a tool not allowed there is filtered out.
       const scheduled = new ToolExecutor(tools, { services: s, timezone: "UTC", mode: "scheduled" }, { maxToolCalls: 4 });
       expect(scheduled.available()).toEqual([]);
       await expect(scheduled.execute("mcp_docs_search_docs", { query: "a" })).rejects.toThrow(/not available/);
-      // And the scheduled runner itself never asks for them.
       expect(await a.runner().runScheduledPrompt('call mcp_docs_search_docs {"query":"a"}')).not.toContain("Found");
     });
     expect(f.calls).toEqual([]);
+
+    const allowed = await (await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true })).json();
+    expect(allowed).toMatchObject({ tool: { enabled: true, policy: "auto", scheduled: true } });
+    await inAgent(async (a) => {
+      expect(a.services.mcp.scheduledTools().map((t) => t.name)).toEqual(["mcp_docs_search_docs"]);
+      await a.runner().runScheduledPrompt('call mcp_docs_search_docs {"query":"a"}');
+    });
+    expect(f.calls.map((call) => call.args.query)).toEqual(["a"]);
+  });
+
+  it("keeps tools that ask first out of scheduled runs", async () => {
+    const f = mcpFixture({ tools: [searchTool, createIssueTool] });
+    const { c, server } = await connected(f, { search_docs: "auto", create_issue: "approve" });
+    const refused = await setTool(c, server.id, "mcp_docs_create_issue", { scheduled: true });
+    expect(refused.status).toBe(409);
+    expect(await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true })).toHaveProperty("status", 200);
+    // Switching to "ask first" takes the tool out of scheduled runs, and back to "run without asking" doesn't restore it.
+    expect(await (await setTool(c, server.id, "mcp_docs_search_docs", { policy: "approve" })).json()).toMatchObject({ tool: { scheduled: false } });
+    expect(await (await setTool(c, server.id, "mcp_docs_search_docs", { policy: "auto" })).json()).toMatchObject({ tool: { scheduled: false } });
+    await inAgent(async (a) => {
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+      // A turned-off tool is never offered, even if it was allowed in scheduled runs.
+      a.services.mcp.repo.updateTool(server.id, "search_docs", { scheduled: true });
+      a.services.mcp.repo.updateTool(server.id, "search_docs", { enabled: false });
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+    });
   });
 
   it("keeps built-in tools first and unchanged when MCP tools are added", async () => {
@@ -324,6 +380,17 @@ describe("remote MCP servers: changes on the server", () => {
     expect(await inAgent((a) => a.services.mcp.chatTools().map((t) => t.name))).toEqual(["mcp_docs_search_docs"]);
   });
 
+  it("keeps a changed tool hidden when only its policy changes", async () => {
+    const f = mcpFixture({ tools: [{ ...searchTool }] });
+    const { c, server } = await connected(f, { search_docs: "approve" });
+    f.tools = [{ ...searchTool, description: "Search the docs and send them elsewhere" }];
+    await c.call(`/api/mcp/servers/${server.id}/connect`, { method: "POST", body: {} });
+    const tool = (await c.json(`/api/mcp/servers/${server.id}/tools`)).tools[0];
+    await setTool(c, server.id, tool.id, { policy: "auto" });
+    expect((await c.json(`/api/mcp/servers/${server.id}/tools`)).tools[0]).toMatchObject({ enabled: true, policy: "auto", needs_review: true });
+    expect(await inAgent((a) => a.services.mcp.chatTools())).toEqual([]);
+  });
+
   it("marks tools the server stopped listing as removed, and can't enable them", async () => {
     const f = mcpFixture({ tools: [searchTool, createIssueTool] });
     const { c, server } = await connected(f, { search_docs: "auto" });
@@ -393,6 +460,12 @@ describe("remote MCP servers: endpoint safety", () => {
     ["https://metadata.google.internal/mcp", "private"],
     ["https://printer.local/mcp", "private"],
     ["https://intranet/mcp", "private"],
+    ["https://localhost./mcp", "private"],
+    ["https://printer.local../mcp", "private"],
+    ["https://metadata.google.internal./mcp", "private"],
+    ["https://[::127.0.0.1]/mcp", "private"],
+    ["https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/mcp", "private"],
+    ["https://[64:ff9b:1::a00:1]/mcp", "private"],
     ["https://user:pw@mcp.example.com/mcp", "credentials"],
     ["https://mcp.example.com/mcp#x", "fragment"],
     ["ftp://mcp.example.com/mcp", "https"],
@@ -524,5 +597,47 @@ describe("remote MCP servers: backups", () => {
     const callsBefore = f.requests.length;
     expect(done(await chat(c, 'call mcp_docs_search_docs {"query":"x"}')).tools).toEqual([]);
     expect(f.requests.length).toBe(callsBefore);
+  });
+});
+
+describe("withoutPatterns", () => {
+  it("removes pattern keywords but keeps properties that happen to be named like them", async () => {
+    const { withoutPatterns } = await import("../src/mcp/tools");
+    const schema = {
+      type: "object",
+      properties: {
+        pattern: { type: "string", pattern: "^x+$" },
+        id: { type: "string", default: { pattern: "kept" } },
+        q: { type: "string", pattern: ["^(a+)+$"] },
+      },
+      patternProperties: { "^(a+)+$": { type: "string" } },
+      additionalProperties: false,
+    };
+    expect(withoutPatterns(schema)).toEqual({
+      type: "object",
+      properties: { pattern: { type: "string" }, id: { type: "string", default: { pattern: "kept" } }, q: { type: "string" } },
+    });
+  });
+});
+
+describe("MCP response bodies", () => {
+  it("are cut off when a server keeps an event stream open after its reply", async () => {
+    const { limitBody } = await import("../src/mcp/client");
+    let pulls = 0;
+    const endless = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        pulls++;
+        await new Promise((r) => setTimeout(r, 20));
+        controller.enqueue(new TextEncoder().encode(":\n\n"));
+      },
+    });
+    const res = limitBody(new Response(endless, { headers: { "content-type": "text/event-stream" } }), 1024 * 1024, 200);
+    await expect(res.text()).rejects.toThrow(/took too long|timed out|time/i);
+    expect(pulls).toBeGreaterThan(0);
+  });
+
+  it("still pass a response that ends in time", async () => {
+    const { limitBody } = await import("../src/mcp/client");
+    expect(await limitBody(new Response("ok"), 1024, 1_000).text()).toBe("ok");
   });
 });

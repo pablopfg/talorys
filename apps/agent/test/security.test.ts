@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentStub, BASE, client, freshIp, inAgent, loggedIn, password } from "./helpers";
+import { MAX_FAILURES_PER_CLIENT } from "../src/auth/auth-service";
 
 const PRIVATE_ROUTES: [string, string][] = [
   ["GET", "/api/conversations"],
@@ -60,7 +61,7 @@ describe("authentication boundary", () => {
     const c = client();
     const res = await c.call("/api/auth/login", { method: "POST", body: { password: password() } });
     expect(res.status).toBe(200);
-    const cookie = res.headers.get("set-cookie")!;
+    const cookie = res.headers.getSetCookie().find((s) => s.startsWith("__Host-talorys_session="))!;
     expect(cookie).toMatch(/^__Host-talorys_session=/);
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");
@@ -99,7 +100,7 @@ describe("brute-force protection", () => {
   it("locks a client out after repeated failures, even for the right password", async () => {
     const ip = freshIp();
     const c = client({ ip });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < MAX_FAILURES_PER_CLIENT; i++) {
       expect((await c.call("/api/auth/login", { method: "POST", body: { password: `wrong-${i}` } })).status).toBe(401);
     }
     const blocked = await c.call("/api/auth/login", { method: "POST", body: { password: password() } });
@@ -115,8 +116,8 @@ describe("brute-force protection", () => {
       Array.from({ length: 12 }, (_, i) => c.call("/api/auth/login", { method: "POST", body: { password: `wrong-${i}` } })),
     );
     const statuses = results.map((r) => r.status);
-    expect(statuses.filter((s) => s === 401)).toHaveLength(5);
-    expect(statuses.filter((s) => s === 429)).toHaveLength(7);
+    expect(statuses.filter((s) => s === 401)).toHaveLength(MAX_FAILURES_PER_CLIENT);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(12 - MAX_FAILURES_PER_CLIENT);
     expect((await c.call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
   });
 
@@ -124,7 +125,10 @@ describe("brute-force protection", () => {
     await inAgent((a) => {
       for (let i = 0; i < 25; i++) a.services.db.run(`INSERT INTO tal_login_attempts (client, success, at) VALUES (?, 0, ?)`, `bot-${i}`, Date.now());
     });
-    expect((await client().call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
+    // One attempt per unknown network while the cap is tripped (AUTH-02), never a lockout.
+    const bot = client();
+    expect((await bot.call("/api/auth/login", { method: "POST", body: { password: "guess" } })).status).toBe(401);
+    expect((await bot.call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
     await inAgent((a) => a.services.db.run(`DELETE FROM tal_login_attempts`));
   });
 
@@ -133,6 +137,12 @@ describe("brute-force protection", () => {
     for (const path of ["/api/sub/talorys-agent/x/api/auth/login", "/api/sub/talorys-agent/x/api/health", "/api/tasks/sub/talorys-agent/x"]) {
       expect((await c.call(path, { method: "POST", body: { password: password() } })).status).toBe(404);
     }
+  });
+
+  it("ignores Agents SDK internal headers sent by a client", async () => {
+    const res = await client().call("/api/health", { headers: { "x-agents-lifecycle-props": "{" } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain("SyntaxError");
   });
 
   it("refuses sub-agent routes inside the agent, where each would get its own empty rate-limit table", async () => {
@@ -225,5 +235,26 @@ describe("sessions management", () => {
     await a.call("/api/auth/sessions/revoke-others", { method: "POST", body: {} });
     expect((await b.call("/api/tasks")).status).toBe(401);
     expect((await a.call("/api/tasks")).status).toBe(200);
+  });
+});
+
+describe("Durable Object startup failures", () => {
+  it("never return the Agents SDK's raw stack trace", async () => {
+    const { withoutRawErrors } = await import("../src/index");
+    const raw = new Response("Error: no such table: tal_settings\n    at migrate (src/db/migrations.ts:12:3)", { status: 500 });
+    const res = withoutRawErrors(raw);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const text = await res.text();
+    expect(text).toContain("INTERNAL_ERROR");
+    expect(text).not.toContain("migrations.ts");
+  });
+
+  it("keep the API's own JSON errors and successful answers untouched", async () => {
+    const { withoutRawErrors } = await import("../src/index");
+    const json = new Response('{"error":{"code":"AI_UNAVAILABLE","message":"x"}}', { status: 503, headers: { "content-type": "application/json; charset=utf-8" } });
+    expect(withoutRawErrors(json)).toBe(json);
+    const ok = new Response("ok", { status: 200 });
+    expect(withoutRawErrors(ok)).toBe(ok);
   });
 });

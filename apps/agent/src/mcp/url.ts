@@ -36,7 +36,10 @@ function privateIPv6(groups: number[]): boolean {
   if (g0 === 0x2001 && g1 === 0x0db8) return true; // documentation
   if (g0 === 0x0100 && groups.slice(1, 4).every((g) => g === 0)) return true; // discard
   if (g0 === 0x2002) return privateIPv4([g1 >> 8, g1 & 255, groups[2]! >> 8]); // 6to4 wraps an IPv4 address
-  return false;
+  if (g0 === 0x2001 && g1 === 0) return true; // Teredo tunnels to an address it wraps
+  // Everything else outside global unicast (2000::/3) is reserved, including IPv4-compatible
+  // ::a.b.c.d, 64:ff9b:1::/48 and SRv6 5f00::/16.
+  return (g0 & 0xe000) !== 0x2000;
 }
 
 /** True when `address` (an IP literal, IPv6 with or without brackets) is not a public unicast address. */
@@ -62,7 +65,8 @@ export function validateEndpoint(raw: string, opts: { development: boolean }): U
   } catch {
     throw new ValidationError("Enter a full MCP server URL, like https://example.com/mcp.");
   }
-  const host = url.hostname.toLowerCase();
+  // "localhost." and "metadata.internal." are the same names as without the final dot.
+  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
   const localDev = opts.development && LOCAL_DEV_HOSTS.has(host);
   if (url.protocol !== "https:" && !(localDev && url.protocol === "http:")) {
     throw new ValidationError("MCP servers must use https://.");
@@ -102,7 +106,7 @@ export function dohResolver(fetcher: typeof fetch): Resolver {
  * validated origin and redirects are never followed (see `guardedFetch`).
  */
 export async function assertPublicHost(url: URL, resolve: Resolver, opts: { development: boolean }): Promise<void> {
-  const host = url.hostname.toLowerCase();
+  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
   if (isIpLiteral(host) || (opts.development && LOCAL_DEV_HOSTS.has(host))) return;
   let addresses: string[];
   try {

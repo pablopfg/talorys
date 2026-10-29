@@ -1,0 +1,206 @@
+name: Deploy
+
+# Publishes the one-Worker build (UI + API, apps/agent/wrangler.standalone.jsonc) to
+# Cloudflare after a merge into main. See docs/deploy-github-actions.md for the one-time
+# setup (Cloudflare token, the production environment and its variables).
+#
+# Security model (the repository is public):
+# - The Cloudflare token lives only in the "production" environment, which accepts main
+#   alone and can require Pablo's approval. Pull requests, forks and other branches never
+#   see it: the deploy job runs only on push to main or a manual run from main.
+# - The build job, which installs and runs all project code, has no secret at all.
+#   The deploy job installs with --ignore-scripts, so no dependency install script runs
+#   next to the token.
+# - Every action is pinned to a full commit SHA; GITHUB_TOKEN is read-only.
+# - Worker secrets (OWNER_PASSWORD, SESSION_SECRET, ...) are never in GitHub. They are set
+#   once with `wrangler secret put` and a deploy keeps them.
+
+on:
+  push:
+    branches: [main]
+  # Pull requests that change the deploy path get the build job only (no secrets, no deploy).
+  pull_request:
+    paths:
+      - ".github/workflows/deploy.yml"
+      - "scripts/deploy/**"
+      - "apps/agent/wrangler.standalone.jsonc"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a newer merge waits for the running one instead of cancelling it.
+concurrency:
+  group: deploy-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  FORCE_COLOR: "0"
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Blocks on high and critical advisories in what ships (audit finding SUP-03).
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:deploy
+      - name: Build the web UI
+        run: npm run build -w @talorys/web
+      # Bundles the Worker exactly as the deploy will, without credentials, so a broken
+      # bundle fails here and not halfway through a deploy.
+      - name: Check the Worker bundle (dry run)
+        env:
+          TALORYS_WORKER_NAME: talorys-dry-run
+        run: |
+          node scripts/deploy/render-wrangler-config.mjs apps/agent/wrangler.standalone.jsonc apps/agent/wrangler.deploy.json
+          cd apps/agent && npx --no-install wrangler deploy --dry-run -c wrangler.deploy.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 3
+
+  deploy:
+    name: deploy
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ steps.url.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No npm cache here: a cache entry is shared state, and this job holds the token.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      # Wrangler and esbuild come from the lockfile; no install script runs in this job.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - name: Render the deploy config
+        env:
+          TALORYS_WORKER_NAME: ${{ vars.TALORYS_WORKER_NAME }}
+          TALORYS_CUSTOM_DOMAIN: ${{ vars.TALORYS_CUSTOM_DOMAIN }}
+          TALORYS_PUBLIC_URL: ${{ vars.TALORYS_PUBLIC_URL }}
+          TALORYS_ACCESS_TEAM_DOMAIN: ${{ vars.TALORYS_ACCESS_TEAM_DOMAIN }}
+          TALORYS_ACCESS_AUD: ${{ vars.TALORYS_ACCESS_AUD }}
+          TALORYS_VAPID_SUBJECT: ${{ vars.TALORYS_VAPID_SUBJECT }}
+          TALORYS_DEFAULT_TIMEZONE: ${{ vars.TALORYS_DEFAULT_TIMEZONE }}
+          TALORYS_AGENT_NAME: ${{ vars.TALORYS_AGENT_NAME }}
+        run: |
+          version="$(node -p 'require("./packages/create-talorys/package.json").version')+${GITHUB_SHA::7}"
+          TALORYS_DEPLOYED_VERSION="$version" node scripts/deploy/render-wrangler-config.mjs \
+            apps/agent/wrangler.standalone.jsonc apps/agent/wrangler.deploy.json
+      - name: Deploy to Cloudflare
+        working-directory: apps/agent
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID must be secrets of the production environment."
+            exit 1
+          fi
+          npx --no-install wrangler deploy -c wrangler.deploy.json \
+            --message "GitHub Actions ${GITHUB_SHA::7} (run ${GITHUB_RUN_ID})"
+      - name: Resolve the public URL
+        id: url
+        env:
+          DOMAIN: ${{ vars.TALORYS_CUSTOM_DOMAIN }}
+          PUBLIC_URL: ${{ vars.TALORYS_PUBLIC_URL }}
+        run: |
+          if [ -n "$DOMAIN" ]; then url="https://${DOMAIN,,}"; else url="${PUBLIC_URL%/}"; fi
+          case "$url" in https://*) echo "url=$url" >> "$GITHUB_OUTPUT" ;; *) echo "url=" >> "$GITHUB_OUTPUT" ;; esac
+      # Fails the run (and marks the deployment failed) when the new version is unhealthy,
+      # for example when a Worker secret is missing. Only the status is printed: the body
+      # describes the configuration and the log of a public repository is public.
+      - name: Health check
+        if: steps.url.outputs.url != ''
+        env:
+          URL: ${{ steps.url.outputs.url }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/api/health" || true)"
+            echo "Attempt $attempt: HTTP $status"
+            [ "$status" = "200" ] && exit 0
+            sleep $((attempt * 5))
+          done
+          echo "::error::$URL/api/health did not answer 200. Check the Worker secrets, or roll back (docs/deploy-github-actions.md)."
+          exit 1
+      # With a custom domain: plain HTTP must be moved to HTTPS, and the *.workers.dev address
+      # must not answer at all. The account's workers.dev subdomain is masked in the log.
+      - name: Check HTTPS and the workers.dev address
+        if: vars.TALORYS_CUSTOM_DOMAIN != ''
+        env:
+          DOMAIN: ${{ vars.TALORYS_CUSTOM_DOMAIN }}
+          WORKER: ${{ vars.TALORYS_WORKER_NAME }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          domain="${DOMAIN,,}"
+          worker="$(printf '%s' "$WORKER" | tr -d '[:space:]')"
+          read -r status location < <(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 "http://$domain/" || echo "000 -")
+          echo "http://$domain/ -> HTTP $status $location"
+          # The Worker (or the zone's Always Use HTTPS) answers 301; with Access in front, its
+          # sign-in redirect is fine too, as long as nothing is served over plain HTTP.
+          case "$status" in 301|302|303|307|308) ;; *) echo "::error::http://$domain/ answered $status instead of a redirect to HTTPS."; exit 1 ;; esac
+          case "$location" in https://*) ;; *) echo "::error::http://$domain/ does not redirect to an https:// address."; exit 1 ;; esac
+
+          # Ask Cloudflare itself: the Worker answers 404 on other hosts anyway, so a probe of the
+          # workers.dev address alone would pass even with workers.dev on. The token goes in on
+          # stdin, never on the command line.
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers"
+          auth() { printf 'Authorization: Bearer %s\n' "$CLOUDFLARE_API_TOKEN"; }
+          state="$(auth | curl -sS --max-time 15 -H @- "$api/scripts/$worker/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result??{};process.stdout.write(typeof r.enabled==="boolean"?`${r.enabled} ${r.previews_enabled===true}`:"")}catch{}})' || true)"
+          case "$state" in
+            "false false") echo "workers.dev and preview URLs: off" ;;
+            "") echo "::warning::Could not read the workers.dev setting of the Worker; check by hand that it is off (Worker → Settings → Domains & Routes)." ;;
+            *) echo "::error::workers.dev or preview URLs are on for this Worker ($state). They must be off when a custom domain is set."; exit 1 ;;
+          esac
+
+          # Second check, from outside: the workers.dev address must not serve anything.
+          sub="$(auth | curl -sS --max-time 15 -H @- "$api/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result?.subdomain;process.stdout.write(/^[a-z0-9-]{1,63}$/.test(r??"")?r:"")}catch{}})' || true)"
+          [ -n "$sub" ] || exit 0
+          echo "::add-mask::$sub"
+          for path in / /api/health; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$worker.$sub.workers.dev$path" || true)"
+            echo "workers.dev$path -> HTTP $status"
+            case "$status" in
+              2*|3*) echo "::error::The workers.dev address still answers $path. It must be off when a custom domain is set."; exit 1 ;;
+              000) echo "::warning::Could not reach the workers.dev address to check $path." ;;
+            esac
+          done
+      - name: Summary
+        env:
+          URL: ${{ steps.url.outputs.url }}
+        run: |
+          {
+            echo "### Deploy"
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo "- URL: ${URL:-(set TALORYS_CUSTOM_DOMAIN or TALORYS_PUBLIC_URL to enable the health check)}"
+          } >> "$GITHUB_STEP_SUMMARY"

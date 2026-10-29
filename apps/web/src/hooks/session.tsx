@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, onUnauthorized } from "../lib/api";
+import { api, onPasswordChangeRequired, onUnauthorized } from "../lib/api";
+import { broadcast, type LocalDeadlines, onSessionMessage, type SessionDeadlines, toLocal } from "../lib/activity";
 import { applyTheme } from "../lib/theme";
 import { applyLanguage, type LanguagePreference } from "../lib/i18n";
 
@@ -10,14 +11,29 @@ interface SessionState {
   agent_name?: string;
   theme?: "system" | "light" | "dark";
   language?: LanguagePreference;
+  /** When the server will end this session (signed in only). */
+  deadlines?: SessionDeadlines;
+  /** The same deadlines on this browser's clock, from when they arrived. */
+  local?: LocalDeadlines;
+  /** Why the last session ended here, for the sign-in screen. */
+  ended?: "idle" | "ended";
+  /** The sign-in form asks for the owner's e-mail address too (OWNER_EMAIL is set). */
+  email_required?: boolean;
+  /** The password fails the current rules: the app shows only the change-password screen. */
+  password_change_required?: boolean;
 }
+
+/** idle: no use (or the owner chose to leave from the warning); ended: the server ended it; manual: Sign out. */
+export type LogoutReason = "idle" | "ended" | "manual";
 
 interface SessionContextValue {
   session: SessionState | undefined;
   loading: boolean;
   error: unknown;
   refresh: () => Promise<unknown>;
-  logout: () => Promise<void>;
+  logout: (reason?: LogoutReason) => Promise<void>;
+  /** Locks this tab only, without telling the server or the other tabs. */
+  lock: (reason: LogoutReason) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -26,7 +42,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["session"],
-    queryFn: () => api<SessionState>("/auth/session"),
+    queryFn: () => api<SessionState>("/auth/session").then((s) => ({ ...s, local: s.deadlines ? toLocal(s.deadlines) : undefined })),
     staleTime: 60_000,
     retry: 1,
   });
@@ -39,26 +55,72 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (query.data?.language) applyLanguage(query.data.language);
   }, [query.data?.language]);
 
-  useEffect(
-    () =>
-      onUnauthorized(() => {
-        qc.setQueryData<SessionState>(["session"], (s) => (s ? { ...s, authenticated: false } : s));
-      }),
+  /** Drops all private data from memory and shows the sign-in screen at once. */
+  const signOutHere = useCallback(
+    (reason: LogoutReason) => {
+      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "session" });
+      qc.setQueryData<SessionState>(["session"], (s) => ({
+        configured: true,
+        ...s,
+        authenticated: false,
+        deadlines: undefined,
+        local: undefined,
+        ended: reason === "manual" ? undefined : reason,
+      }));
+    },
     [qc],
   );
 
-  const logout = useCallback(async () => {
-    try {
-      await api("/auth/logout", { method: "POST", body: {} });
-    } finally {
-      // Drop all private data from memory, then show the lock screen immediately.
-      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "session" });
-      qc.setQueryData<SessionState>(["session"], (s) => ({ configured: true, ...s, authenticated: false }));
-    }
-  }, [qc]);
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        if (qc.getQueryData<SessionState>(["session"])?.authenticated) signOutHere("ended");
+      }),
+    [qc, signOutHere],
+  );
+
+  useEffect(() => onPasswordChangeRequired(() => void qc.invalidateQueries({ queryKey: ["session"] })), [qc]);
+
+  // Signing out in one tab signs out every tab.
+  useEffect(() => onSessionMessage((m) => m.type === "logout" && signOutHere(m.reason === "manual" ? "manual" : m.reason)), [signOutHere]);
+
+  // Coming back to a tab (or to a page restored by the Back button) checks the session before any
+  // data shows: a session past its deadline locks the screen at once, then the server confirms.
+  useEffect(() => {
+    const check = () => {
+      const s = qc.getQueryData<SessionState>(["session"]);
+      if (!s?.authenticated) return;
+      const d = s.local;
+      if (d && Date.now() >= Math.min(d.idleAt, d.maxAt)) signOutHere(d.idleAt <= d.maxAt ? "idle" : "ended");
+      void qc.invalidateQueries({ queryKey: ["session"] });
+    };
+    const onVisible = () => document.visibilityState === "visible" && check();
+    const onPageShow = (e: PageTransitionEvent) => e.persisted && check();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [qc, signOutHere]);
+
+  const logout = useCallback(
+    async (reason: LogoutReason = "manual") => {
+      broadcast({ type: "logout", reason });
+      // Locks at once, before the server answers: a request that gets a 401 meanwhile then can't
+      // replace the reason shown on the sign-in screen with the general one.
+      signOutHere(reason);
+      try {
+        await api("/auth/logout", { method: "POST", body: {} });
+      } catch {
+        // The screen is locked anyway; the server ends the session on its own deadline.
+      }
+    },
+    [signOutHere],
+  );
 
   return (
-    <SessionContext.Provider value={{ session: query.data, loading: query.isLoading, error: query.error, refresh: query.refetch, logout }}>
+    <SessionContext.Provider value={{ session: query.data, loading: query.isLoading, error: query.error, refresh: query.refetch, logout, lock: signOutHere }}>
       {children}
     </SessionContext.Provider>
   );
@@ -66,6 +128,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 export function useSession(): SessionContextValue {
   const ctx = useContext(SessionContext);
+  // i18n-ignore: a developer error, never shown to the owner.
   if (!ctx) throw new Error("useSession outside SessionProvider");
   return ctx;
 }

@@ -20,6 +20,8 @@ export type AutomationExecutor = (automation: Automation) => Promise<{ status: "
 
 /** A run that was missed (e.g. during an outage) by more than this is executed once on recovery. */
 const MAX_CATCH_UP_MS = 24 * 3600_000;
+/** Most enabled automations at once, so nothing can fill the schedule with endless reminders or runs. */
+export const MAX_ENABLED_AUTOMATIONS = 50;
 
 export class AutomationService {
   /** Automations executing in this instance; a run row left "running" without one was interrupted. */
@@ -51,6 +53,7 @@ export class AutomationService {
     }
     const first = computeNextRun(schedule, this.tz(), new Date());
     if (!first) throw new ValidationError("That time is in the past. Choose a future time.");
+    if (input.enabled) this.checkEnabledLimit();
     const automation = this.repo.create({ ...input, schedule });
     this.activity.record("automation.created", `Created automation “${automation.name}”`);
     return automation.enabled ? this.arm(automation) : automation;
@@ -67,6 +70,7 @@ export class AutomationService {
     const timingChanged = patch.schedule !== undefined || (patch.enabled !== undefined && patch.enabled !== existing.enabled);
     // Rescheduling an enabled automation, or turning a paused one back on, needs a run still ahead.
     const resuming = patch.enabled === true && !existing.enabled;
+    if (resuming) this.checkEnabledLimit();
     if ((patch.schedule !== undefined && (patch.enabled ?? existing.enabled)) || resuming) {
       const schedule = scheduleSpecSchema.parse(patch.schedule ?? existing.schedule);
       if (!computeNextRun(schedule, this.tz(), new Date())) throw new ValidationError("That time is in the past. Choose a future time.");
@@ -82,6 +86,12 @@ export class AutomationService {
       next = next.enabled ? await this.arm(next) : this.repo.update(id, { status: "paused", next_run: null, schedule_id: null });
     }
     return next;
+  }
+
+  private checkEnabledLimit(): void {
+    if (this.repo.list().filter((a) => a.enabled).length >= MAX_ENABLED_AUTOMATIONS) {
+      throw new ValidationError(`You can have at most ${MAX_ENABLED_AUTOMATIONS} active automations. Pause or delete one first.`);
+    }
   }
 
   async delete(id: string): Promise<void> {

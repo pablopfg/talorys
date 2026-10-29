@@ -12,6 +12,8 @@ export interface ToolContext {
   mode: "chat" | "scheduled";
   /** The chat conversation, which owns any destructive actions proposed during the turn. */
   conversationId?: string;
+  /** In a scheduled run, the name of the routine that is running; notifications carry it. */
+  routineName?: string;
   /** Aborts when the owner stops the turn; tools that wait on the network should honour it. */
   signal?: AbortSignal;
 }
@@ -35,8 +37,11 @@ interface BaseTool<S extends z.ZodType> {
   maxCallsPerTurn?: number;
   /** Short human-readable label for the UI, e.g. "Adding task “Buy milk”". */
   label: (input: z.infer<S>) => string;
-  /** Set on tools from a remote MCP server. They are offered in chat only, never in scheduled runs. */
-  external?: { serverId: string };
+  /**
+   * Set on tools from a remote MCP server. Scheduled runs get one only when the owner allowed it
+   * there (`scheduled`), and only if it runs without asking.
+   */
+  external?: { serverId: string; scheduled?: boolean };
 }
 
 export interface ImmediateTool<S extends z.ZodType = z.ZodType, R = unknown> extends BaseTool<S> {
@@ -107,10 +112,15 @@ export class ToolExecutor {
     return this.calls >= this.limits.maxToolCalls;
   }
 
-  /** Tools permitted in this context. Scheduled runs never get write, destructive or external tools. */
+  /**
+   * Tools permitted in this context. Scheduled runs never get write or destructive tools, and get
+   * external tools only when the owner allowed them in scheduled automations. notify_owner exists
+   * only there, since in chat the reply itself reaches the owner.
+   */
   available(): ToolDefinition[] {
     if (this.limits.maxToolCalls <= 0) return [];
-    return this.tools.filter((t) => this.ctx.mode === "chat" || (!t.external && (t.permission === "read" || t.name === "notify_owner")));
+    if (this.ctx.mode === "chat") return this.tools.filter((t) => t.name !== "notify_owner");
+    return this.tools.filter((t) => (t.external ? t.external.scheduled === true && t.permission === "read" : t.permission === "read" || t.name === "notify_owner"));
   }
 
   find(name: string): ToolDefinition | undefined {

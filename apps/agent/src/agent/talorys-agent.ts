@@ -10,6 +10,7 @@ import { CloudflareWorkersAIProvider } from "../ai/workers-ai";
 import { MockAIProvider } from "../ai/mock";
 import type { AIProvider } from "../ai/provider";
 import { localDayBounds, formatLocal } from "../services/time";
+import { defangLinks } from "../services/text";
 import { semanticExtensions } from "../semantic";
 import { AppError } from "../api/errors";
 import { semanticNeighbors } from "../semantic/neighbors";
@@ -36,6 +37,8 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   private _services: Services | null = null;
   /** In-flight chat turns by conversation, for cancellation. */
   readonly activeRuns = new Map<string, AbortController>();
+  /** True while a voice clip is being transcribed: one at a time keeps the daily audio cap exact. */
+  transcribing = false;
 
   get services(): Services {
     if (!this._services) {
@@ -109,6 +112,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
       this.aiProvider(),
       semanticExtensions(this.services, this.env, (work) => this.ctx.waitUntil(work)),
       this.services.mcp.chatTools(),
+      this.services.mcp.scheduledTools(),
     );
   }
 
@@ -135,8 +139,8 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     const settings = s.settings.get();
     switch (a.kind) {
       case "reminder": {
-        // Simple reminders never use AI.
-        s.notifications.create({ title: "Reminder", body: a.message || a.name, automation_id: a.id });
+        // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.
+        s.notifications.create({ title: "Reminder", body: defangLinks(a.message || a.name), automation_id: a.id });
         return { status: "success", result: "Reminder delivered" };
       }
       case "task_digest": {
@@ -147,7 +151,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         );
         const open = s.tasks.list({ status: "open", limit: 200 }).length;
         const line = (t: { title: string; due_at: string | null; priority: string }) =>
-          `- ${t.title}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone)})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
+          `- ${defangLinks(t.title)}${t.due_at ? ` (due ${formatLocal(t.due_at, settings.timezone, s.settings.language())})` : ""}${t.priority === "high" || t.priority === "urgent" ? ` · ${t.priority}` : ""}`;
         const parts = [
           overdue.length ? `**Overdue (${overdue.length})**\n${overdue.map(line).join("\n")}` : "",
           today.length ? `**Due today (${today.length})**\n${today.map(line).join("\n")}` : "",
@@ -161,13 +165,14 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         if (!s.usage.canRunScheduledAi(settings.limits)) return skipForBudget(s, a);
         let text: string;
         try {
-          text = await this.runner().runScheduledPrompt(a.message);
+          text = await this.runner().runScheduledPrompt(a.message, undefined, a.name);
         } catch (error) {
           // The budget ran out while this run waited (another run or chat took the last request).
           if (error instanceof AppError && error.code === "AI_LIMIT_REACHED") return skipForBudget(s, a);
           throw error;
         }
-        s.notifications.create({ title: a.name, body: text, automation_id: a.id });
+        // The reply is model-written: links in it stay visible but can't be clicked.
+        s.notifications.create({ title: a.name, body: defangLinks(text), automation_id: a.id });
         return { status: "success", result: text };
       }
     }

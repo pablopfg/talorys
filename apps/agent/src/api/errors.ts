@@ -12,6 +12,9 @@ const STATUS: Record<ApiErrorCode, number> = {
   AI_LIMIT_REACHED: 429,
   CONFLICT: 409,
   NOT_CONFIGURED: 503,
+  REAUTH_REQUIRED: 403,
+  PASSWORD_CHANGE_REQUIRED: 403,
+  SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 };
 
@@ -61,4 +64,15 @@ export function errorResponse(error: unknown): Response {
     status: appError.status,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...appError.headers },
   });
+}
+
+/**
+ * What gets logged about a failure from the AI provider or a chat turn: the error's name and any
+ * status-like code in it. The message itself may quote a prompt, a note or a provider response.
+ */
+export function errorSummary(error: unknown): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const message = error instanceof Error ? error.message : String(error);
+  const code = /\b(\d{3,4})\b/.exec(message)?.[1];
+  return code ? `${name} ${code}` : name;
 }

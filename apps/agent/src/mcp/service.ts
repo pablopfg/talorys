@@ -19,7 +19,7 @@ import { McpConnectionError, McpSessions, type SessionAuth, classifyMcpError } f
 import { type OAuthRecord, TalorysOAuthProvider, oauthStateServerId, sameSecret } from "./oauth";
 import { McpCredentials } from "./credentials";
 import { McpRepository, type StoredServer, isUsable, presentTool } from "./repository";
-import { TOOL_LIMITS, checkTool, permissionSnapshot, toToolDefinition, toZod } from "./tools";
+import { type McpCallOptions, TOOL_LIMITS, checkTool, permissionSnapshot, toToolDefinition, toZod } from "./tools";
 import { type Resolver, assertPublicHost, dohResolver, validateEndpoint } from "./url";
 
 /** Network access for MCP. Tests replace it to talk to an in-process server. */
@@ -330,13 +330,16 @@ export class McpService {
     return this.repo.tools(this.require(id).id).map(presentTool);
   }
 
-  updateTool(serverId: string, toolId: string, patch: { enabled?: boolean; policy?: McpToolPolicy }): McpToolInfo {
+  updateTool(serverId: string, toolId: string, patch: { enabled?: boolean; policy?: McpToolPolicy; scheduled?: boolean }): McpToolInfo {
     this.assertEnabled();
     const server = this.require(serverId);
     const tool = this.repo.tool(server.id, toolId);
     if (!tool) throw new NotFoundError("Tool not found.");
     if (patch.enabled && tool.status !== "available") {
       throw new AppError("CONFLICT", tool.status === "removed" ? "The server no longer offers this tool." : (tool.invalid_reason ?? "This tool can't be used."));
+    }
+    if (patch.scheduled && (patch.policy ?? tool.policy) !== "auto") {
+      throw new AppError("CONFLICT", "Only tools that run without asking can be used by scheduled automations, since nobody is there to approve them.");
     }
     if (patch.enabled && tool.enabled !== 1) {
       if (this.repo.enabledCount() >= this.maxTools) throw new AppError("CONFLICT", `You can enable up to ${this.maxTools} MCP tools at once. Turn one off first.`);
@@ -350,6 +353,9 @@ export class McpService {
     if (patch.enabled !== undefined || patch.policy !== undefined) {
       const what = patch.enabled === false ? "Disabled" : patch.enabled ? `Enabled (${updated.policy === "auto" ? "runs without asking" : "asks first"})` : `Set to ${updated.policy === "auto" ? "run without asking" : "ask first"}`;
       this.activity.record("mcp.tool_changed", `${what}: MCP tool “${tool.name}” on “${server.name}”`);
+    }
+    if (patch.scheduled !== undefined && patch.scheduled !== (tool.scheduled === 1)) {
+      this.activity.record("mcp.tool_changed", `${patch.scheduled ? "Allowed" : "Stopped"} in scheduled automations: MCP tool “${tool.name}” on “${server.name}”`);
     }
     return presentTool(updated);
   }
@@ -372,11 +378,25 @@ export class McpService {
    * SQLite; no network. Never throws, so a broken MCP setup can't break chat.
    */
   chatTools(): ToolDefinition[] {
+    return this.agentTools("chat");
+  }
+
+  /**
+   * The MCP tools a scheduled automation may use: the chat tools the owner set to run without
+   * asking and also allowed in scheduled automations. Nobody is there to approve a call, so tools
+   * that ask first are never included.
+   */
+  scheduledTools(): ToolDefinition[] {
+    return this.agentTools("scheduled");
+  }
+
+  private agentTools(mode: "chat" | "scheduled"): ToolDefinition[] {
     if (!this.enabled) return [];
     try {
       const out: ToolDefinition[] = [];
       let chars = 0;
       for (const { server, tool } of this.repo.activeTools()) {
+        if (mode === "scheduled" && !(tool.policy === "auto" && tool.scheduled === 1)) continue;
         if (out.length >= this.maxTools) break;
         chars += tool.input_schema.length + tool.description.length;
         if (chars > TOOL_LIMITS.maxExposedChars) break;
@@ -406,12 +426,17 @@ export class McpService {
    * enabled. Only `retry` calls (owner-trusted read-only ones) reopen a stale session and try once
    * more; a call that may have changed something is never repeated.
    */
-  async call(serverId: string, toolName: string, args: Record<string, unknown>, opts: { signal?: AbortSignal; retry: boolean }) {
+  async call(serverId: string, toolName: string, args: Record<string, unknown>, opts: McpCallOptions) {
     if (!this.enabled) throw new ToolError("MCP servers are turned off for this deployment.");
     const server = this.repo.get(serverId);
     if (!server) throw new ToolError("This MCP server was removed.");
     const tool = this.repo.tools(server.id).find((t) => t.name === toolName);
     if (server.enabled !== 1 || server.status !== "connected" || !tool || !isUsable(tool)) throw new ToolError("This tool is disabled.");
+    // The tool list is built once per turn or run: an owner who switched the tool to "ask first",
+    // or out of scheduled runs, meanwhile must not see it run on its own anyway.
+    if (opts.unattended && (tool.policy !== "auto" || (opts.unattended === "scheduled" && tool.scheduled !== 1))) {
+      throw new ToolError("The owner changed this tool's permission; it no longer runs without asking.");
+    }
     const started = Date.now();
     const log = (outcome: string) =>
       this.activity.record("mcp.tool_call", `${server.name} · ${tool.name} → ${outcome} (${Date.now() - started} ms)`);

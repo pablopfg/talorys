@@ -4,6 +4,8 @@ import { checkPasswordStrength } from "@talorys/shared/password-policy";
 
 export const PASSWORD_SECRET = "OWNER_PASSWORD_HASH";
 export const SESSION_SECRET = "SESSION_SECRET";
+/** Mixed into the password hash; written together with it, so the two always match. */
+export const PEPPER_SECRET = "PASSWORD_PEPPER";
 export const REQUIRED_SECRETS = [PASSWORD_SECRET, SESSION_SECRET] as const;
 /** Web Push (VAPID) key pair. Optional: without it the app works, only push notifications are off. */
 export const PUSH_SECRETS = ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"] as const;
@@ -22,10 +24,11 @@ export function generateSessionSecret(): string {
 
 /**
  * Builds the secret payload. The plaintext password is hashed locally with
- * PBKDF2-SHA256 and never leaves this machine.
+ * PBKDF2-SHA256 and a new random pepper, and never leaves this machine.
  */
 export async function buildOwnerSecrets(password: string, opts: { includeSessionSecret: boolean }): Promise<Record<string, string>> {
-  const secrets: Record<string, string> = { [PASSWORD_SECRET]: await hashPassword(password) };
+  const pepper = randomBytes(32).toString("base64url");
+  const secrets: Record<string, string> = { [PASSWORD_SECRET]: await hashPassword(password, { pepper }), [PEPPER_SECRET]: pepper };
   if (opts.includeSessionSecret) secrets[SESSION_SECRET] = generateSessionSecret();
   return secrets;
 }

@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import type { TalorysAgent } from "../agent/talorys-agent";
 import type { Env } from "../env";
 import { errorResponse, NotFoundError } from "./errors";
-import { csrfProtection, requireSession, securityHeaders } from "./middleware";
+import { csrfProtection, requireHttps, requireSession, securityHeaders } from "./middleware";
 import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
 import { dataRoutes } from "./routes/data";
@@ -35,6 +35,7 @@ export function createApi() {
   app.notFound(() => errorResponse(new NotFoundError("Unknown API route")));
 
   app.use("*", securityHeaders);
+  app.use("*", requireHttps);
   // Before CSRF and session: a validated token skips both, a bad one fails closed.
   app.use("*", remoteAuth);
   app.use("*", csrfProtection);

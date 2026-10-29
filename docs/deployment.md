@@ -10,7 +10,7 @@ npx create-talorys@latest
 
 | Step | Implementation |
 | --- | --- |
-| Check Node.js ≥ 22, templates, bundled Wrangler | `requirements.ts`, `scaffold.ts` |
+| Check Node.js ≥ 24, templates, bundled Wrangler | `requirements.ts`, `scaffold.ts` |
 | Detect global `wrangler` / `cf` (informational) | `requirements.ts` |
 | Verify login or open browser OAuth (`wrangler login`) | `install.ts › ensureAuthenticated` |
 | Choose account (`wrangler whoami --json`) | `install.ts › chooseAccount` |
@@ -57,9 +57,16 @@ refers to it.
 
 ## One Worker, without Pages
 
+To publish this build automatically on every merge into `main`, see
+[Automatic deploy from GitHub](deploy-github-actions.md).
+
 `apps/agent/wrangler.standalone.jsonc` deploys the agent Worker with the web UI
-as static assets, so one Worker serves both. Use it with tools that deploy a
-single Worker:
+as static assets, so one Worker serves both. The Worker runs before every asset
+(`run_worker_first`), so the UI gets the same gates as the API: plain HTTP is
+moved to HTTPS (a request with a body is refused instead), hosts outside
+`TALORYS_ALLOWED_HOSTS` get 404, Cloudflare Access is checked, and the
+security headers from `apps/web/public/_headers` are added. Use it with tools
+that deploy a single Worker:
 
 ```bash
 npm run build -w @talorys/web
@@ -108,6 +115,32 @@ is the contact push services see. It defaults to the app's own URL as recorded
 when each device subscribed. Set it with `npx wrangler secret put VAPID_SUBJECT`;
 a plain variable would be dropped when an update regenerates the Worker config.
 
+## Your own domain
+
+```bash
+npx create-talorys@latest update --domain talorys.example.com
+```
+
+`--domain` makes the installer use that address for everything: the health
+checks, `status`, `doctor` and the URL it prints. It also sets
+`TALORYS_ALLOWED_HOSTS` on the Worker, so the API answers only on that domain
+and the project's `*.pages.dev` addresses (old deployments included) stop
+working. The domain is recorded in `talorys.json`; later updates keep it, and
+`--domain none` goes back to `pages.dev`.
+
+Wrangler cannot attach a domain to a Pages project, so do that once in the
+dashboard: Workers & Pages → your project → **Custom domains** → *Set up a
+custom domain*. Until the certificate is active the health check fails; re-run
+the same command a few minutes later.
+
+Use a subdomain such as `talorys.example.com`, not the bare domain: the app
+sends HSTS with `includeSubDomains`, so browsers would then insist on HTTPS for
+every host under that domain for two years.
+
+Push subscriptions belong to the address a device subscribed on. After a move,
+devices from the old address are dropped when you open Settings on the new one;
+turn push on again there.
+
 ## Idempotency and recovery
 
 - The manifest records the installation id; re-runs reuse the same names.
@@ -123,6 +156,13 @@ a plain variable would be dropped when an update regenerates the Worker config.
 `npx create-talorys@latest update` refreshes artifacts, keeps the same names
 and Durable Object class, appends (never edits) migrations, keeps secrets, and
 re-verifies. Schema migrations run transactionally inside the Durable Object.
+
+Cloudflare Pages keeps every earlier deployment reachable at its own
+`<hash>.<project>.pages.dev` address, wired to the same backend. After an
+update that fixes the web UI, delete older deployments in the dashboard
+(Workers & Pages → your project → Deployments) or with
+`npx wrangler pages deployment delete <id> --project-name <project>`, so an
+old copy of the UI can't be used to phish the owner's password.
 
 ## Permissions
 

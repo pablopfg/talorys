@@ -1,9 +1,9 @@
 import type { Limits, UsageCounters } from "@talorys/shared";
 import type { Database } from "../db/database";
 import type { Usage } from "../ai/provider";
-import { estimateConsumption } from "../ai/pricing";
+import { estimateAudioConsumption, estimateConsumption } from "../ai/pricing";
 
-type Counter = "ai_requests" | "tool_calls" | "scheduled_ai_runs" | "ai_errors";
+type Counter = "ai_requests" | "tool_calls" | "scheduled_ai_runs" | "ai_errors" | "transcription_seconds";
 
 const modelCounterColumns = [
   "input_tokens_reported", "output_tokens_reported",
@@ -18,14 +18,28 @@ const recordModelUsageSql = `
 
 /** App-local token provenance and persisted consumption estimates, not account billing. */
 export class UsageService {
-  constructor(private readonly db: Database) {}
+  /** `timezone` is the owner's: daily budgets and counters roll over at their local midnight. */
+  constructor(
+    private readonly db: Database,
+    private readonly timezone: () => string = () => "UTC",
+  ) {}
 
+  /** The UTC calendar day. Semantic recall's own daily caps still count by it. */
   static day(date = new Date()): string {
     return date.toISOString().slice(0, 10);
   }
 
+  /** The owner's local calendar day ("YYYY-MM-DD"); UTC if their timezone is unusable. */
+  day(date = new Date()): string {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: this.timezone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    } catch {
+      return UsageService.day(date);
+    }
+  }
+
   increment(counters: Partial<Record<Counter, number>>, date = new Date()): void {
-    const day = UsageService.day(date);
+    const day = this.day(date);
     this.db.run(`INSERT INTO tal_usage_daily (day) VALUES (?) ON CONFLICT(day) DO NOTHING`, day);
     for (const [key, amount] of Object.entries(counters) as [Counter, number][]) {
       if (!amount) continue;
@@ -35,7 +49,7 @@ export class UsageService {
   }
 
   /** One additive model call. Rates are applied now, never when a report is read. */
-  record(usage: Usage, day = UsageService.day(), kind: "chat" | "embedding" = "chat"): void {
+  record(usage: Usage, day = this.day(), kind: "chat" | "embedding" = "chat"): void {
     const estimate = estimateConsumption(usage);
     this.db.run(
       recordModelUsageSql,
@@ -47,19 +61,34 @@ export class UsageService {
     );
   }
 
+  /** One speech-to-text call: the audio seconds for the daily cap, and its estimate per audio minute. */
+  recordTranscription(model: string, billable: boolean, seconds: number, day = this.day()): void {
+    const estimate = billable ? estimateAudioConsumption(model, seconds) : null;
+    this.increment({ transcription_seconds: Math.ceil(seconds) });
+    this.db.run(
+      recordModelUsageSql,
+      day, model, billable, 0, 0, 0, 0, 0, estimate?.neurons ?? 0, estimate?.costUsd ?? 0,
+      estimate ? 1 : 0, billable && !estimate ? 1 : 0, billable ? 0 : 1,
+    );
+  }
+
+  transcriptionSecondsToday(): number {
+    return this.dailyRow(this.day())?.transcription_seconds ?? 0;
+  }
+
   today(): UsageCounters {
-    const day = UsageService.day();
+    const day = this.day();
     return this.sum(day, day);
   }
 
   lastDays(days: number): UsageCounters {
     const start = new Date(Date.now() - (days - 1) * 86400_000);
-    return this.sum(UsageService.day(start), UsageService.day());
+    return this.sum(this.day(start), this.day());
   }
 
   private dailyRow(day: string): Record<string, number | null> | null {
     return this.db.one<Record<string, number | null>>(
-      `SELECT ai_requests, input_tokens, output_tokens, tool_calls, scheduled_ai_runs, ai_errors
+      `SELECT ai_requests, input_tokens, output_tokens, tool_calls, scheduled_ai_runs, ai_errors, transcription_seconds
        FROM tal_usage_daily WHERE day = ?`,
       day,
     );
@@ -68,7 +97,8 @@ export class UsageService {
   private sum(from: string, to: string): UsageCounters {
     const row = this.db.one<Record<string, number | null>>(
       `SELECT sum(ai_requests) AS ai_requests, sum(input_tokens) AS input_tokens, sum(output_tokens) AS output_tokens,
-              sum(tool_calls) AS tool_calls, sum(scheduled_ai_runs) AS scheduled_ai_runs, sum(ai_errors) AS ai_errors
+              sum(tool_calls) AS tool_calls, sum(scheduled_ai_runs) AS scheduled_ai_runs, sum(ai_errors) AS ai_errors,
+              sum(transcription_seconds) AS transcription_seconds
        FROM tal_usage_daily WHERE day >= ? AND day <= ?`,
       from, to,
     );
@@ -95,6 +125,7 @@ export class UsageService {
       scheduled_ai_runs: row?.scheduled_ai_runs ?? 0,
       ai_errors: row?.ai_errors ?? 0,
       embedding_requests: metered?.embedding_requests ?? 0,
+      transcription_seconds: row?.transcription_seconds ?? 0,
       neurons_estimate: pricedCalls > 0 ? metered?.neurons_estimate ?? 0 : null,
       cost_usd_estimate: pricedCalls > 0 ? metered?.cost_usd_estimate ?? 0 : null,
       priced_calls: pricedCalls,
@@ -112,7 +143,7 @@ export class UsageService {
   }
 
   private requestsToday(): number {
-    return this.dailyRow(UsageService.day())?.ai_requests ?? 0;
+    return this.dailyRow(this.day())?.ai_requests ?? 0;
   }
 
   /** Counts one more model call if the daily budget allows it; false means stop. */
@@ -123,7 +154,7 @@ export class UsageService {
   }
 
   canRunScheduledAi(limits: Limits): boolean {
-    const row = this.dailyRow(UsageService.day());
+    const row = this.dailyRow(this.day());
     return (row?.scheduled_ai_runs ?? 0) < limits.maxScheduledAiRunsPerDay
       && (row?.ai_requests ?? 0) < limits.maxAiRequestsPerDay;
   }

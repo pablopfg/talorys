@@ -1,20 +1,23 @@
-import { DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
+import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, DEFAULT_TIMEZONE, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
 import type { z } from "zod";
 import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
 
 export const DEFAULT_SETTINGS: Settings = {
   agentName: "Talorys",
-  timezone: "UTC",
+  timezone: DEFAULT_TIMEZONE,
   theme: "system",
-  language: "system",
+  language: DEFAULT_LANGUAGE,
   model: DEFAULT_MODEL,
   temperature: 0.4,
   limits: { ...DEFAULT_LIMITS },
   autoMemory: true,
+  customInstructions: "",
   demoMode: false,
   memoryHistory: { ...DEFAULT_MEMORY_HISTORY },
-  updateCheck: true,
+  // Off until the owner turns it on: it asks the public npm registry about create-talorys.
+  updateCheck: false,
+  session: { ...DEFAULT_SESSION_TIMEOUTS },
 };
 
 const SETTINGS_KEY = "app.settings";
@@ -35,12 +38,19 @@ export class SettingsService {
       ...stored,
       limits: { ...DEFAULT_SETTINGS.limits, ...(stored.limits ?? {}) },
       memoryHistory: { ...DEFAULT_SETTINGS.memoryHistory, ...(stored.memoryHistory ?? {}) },
+      session: { ...DEFAULT_SETTINGS.session, ...(stored.session ?? {}) },
     };
     const parsed = settingsSchema.safeParse(merged);
     if (parsed.success) return parsed.data;
     // Ignore invalid installer defaults rather than failing.
     const fallback = settingsSchema.safeParse({ ...merged, timezone: stored.timezone ?? DEFAULT_SETTINGS.timezone, agentName: stored.agentName ?? DEFAULT_SETTINGS.agentName });
     return fallback.success ? fallback.data : DEFAULT_SETTINGS;
+  }
+
+  /** The language for text the server sends on its own (push notifications). "system" has no browser to follow. */
+  language(): Language {
+    const preference = this.get().language;
+    return preference === "system" ? DEFAULT_LANGUAGE : preference;
   }
 
   update(patch: z.input<typeof settingsUpdateSchema>): Settings {
@@ -52,6 +62,7 @@ export class SettingsService {
       ...stripUndefined(parsedPatch.data),
       limits: { ...current.limits, ...stripUndefined(parsedPatch.data.limits ?? {}) },
       memoryHistory: { ...current.memoryHistory, ...stripUndefined(parsedPatch.data.memoryHistory ?? {}) },
+      session: { ...current.session, ...stripUndefined(parsedPatch.data.session ?? {}) },
     };
     const parsed = settingsSchema.safeParse(next);
     if (!parsed.success) throw ValidationError.fromZod(parsed.error);

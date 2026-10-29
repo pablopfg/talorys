@@ -1,0 +1,86 @@
+name: Prepare release
+
+# Started by hand from the Actions tab, on develop. Turns "Não lançado" into
+# the next version, bumps the version files and opens a pull request into
+# develop. Merging develop into main afterwards publishes the release
+# (release.yml). See docs/releases.md.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "auto: minor if there is Adicionado/Alterado, otherwise patch"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      version:
+        description: "Exact version instead (e.g. 1.0.0 for the fork's first release)"
+        type: string
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the release/vX.Y.Z branch
+      pull-requests: write # open its pull request
+      actions: write # start CI on it (pull requests opened by GITHUB_TOKEN start no workflows)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          # Never cache in a job that holds a write token (cache entries are shared state).
+          package-manager-cache: false
+      - name: Test the release script
+        run: node --test scripts/release.test.mjs
+      - name: Update changelog and versions
+        id: prepare
+        env:
+          TARGET: ${{ inputs.version || inputs.bump }}
+        run: |
+          version="$(node scripts/release.mjs prepare "$TARGET")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          git diff --stat
+      - name: Push the branch and open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          branch="release/v$VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "::error::$branch already exists. Merge or delete it first."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "chore(release): v$VERSION"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+
+          {
+            echo "Prepara a versão **$VERSION**. Ao mesclar este PR na \`develop\` e depois a \`develop\` na \`main\`, a release \`v$VERSION\` é criada automaticamente com as notas abaixo."
+            echo
+            echo "---"
+            echo
+            node scripts/release.mjs notes "$VERSION"
+          } > "$RUNNER_TEMP/body.md"
+
+          if gh pr create --base develop --head "$branch" --title "chore(release): v$VERSION" --body-file "$RUNNER_TEMP/body.md"; then
+            gh workflow run ci.yml --ref "$branch" \
+              || echo "::warning::Could not start CI on $branch. Start it from Actions → CI → Run workflow."
+          else
+            # Without "Allow GitHub Actions to create and approve pull requests"
+            # the branch is still pushed; a pull request opened by hand also starts CI.
+            echo "::warning::Open the pull request by hand: https://github.com/${GITHUB_REPOSITORY}/compare/develop...$branch?expand=1"
+          fi
+          echo "### Release v$VERSION prepared on \`$branch\`" >> "$GITHUB_STEP_SUMMARY"

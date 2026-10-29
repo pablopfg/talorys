@@ -15,12 +15,14 @@ import type { Services } from "./container";
 import { ValidationError } from "../api/errors";
 import { decodeTools } from "../db/repositories/conversations";
 import { validateEndpoint } from "../mcp/url";
+import { REMOTE_ID_PATTERN } from "../remote/allowlist";
+import { clip } from "./text";
 
 /**
- * Settings a backup may never change: they control cost and model behaviour, and a
- * backup file is untrusted input. The owner changes them in Settings instead.
+ * Settings a backup may never change: they control cost, model behaviour and how long a
+ * session lasts, and a backup file is untrusted input. The owner changes them in Settings instead.
  */
-export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "memoryHistory"] as const;
+export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "customInstructions", "memoryHistory", "session"] as const;
 
 /** Builds a portable backup. Sessions, login attempts and credentials are never exported. */
 export function exportData(s: Services): Backup {
@@ -65,8 +67,49 @@ export interface ImportSummary {
   ignored_settings: string[];
 }
 
+/** Largest backup file the import route reads. */
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+
+/** Most records of each kind one import may carry; a real backup stays far below these. */
+export const MAX_IMPORT_RECORDS = {
+  conversations: 5_000,
+  messages: 50_000,
+  memories: 5_000,
+  tasks: 20_000,
+  notes: 10_000,
+  projects: 1_000,
+  automations: 500,
+  mcp_servers: 50,
+} as const;
+
+/** How far ahead of this Worker's clock a backup timestamp may be, for clock drift between devices. */
+const MAX_CLOCK_SKEW_MS = 5 * 60_000;
+
+/**
+ * A backup timestamp, normalized, or null when it can't be trusted: unreadable, or further in the
+ * future than clock drift explains. A forged future date would otherwise win every "newer copy wins"
+ * comparison against later local edits.
+ */
+function trustedStamp(v: unknown, now: string): string | null {
+  if (typeof v !== "string") return null;
+  const ms = Date.parse(v);
+  if (Number.isNaN(ms) || ms > Date.parse(now) + MAX_CLOCK_SKEW_MS) return null;
+  return new Date(ms).toISOString();
+}
+
 const str = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
 const strOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/** A full ISO date-time with a zone, as the API stores due dates; anything else is dropped. */
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+function dueDate(v: unknown): string | null {
+  if (typeof v !== "string" || !ISO_DATE_TIME.test(v)) return null;
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+/** Longest memory, as the API accepts it. */
+const MAX_MEMORY_CHARS = 2_000;
 const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(v as T) ? (v as T) : fallback;
 
@@ -87,8 +130,15 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
   }
   const previousTimezone = s.settings.get().timezone;
   const d = backup.data;
+  for (const [kind, max] of Object.entries(MAX_IMPORT_RECORDS) as [keyof typeof MAX_IMPORT_RECORDS, number][]) {
+    if (d[kind].length > max) throw new ValidationError(`This backup is too large to import (${kind}: more than ${max}).`);
+  }
   const db = s.db;
   const now = new Date().toISOString();
+  /** Stored dates: an untrusted one becomes the import time. */
+  const at = (v: unknown) => trustedStamp(v, now) ?? now;
+  /** 1 when an `updated_at` can take part in "newer copy wins"; an untrusted one never replaces a local record. */
+  const newer = (v: unknown) => (trustedStamp(v, now) ? 1 : 0);
 
   let paused = 0; // existing automations this backup paused
   const summary = db.transaction((): ImportSummary => {
@@ -96,29 +146,41 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       db.run(
         `INSERT INTO tal_projects (id, name, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, status = excluded.status, updated_at = excluded.updated_at
-         WHERE excluded.updated_at > tal_projects.updated_at`,
-        p.id, p.name, str(p.description), pick(p.status, ["active", "paused", "completed", "archived"], "active"), p.created_at, p.updated_at,
+         WHERE excluded.updated_at > tal_projects.updated_at AND ? = 1`,
+        p.id, p.name, str(p.description), pick(p.status, ["active", "paused", "completed", "archived"], "active"), at(p.created_at), at(p.updated_at), newer(p.updated_at),
       );
     }
     const projectExists = (id: unknown) => typeof id === "string" && !!db.one(`SELECT 1 AS x FROM tal_projects WHERE id = ?`, id);
+    /**
+     * Conversations imported messages may join: ones this import creates, or ones that hold only
+     * imported messages. A backup can never add turns to a chat the owner had here.
+     */
+    const importedOnly = (id: string) =>
+      !!db.one(`SELECT 1 AS x FROM tal_messages WHERE conversation_id = ? LIMIT 1`, id) &&
+      !db.one(`SELECT 1 AS x FROM tal_messages WHERE conversation_id = ? AND source IS NOT 'import' LIMIT 1`, id);
+    const importable = new Set<string>();
     for (const c of d.conversations) {
+      const exists = !!db.one(`SELECT 1 AS x FROM tal_conversations WHERE id = ?`, c.id);
+      if (exists && !importedOnly(c.id)) continue;
       // Summaries go into the system prompt but are invisible in the UI, so imported ones are
       // dropped and regenerated from the (visible) messages when needed.
       db.run(
         `INSERT INTO tal_conversations (id, title, summary, summary_upto, created_at, updated_at) VALUES (?, ?, NULL, NULL, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at`,
-        c.id, c.title, c.created_at, c.updated_at,
+         ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at
+         WHERE excluded.updated_at > tal_conversations.updated_at AND ? = 1`,
+        c.id, c.title, at(c.created_at), at(c.updated_at), newer(c.updated_at),
       );
+      importable.add(c.id);
     }
     let messages = 0;
     for (const m of d.messages) {
-      if (!db.one(`SELECT 1 AS x FROM tal_conversations WHERE id = ?`, m.conversation_id)) continue;
+      if (!importable.has(m.conversation_id)) continue;
       db.run(
         `INSERT INTO tal_messages (id, conversation_id, role, content, tools, status, error, created_at, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'import') ON CONFLICT(id) DO NOTHING`,
         // Approvals and task plans refer to drafts in the exporting instance; an imported one could only mislead.
         m.id, m.conversation_id, m.role, m.content, JSON.stringify(decodeTools(m.tools).map(({ approval: _a, plan: _p, ...t }) => t)),
-        pick(m.status, ["complete", "error", "cancelled"], "complete"), strOrNull(m.error), m.created_at,
+        pick(m.status, ["complete", "error", "cancelled"], "complete"), strOrNull(m.error), at(m.created_at),
       );
       messages++;
     }
@@ -126,8 +188,11 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
     const importedLinks: { id: string; superseded_by: string }[] = [];
     for (const m of d.memories) {
       const existing = db.one<{ content: string; updated_at: string }>(`SELECT content, updated_at FROM tal_memories WHERE id = ?`, m.id);
-      // Never overwrite a newer local edit with an older backup copy.
-      if (existing && existing.updated_at >= m.updated_at) continue;
+      const updatedAt = at(m.updated_at);
+      // Never overwrite a newer local edit with an older (or untrustworthy) backup copy.
+      if (existing && (!newer(m.updated_at) || existing.updated_at >= updatedAt)) continue;
+      const content = clip(m.content.trim(), MAX_MEMORY_CHARS);
+      if (!content) continue;
       // Older backups (before Smart Memory) have no lifecycle fields: those memories stay current.
       const status = pick(m.status, MEMORY_STATUSES, "active");
       db.run(
@@ -135,8 +200,8 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
          VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET content = excluded.content, category = excluded.category, status = excluded.status,
            valid_from = excluded.valid_from, valid_until = excluded.valid_until, updated_at = excluded.updated_at`,
-        m.id, m.content, pick(m.category, MEMORY_CATEGORIES, "other"), "import", status,
-        statedDate(m.valid_from), statedDate(m.valid_until), m.created_at, m.updated_at,
+        m.id, content, pick(m.category, MEMORY_CATEGORIES, "other"), "import", status,
+        statedDate(m.valid_from), statedDate(m.valid_until), at(m.created_at), updatedAt,
       );
       if (typeof m.superseded_by === "string" && m.superseded_by) importedLinks.push({ id: m.id, superseded_by: m.superseded_by });
     }
@@ -153,18 +218,18 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
          ON CONFLICT(id) DO UPDATE SET title = excluded.title, description = excluded.description, status = excluded.status,
            priority = excluded.priority, due_at = excluded.due_at, project_id = excluded.project_id, updated_at = excluded.updated_at,
            completed_at = excluded.completed_at
-         WHERE excluded.updated_at > tal_tasks.updated_at`,
+         WHERE excluded.updated_at > tal_tasks.updated_at AND ? = 1`,
         t.id, t.title, str(t.description), pick(t.status, ["todo", "in_progress", "done"], "todo"),
-        pick(t.priority, ["low", "medium", "high", "urgent"], "medium"), strOrNull(t.due_at),
-        projectExists(t.project_id) ? t.project_id : null, t.created_at, t.updated_at, strOrNull(t.completed_at),
+        pick(t.priority, ["low", "medium", "high", "urgent"], "medium"), dueDate(t.due_at),
+        projectExists(t.project_id) ? t.project_id : null, at(t.created_at), at(t.updated_at), t.completed_at ? at(t.completed_at) : null, newer(t.updated_at),
       );
     }
     for (const n of d.notes) {
       db.run(
         `INSERT INTO tal_notes (id, title, content, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET title = excluded.title, content = excluded.content, project_id = excluded.project_id, updated_at = excluded.updated_at
-         WHERE excluded.updated_at > tal_notes.updated_at`,
-        n.id, n.title, n.content, projectExists(n.project_id) ? n.project_id : null, n.created_at, n.updated_at,
+         WHERE excluded.updated_at > tal_notes.updated_at AND ? = 1`,
+        n.id, n.title, n.content, projectExists(n.project_id) ? n.project_id : null, at(n.created_at), at(n.updated_at), newer(n.updated_at),
       );
     }
     let automations = 0;
@@ -183,7 +248,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       db.run(
         `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 0, 'paused', ?, ?)`,
-        a.id, a.name, kind, str(a.message), JSON.stringify(schedule.data), str(a.created_at, now), now,
+        a.id, a.name, kind, str(a.message), JSON.stringify(schedule.data), at(a.created_at), now,
       );
       automations++;
     }
@@ -191,6 +256,9 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
     for (const m of d.mcp_servers) {
       // An imported server never connects or exposes a tool on its own: it arrives disabled, with no
       // credential and no tools, and an existing server keeps the owner's version. Unsafe URLs are skipped.
+      // Ids end up inside approval targets ("server/tool") and OAuth state ("server.nonce"), so
+      // only servers with the UUIDs Talorys mints are imported.
+      if (!REMOTE_ID_PATTERN.test(m.id)) continue;
       if (db.one(`SELECT 1 AS x FROM tal_mcp_servers WHERE id = ?`, m.id) || s.mcp.repo.count() >= MAX_MCP_SERVERS) continue;
       let url: string;
       try {
@@ -204,7 +272,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
         url,
         auth_type: pick(m.auth_type, MCP_AUTH_TYPES, "none"),
         enabled: false,
-        created_at: str(m.created_at, now),
+        created_at: at(m.created_at),
       });
       mcpServers++;
     }
@@ -218,7 +286,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       s.settings.update(settings as never);
     }
     return {
-      conversations: d.conversations.length,
+      conversations: importable.size,
       messages,
       memories: d.memories.length,
       tasks: d.tasks.length,

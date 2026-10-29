@@ -56,7 +56,7 @@ describe("push API", () => {
     expect(status.public_key).toMatch(/^[\w-]{87}$/);
     expect(status.max_devices).toBe(MAX_PUSH_DEVICES);
     expect(JSON.stringify(status)).not.toContain("PRIVATE");
-    const health = await client().json("/api/health");
+    const health = await c.json("/api/health");
     expect(health.push).toBe(true);
   });
 

@@ -2,9 +2,9 @@ import { type HealthReport, TALORYS_VERSION, type UsageReport, settingsUpdateSch
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app";
-import { body } from "../middleware";
+import { body, requireRecentAuth } from "../middleware";
 import { schemaVersion } from "../../db/migrations";
-import { exportData, importData } from "../../services/backup";
+import { MAX_IMPORT_BYTES, exportData, importData } from "../../services/backup";
 import { WORKERS_AI_PRICING } from "../../ai/pricing";
 import { checkForUpdate } from "../../services/update-check";
 
@@ -13,6 +13,7 @@ export const systemRoutes = new Hono<AppEnv>();
 /**
  * Non-inference health check used by the installer and monitoring.
  * Verifies storage and configuration without calling Workers AI.
+ * Without a session or token it answers only ok, so strangers learn nothing about the deploy.
  */
 systemRoutes.get("/health", (c) => {
   const s = c.env.agent.services;
@@ -38,7 +39,9 @@ systemRoutes.get("/health", (c) => {
     push: s.push.configured(),
     time: new Date().toISOString(),
   };
-  return c.json(report, report.ok ? 200 : 503);
+  const status = report.ok ? 200 : 503;
+  if (!c.get("sessionId") && !c.get("remote")) return c.json({ ok: report.ok }, status);
+  return c.json(report, status);
 });
 
 systemRoutes.get("/settings", (c) => c.json({ settings: c.env.agent.services.settings.get() }));
@@ -47,6 +50,11 @@ systemRoutes.patch("/settings", async (c) => {
   const patch = await body(c, settingsUpdateSchema);
   const s = c.env.agent.services;
   const before = s.settings.get();
+  // Shorter session timeouts are free; a longer one keeps a stolen session alive longer, so it needs the password.
+  const longer = (Object.keys(patch.session ?? {}) as (keyof typeof before.session)[]).some((k) => (patch.session?.[k] ?? 0) > before.session[k]);
+  // Instructions stay in every prompt, so a stolen session could plant them to steer the agent; clearing them is free.
+  const newInstructions = !!patch.customInstructions && patch.customInstructions !== before.customInstructions;
+  if (longer || newInstructions) requireRecentAuth(c);
   const settings = s.settings.update(patch);
   if (settings.timezone !== before.timezone) await s.automations.rearmAll();
   if (settings.demoMode !== before.demoMode) {
@@ -59,7 +67,7 @@ systemRoutes.get("/usage", (c) => {
   const s = c.env.agent.services;
   const settings = s.settings.get();
   const report: UsageReport = {
-    day: new Date().toISOString().slice(0, 10),
+    day: s.usage.day(),
     today: s.usage.today(),
     last_7_days: s.usage.lastDays(7),
     limits: settings.limits,
@@ -93,6 +101,7 @@ systemRoutes.get("/system/update", async (c) => {
 systemRoutes.get("/activity", (c) => c.json({ activity: c.env.agent.services.activity.list(100) }));
 
 systemRoutes.get("/export", (c) => {
+  requireRecentAuth(c);
   const backup = exportData(c.env.agent.services);
   c.env.agent.services.activity.record("data.exported", "Exported a backup");
   return new Response(JSON.stringify(backup, null, 2), {
@@ -104,7 +113,8 @@ systemRoutes.get("/export", (c) => {
 });
 
 systemRoutes.post("/import", async (c) => {
-  const raw = await body(c, z.unknown(), 25 * 1024 * 1024);
+  requireRecentAuth(c);
+  const raw = await body(c, z.unknown(), MAX_IMPORT_BYTES);
   const summary = await importData(c.env.agent.services, raw);
   return c.json({ imported: summary });
 });

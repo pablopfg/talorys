@@ -29,6 +29,7 @@ try {
   const tarball = join(work, info.filename);
   const files = info.files.map((f) => f.path);
   assert.ok(files.includes("dist/cli.js"), "tarball contains the CLI");
+  assert.ok(files.includes("npm-shrinkwrap.json"), "tarball pins its dependency tree");
   assert.ok(files.includes("templates/agent/worker.js"), "tarball contains the Worker bundle");
   assert.ok(files.includes("templates/web/dist/index.html"), "tarball contains the frontend");
   assert.ok(files.some((f) => f.startsWith("templates/web/functions/api/")), "tarball contains the Pages Function");

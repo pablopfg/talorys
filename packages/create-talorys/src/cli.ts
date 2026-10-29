@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { CancelledError, CliError } from "./errors";
+import { CancelledError, CliError, sanitize } from "./errors";
 import { formatChecks, install, resetPassword, ensureAuthenticated, type Deps } from "./install";
 import { MANIFEST_FILE, readManifest } from "./manifest";
 import { checkNodeVersion, detectGlobalClis } from "./requirements";
 import { readTemplateInfo } from "./scaffold";
 import { PUSH_SECRETS, REQUIRED_SECRETS } from "./secrets";
+import { isBreachedPassword } from "@talorys/shared/password-policy";
 import { ClackUi } from "./ui";
 import { runChecks } from "./verify";
 import { Wrangler } from "./wrangler";
@@ -25,6 +26,8 @@ Options
   --account-id <id>     Cloudflare account to use
   --name <name>         Agent name (default: Talorys)
   --semantic / --no-semantic  Turn semantic recall on or off without asking (default No; update keeps the last answer)
+  --domain <host>       Serve Talorys on your own domain (added to the Pages project as a custom domain);
+                        the pages.dev address then stops answering. "--domain none" goes back to pages.dev
   -y, --yes             Skip confirmation prompts
   -h, --help            Show this help
   -v, --version         Show version
@@ -136,6 +139,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       name: { type: "string" },
       semantic: { type: "boolean" },
       "no-semantic": { type: "boolean" },
+      domain: { type: "string" },
       yes: { type: "boolean", short: "y" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -160,8 +164,10 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   }
 
   const ui = new ClackUi();
-  const deps: Deps = { ui, wrangler: new Wrangler() };
+  const deps: Deps = { ui, wrangler: new Wrangler(), breached: (password) => isBreachedPassword(password) };
   const password = process.env.TALORYS_OWNER_PASSWORD;
+  // Wrangler and any other child process inherit the environment; the plaintext must not go with it.
+  delete process.env.TALORYS_OWNER_PASSWORD;
 
   try {
     if (values.semantic && values["no-semantic"]) throw new CliError("Pass either --semantic or --no-semantic, not both.");
@@ -169,7 +175,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       case "install":
       case "update":
         await install(
-          { dir, yes: values.yes, accountId: values["account-id"], agentName: values.name, semantic, password, mode: command },
+          { dir, yes: values.yes, accountId: values["account-id"], agentName: values.name, semantic, domain: values.domain, password, mode: command },
           deps,
         );
         return 0;
@@ -193,7 +199,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       ui.outro("Setup did not finish. No data was deleted.");
       return 1;
     }
-    ui.error(error instanceof Error ? error.message : String(error));
+    ui.error(sanitize(error instanceof Error ? error.message : String(error)));
     ui.outro("Unexpected error. Re-run to resume; please report persistent failures on GitHub.");
     return 1;
   }
@@ -205,7 +211,7 @@ if (isDirectRun && !process.env.VITEST) {
   main().then(
     (code) => process.exit(code),
     (error) => {
-      console.error(error);
+      console.error(sanitize(error instanceof Error ? (error.stack ?? error.message) : String(error), 40));
       process.exit(1);
     },
   );

@@ -90,7 +90,7 @@ describe("temporal memory", () => {
       expect(present.system).toContain("I sold it and bought a Tesla.");
       expect(present.system).not.toContain("I own a Volkswagen.");
       const past = await chatOnce(agent, "Which Volkswagen did I have before?");
-      expect(past.system).toMatch(/Historical context[^\n]*\n- \[fact\] I own a Volkswagen\. \(replaced by “I sold it and bought a Tesla\.”/);
+      expect(past.system).toMatch(/Historical context[^\n]*\n<data source="memories">\n- \[fact\] I own a Volkswagen\. \(replaced by “I sold it and bought a Tesla\.”/);
 
       const history = s.memoryHistory.lifecycle.history(tesla.id);
       expect(history.previous.map((m) => m.id)).toEqual([vw.id]);
@@ -168,7 +168,7 @@ describe("with semantic recall (#9) on", () => {
       expect(chat.system).toContain("bought a Tesla");
       expect(chat.system).not.toContain("I drive a VW Bug");
       const chatPast = await chatOnce(agent, "What car did I drive before?", true);
-      expect(chatPast.system).toMatch(/Historical context[^\n]*\n- \[other\] \(saved [^)]+\) I drive a VW Bug \(replaced by “I sold the VW Bug/);
+      expect(chatPast.system).toMatch(/Historical context[^\n]*\n<data source="memories">\n- \[other\] \(saved [^)]+\) I drive a VW Bug \(replaced by “I sold the VW Bug/);
     });
   });
 
@@ -425,6 +425,9 @@ describe("migration from the previous schema", () => {
       // ...and what later migrations added.
       for (const col of ["target_version", "payload", "preview", "result"]) db.run(`ALTER TABLE tal_pending_actions DROP COLUMN ${col}`);
       for (const table of ["tal_remote_tokens", "tal_remote_auth_failures", "tal_remote_auth_failure_days", "tal_remote_write_days", "tal_task_plan_drafts", "tal_mcp_tools", "tal_mcp_servers"]) db.run(`DROP TABLE ${table}`);
+      db.run(`ALTER TABLE tal_sessions DROP COLUMN confirmed_at`);
+      db.run(`ALTER TABLE tal_sessions DROP COLUMN last_presence_at`);
+      db.run(`ALTER TABLE tal_usage_daily DROP COLUMN transcription_seconds`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
         `INSERT INTO tal_memories (id, content, category, source, created_at, updated_at) VALUES ('legacy-1', 'Legacy memory about sailing', 'fact', 'manual', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,

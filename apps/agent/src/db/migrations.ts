@@ -397,6 +397,100 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_pending_actions ADD COLUMN result TEXT`,
     ],
   },
+  {
+    version: 13,
+    name: "mcp tools in scheduled automations",
+    statements: [
+      // The owner's opt-in to offer an `auto` tool to scheduled automations as well as chat.
+      `ALTER TABLE tal_mcp_tools ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    version: 14,
+    name: "password confirmation and token expiry",
+    statements: [
+      // When the owner last typed the password in this session; null asks for it before a sensitive action.
+      `ALTER TABLE tal_sessions ADD COLUMN confirmed_at TEXT`,
+      `ALTER TABLE tal_remote_tokens ADD COLUMN expires_at TEXT`,
+      // Tokens from before expiry existed get the full lifetime from today, so none stops working at upgrade.
+      `UPDATE tal_remote_tokens SET expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+90 days') WHERE expires_at IS NULL`,
+    ],
+  },
+  {
+    version: 15,
+    name: "session presence",
+    statements: [
+      // When an open tab last answered (heartbeat or any request); last_seen_at stays the owner's last use.
+      `ALTER TABLE tal_sessions ADD COLUMN last_presence_at TEXT`,
+    ],
+  },
+  {
+    version: 16,
+    name: "chat voice input",
+    statements: [
+      // Audio seconds transcribed per day, capped by TRANSCRIPTION_LIMITS.maxSecondsPerDay.
+      `ALTER TABLE tal_usage_daily ADD COLUMN transcription_seconds INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    version: 17,
+    name: "sign-in activity",
+    statements: [
+      // One row per sign-in event; repeated failures from one network fold into one row (count).
+      `CREATE TABLE IF NOT EXISTS tal_auth_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        last_at INTEGER NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        kind TEXT NOT NULL,
+        reason TEXT,
+        ip TEXT,
+        network TEXT,
+        country TEXT,
+        region TEXT,
+        city TEXT,
+        asn INTEGER,
+        as_org TEXT,
+        colo TEXT,
+        host TEXT,
+        user_agent TEXT,
+        known_device INTEGER,
+        session TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS tal_auth_events_at ON tal_auth_events(at)`,
+      `CREATE INDEX IF NOT EXISTS tal_auth_events_network ON tal_auth_events(network, last_at)`,
+      // What is left once the detailed rows expire: counts per day, country and kind, no IP.
+      `CREATE TABLE IF NOT EXISTS tal_auth_daily (
+        day TEXT NOT NULL,
+        country TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        n INTEGER NOT NULL,
+        PRIMARY KEY (day, country, kind)
+      )`,
+      // Browsers that completed a sign-in; only HMAC(SESSION_SECRET, device cookie) is stored.
+      `CREATE TABLE IF NOT EXISTS tal_known_devices (
+        id TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      )`,
+    ],
+  },
+  {
+    version: 18,
+    name: "two-step sign-in",
+    statements: [
+      // A sign-in waiting for the second step. Only HMAC(SESSION_SECRET, challenge cookie) is stored.
+      `CREATE TABLE IF NOT EXISTS tal_mfa_challenges (
+        id TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        login_attempt INTEGER,
+        weak_password INTEGER NOT NULL DEFAULT 0,
+        user_agent TEXT NOT NULL DEFAULT ''
+      )`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

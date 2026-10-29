@@ -45,7 +45,7 @@ cpSync(join(root, "apps/web/functions/api/[[path]].ts"), join(out, "web/function
 writeFileSync(join(out, "version.json"), `${JSON.stringify({ version: pkg.version, built_at: new Date().toISOString() }, null, 2)}\n`);
 
 // Safety net: no secrets or local dev values may ever ship in the package.
-const forbidden = [/pbkdf2-sha256\$\d+\$/, /TALORYS_ENV\s*=\s*development/, /talorys-dev-password/];
+const forbidden = [/pbkdf2-sha256\$\d+\$/, /TALORYS_ENV\s*=\s*development/, /dev-Owner-violeta-trem-81/];
 function scan(dir) {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);

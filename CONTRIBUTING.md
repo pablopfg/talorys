@@ -22,7 +22,7 @@ For anything larger than a bug fix, please open an issue first to discuss it.
 
 ## Development setup
 
-Requires Node.js 22+.
+Requires Node.js 24+. Development and CI use the active LTS, Node.js 26, pinned in `.nvmrc` (run `nvm use`).
 
 ```bash
 npm install
@@ -31,10 +31,14 @@ npm run dev
 
 This runs the agent Worker, the Pages Function proxy and the Vite UI locally
 with a mock AI provider; no Cloudflare account is needed. Open
-http://localhost:5173 and sign in with `talorys-dev-password`. See
+http://localhost:5173 and sign in with `dev-Owner-violeta-trem-81`. See
 [docs/development.md](docs/development.md) for details.
 
 ## Before opening a pull request
+
+Open pull requests against `develop`; `main` only receives releases from
+`develop` (see [docs/branch-protection.md](docs/branch-protection.md)).
+
 
 ```bash
 npm run typecheck
@@ -48,6 +52,14 @@ If you changed the installer, also run `npm run test:pack`.
 - Add or update tests for behaviour changes.
 - Update the docs when you change user-facing behaviour.
 - Keep pull requests focused, with a clear description of what and why.
+
+## Changelog and releases
+
+Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat(chat): …`, `fix: …`). Describe user-facing changes under
+"Não lançado" in [CHANGELOG.md](CHANGELOG.md), or add the `sem-changelog`
+label. Versions and GitHub releases are created by workflows; see
+[docs/releases.md](docs/releases.md).
 
 ## Reporting bugs
 

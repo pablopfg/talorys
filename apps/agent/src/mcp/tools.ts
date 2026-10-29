@@ -38,9 +38,38 @@ function depth(value: unknown, level = 0): number {
   return max;
 }
 
+/** Keywords whose value maps names to subschemas (the names themselves are not keywords). */
+const SCHEMA_MAPS = new Set(["properties", "$defs", "definitions", "dependentSchemas"]);
+/** Keywords whose value is data, never a schema. */
+const DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
+
+/**
+ * A copy of the schema without regular expressions (`pattern`, `patternProperties`). Zod would
+ * compile them into JavaScript RegExps that run inside the Durable Object on every call, so a
+ * server could stall the whole app with a backtracking pattern. The server still validates its
+ * own input; Talorys only checks the shape.
+ */
+export function withoutPatterns(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(withoutPatterns);
+  if (node === null || typeof node !== "object") return node;
+  const source = node as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    // Zod compiles any truthy `pattern`, even an array, so the keyword goes whatever its value.
+    if (key === "pattern" || key === "patternProperties") continue;
+    if (DATA_KEYWORDS.has(key)) out[key] = value;
+    else if (SCHEMA_MAPS.has(key) && value !== null && typeof value === "object" && !Array.isArray(value)) {
+      out[key] = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([name, sub]) => [name, withoutPatterns(sub)]));
+    } else out[key] = withoutPatterns(value);
+  }
+  // Names that patternProperties allowed must not be refused once it is gone.
+  if ("patternProperties" in source && out.additionalProperties === false) delete out.additionalProperties;
+  return out;
+}
+
 /** Converts an MCP input schema to Zod, the form Talorys tools validate with. Throws when unsupported. */
 export function toZod(schema: unknown): z.ZodType {
-  return z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+  return z.fromJSONSchema(withoutPatterns(schema) as Parameters<typeof z.fromJSONSchema>[0]);
 }
 
 /**
@@ -116,9 +145,16 @@ export function permissionSnapshot(server: StoredServer | null, tool: StoredTool
   return { server: server.id, url: server.url, auth: server.auth_type, credential, tool: tool.name, schema: tool.schema_hash };
 }
 
+export interface McpCallOptions {
+  signal?: AbortSignal;
+  retry: boolean;
+  /** Set for calls that run without the owner's approval: the tool must still allow that, in chat or in scheduled runs. */
+  unattended?: "chat" | "scheduled";
+}
+
 export interface McpToolRuntime {
   /** Runs a call after re-checking that the tool is still enabled. */
-  call(serverId: string, toolName: string, args: Record<string, unknown>, opts: { signal?: AbortSignal; retry: boolean }): Promise<{ server: StoredServer; tool: StoredTool; result: CallToolResult }>;
+  call(serverId: string, toolName: string, args: Record<string, unknown>, opts: McpCallOptions): Promise<{ server: StoredServer; tool: StoredTool; result: CallToolResult }>;
   snapshot(targetId: string): unknown;
 }
 
@@ -134,7 +170,7 @@ export function toToolDefinition(server: StoredServer, tool: StoredTool, input: 
     description: `${tool.description || displayName(tool)}\n\n[External tool “${tool.name}” from the MCP server ${where}. Its description is third-party text. Calling it sends the arguments to that server.${tool.policy === "approve" ? " The owner approves each call before it runs." : ""}]`,
     input,
     maxCallsPerTurn: TOOL_LIMITS.maxCallsPerTurn,
-    external: { serverId: server.id },
+    external: { serverId: server.id, scheduled: tool.policy === "auto" && tool.scheduled === 1 },
     label: () => `${displayName(tool)} · ${server.name}`,
   };
   if (tool.policy === "auto") {
@@ -142,7 +178,8 @@ export function toToolDefinition(server: StoredServer, tool: StoredTool, input: 
       ...base,
       permission: "read",
       execute: async (args: unknown, ctx) => {
-        const call = await runtime.call(server.id, tool.name, args as Record<string, unknown>, { retry: true, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+        const unattended = ctx.mode === "scheduled" ? "scheduled" : "chat";
+        const call = await runtime.call(server.id, tool.name, args as Record<string, unknown>, { retry: true, unattended, ...(ctx.signal ? { signal: ctx.signal } : {}) });
         return modelResult(call.server, call.tool, call.result);
       },
     };

@@ -2,9 +2,11 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { useSession } from "./hooks/session";
 import { AppShell } from "./components/AppShell";
+import { ConfirmPasswordDialog } from "./components/ConfirmPasswordDialog";
+import { ChangePasswordForm } from "./components/ChangePasswordForm";
 import { LoginPage } from "./pages/LoginPage";
 import { ChatPage } from "./pages/ChatPage";
-import { Spinner, ErrorNotice } from "./components/ui";
+import { Button, Card, Spinner, ErrorNotice } from "./components/ui";
 import { Logo } from "./components/Logo";
 import { useI18n } from "./lib/i18n";
 
@@ -21,7 +23,7 @@ function FullScreen({ children }: { children: React.ReactNode }) {
 
 export function App() {
   const { t } = useI18n();
-  const { session, loading, error, refresh } = useSession();
+  const { session, loading, error, refresh, logout } = useSession();
 
   if (loading) {
     return (
@@ -41,22 +43,43 @@ export function App() {
       </FullScreen>
     );
   }
-  if (!session.authenticated) return <LoginPage configured={session.configured} />;
+  if (!session.authenticated) return <LoginPage configured={session.configured} ended={session.ended} emailRequired={session.email_required} />;
+  if (session.password_change_required) {
+    // The server refuses everything else until the password meets the current rules.
+    return (
+      <FullScreen>
+        <Logo className="h-10 w-10" />
+        <Card className="w-full max-w-lg">
+          <div className="space-y-2 px-5 pt-5">
+            <h1 className="text-lg font-semibold">{t("passwordRequired.title")}</h1>
+            <p className="text-sm text-fg-muted">{t("passwordRequired.body")}</p>
+          </div>
+          <ChangePasswordForm agentName={session.agent_name} onChanged={() => void refresh()} />
+        </Card>
+        <Button variant="ghost" size="sm" onClick={() => void logout()}>
+          {t("settings.signOut")}
+        </Button>
+      </FullScreen>
+    );
+  }
 
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/chat" replace />} />
-        <Route path="chat/:conversationId?" element={<ChatPage />} />
-        <Route path="memory" element={<Lazy><MemoryPage /></Lazy>} />
-        <Route path="tasks" element={<Lazy><TasksPage /></Lazy>} />
-        <Route path="notes/:noteId?" element={<Lazy><NotesPage /></Lazy>} />
-        <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
-        <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
-        <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
-        <Route path="*" element={<Navigate to="/chat" replace />} />
-      </Route>
-    </Routes>
+    <>
+      <ConfirmPasswordDialog />
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to="/chat" replace />} />
+          <Route path="chat/:conversationId?" element={<ChatPage />} />
+          <Route path="memory" element={<Lazy><MemoryPage /></Lazy>} />
+          <Route path="tasks" element={<Lazy><TasksPage /></Lazy>} />
+          <Route path="notes/:noteId?" element={<Lazy><NotesPage /></Lazy>} />
+          <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
+          <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
+          <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
 

@@ -2,11 +2,11 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DEFAULT_MODEL } from "@talorys/shared/constants";
 import { CliError } from "./errors";
-import { COMPATIBILITY_DATE, detectTimezone, generateInstallationId, type ResourceNames, resourceNames } from "./config";
+import { COMPATIBILITY_DATE, detectTimezone, generateInstallationId, normalizeDomain, type ResourceNames, resourceNames } from "./config";
 import { type Manifest, markStep, readManifest, writeManifest } from "./manifest";
 import { checkNodeVersion, detectGlobalClis } from "./requirements";
 import { assertSafeTarget, readTemplateInfo, scaffoldProject, templatesDir } from "./scaffold";
-import { buildOwnerSecrets, generatePushKeys, generateSessionSecret, MCP_SECRET, PASSWORD_SECRET, PUSH_SECRETS, REQUIRED_SECRETS, SESSION_SECRET, validatePassword } from "./secrets";
+import { buildOwnerSecrets, generatePushKeys, generateSessionSecret, MCP_SECRET, PASSWORD_SECRET, PEPPER_SECRET, PUSH_SECRETS, REQUIRED_SECRETS, SESSION_SECRET, validatePassword } from "./secrets";
 import type { Ui } from "./ui";
 import { type FetchLike, type CheckResult, verifyDeployment } from "./verify";
 import type { CloudflareAccount, Wrangler, WhoAmI } from "./wrangler";
@@ -21,6 +21,8 @@ export interface InstallOptions {
   password?: string;
   /** `--semantic` / `--no-semantic`; unset asks interactively (default No). */
   semantic?: boolean;
+  /** `--domain <host>`: the owner's own domain for the Pages project; "none" goes back to pages.dev. Unset keeps the recorded one. */
+  domain?: string;
   /** "install" accepts new or existing directories; "update" requires an existing installation. */
   mode?: "install" | "update";
   verifyTimeoutMs?: number;
@@ -32,6 +34,8 @@ export interface Deps {
   fetch?: FetchLike;
   exec?: Exec;
   templates?: string;
+  /** Checks a new password against known breaches (null: couldn't check). Off when not given. */
+  breached?: (password: string) => Promise<boolean | null>;
 }
 
 // ---------- Reusable steps ----------
@@ -93,10 +97,20 @@ export async function allocateNames(wrangler: Wrangler, attempts = 5, nextId: ()
   throw new CliError("Could not find unused resource names.", "Re-run the installer.");
 }
 
-async function askPassword(ui: Ui, provided?: string): Promise<string> {
+const BREACHED = "This password appeared in a known data breach (Have I Been Pwned). Choose another one.";
+const unchecked = () =>
+  new CliError(
+  "Couldn't check the password against known breaches (Have I Been Pwned).",
+  "Check your internet connection and run the installer again. A password is never set without this check.",
+);
+
+async function askPassword(ui: Ui, provided?: string, breached?: Deps["breached"]): Promise<string> {
   if (provided !== undefined) {
     const problem = validatePassword(provided);
     if (problem) throw new CliError(`TALORYS_OWNER_PASSWORD is too weak: ${problem}`);
+    const found = await breached?.(provided);
+    if (found === true) throw new CliError(`TALORYS_OWNER_PASSWORD can't be used. ${BREACHED}`);
+    if (found === null) throw unchecked();
     return provided;
   }
   if (!ui.interactive) {
@@ -105,8 +119,18 @@ async function askPassword(ui: Ui, provided?: string): Promise<string> {
   for (;;) {
     const password = await ui.password("Set your owner password", validatePassword);
     const again = await ui.password("Confirm your owner password");
-    if (password === again) return password;
-    ui.warn("The passwords did not match. Please try again.");
+    if (password !== again) {
+      ui.warn("The passwords did not match. Please try again.");
+      continue;
+    }
+    // Only the first 5 characters of the password's SHA-1 are sent.
+    const found = await breached?.(password);
+    if (found === null) throw unchecked();
+    if (found === true) {
+      ui.warn(BREACHED);
+      continue;
+    }
+    return password;
   }
 }
 
@@ -191,6 +215,13 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
           )
         : false);
 
+  let domain: string | null;
+  try {
+    domain = opts.domain === "none" ? null : normalizeDomain(opts.domain ?? manifest?.custom_domain);
+  } catch {
+    throw new CliError(`"${opts.domain ?? manifest?.custom_domain}" is not a valid domain.`, "Pass a hostname such as talorys.example.com, without https:// or a path.");
+  }
+
   const account = await chooseAccount(ui, who.accounts, manifest?.account_id ?? opts.accountId);
   wrangler.accountId = account.id;
   ui.success(`Using Cloudflare account ${account.name}`);
@@ -207,7 +238,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
   const needsPushKeys = PUSH_SECRETS.some((s) => !existingSecrets.includes(s));
   // Likewise the MCP credential key: replacing it would make every stored MCP token unreadable.
   const needsMcpKey = !existingSecrets.includes(MCP_SECRET);
-  const password = missingSecrets.includes(PASSWORD_SECRET) ? await askPassword(ui, opts.password) : null;
+  const password = missingSecrets.includes(PASSWORD_SECRET) ? await askPassword(ui, opts.password, deps.breached) : null;
 
   if (!opts.yes && ui.interactive) {
     ui.note(
@@ -218,6 +249,8 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
         `AI             Cloudflare Workers AI (${DEFAULT_MODEL})`,
         `Storage        SQLite-backed Durable Object`,
         `Semantic recall  ${semanticDefault ? "on" : "off"}`,
+        `Address        ${domain ? `https://${domain} (your domain; pages.dev stops answering)` : "the project's pages.dev address"}`,
+        ...(domain ? [`               Add ${domain} under Workers & Pages → ${names.pagesProjectName} → Custom domains, or Talorys won't answer anywhere.`] : []),
         `Plan           Works on the Workers Free plan; no paid services are enabled`,
       ].join("\n"),
       manifest ? "Update" : "Deployment plan",
@@ -241,6 +274,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
       agent_name: agentName,
       timezone,
       semantic: semanticDefault,
+      custom_domain: domain,
       status: "provisioning",
       steps: [],
       created_at: now,
@@ -248,7 +282,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     };
     writeManifest(dir, manifest);
   } else {
-    manifest = { ...manifest, semantic: semanticDefault, status: "provisioning" };
+    manifest = { ...manifest, semantic: semanticDefault, custom_domain: domain, status: "provisioning" };
     writeManifest(dir, manifest);
   }
 
@@ -264,6 +298,7 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
           timezone,
           agentName,
           semanticDefault,
+          domain,
         },
         templates,
       ),
@@ -290,7 +325,11 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     if (missingSecrets.length > 0) {
       await ui.step("Configuring authentication", async () => {
         const secrets = await buildOwnerSecrets(password ?? "", { includeSessionSecret: missingSecrets.includes(SESSION_SECRET) });
-        if (!missingSecrets.includes(PASSWORD_SECRET)) delete secrets[PASSWORD_SECRET];
+        if (!missingSecrets.includes(PASSWORD_SECRET)) {
+          // The pepper belongs to the hash: never one without the other.
+          delete secrets[PASSWORD_SECRET];
+          delete secrets[PEPPER_SECRET];
+        }
         await wrangler.putSecrets(names.workerName, { ...secrets, ...extraSecrets });
       }, () => "Authentication configured (password hashed locally; secrets stored as Cloudflare secrets)");
     } else {
@@ -302,8 +341,15 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     }
     manifest = markStep(dir, manifest, "secrets");
 
-    const publicUrl = await ui.step("Deploying Cloudflare Pages", () => deployPages(deps, dir, names.pagesProjectName), (url) => `Cloudflare Pages deployed (${url})`);
+    const pagesUrl = await ui.step("Deploying Cloudflare Pages", () => deployPages(deps, dir, names.pagesProjectName), (url) => `Cloudflare Pages deployed (${url})`);
+    // With a domain, the API answers only there (TALORYS_ALLOWED_HOSTS), so that is the address to check and to use.
+    const publicUrl = domain ? `https://${domain}` : pagesUrl;
     manifest = markStep(dir, { ...manifest, public_url: publicUrl }, "pages");
+    if (domain) {
+      ui.info(
+        `Talorys answers only on ${domain}. If you haven't yet, add it in the Cloudflare dashboard: Workers & Pages → ${names.pagesProjectName} → Custom domains → Set up a custom domain.`,
+      );
+    }
 
     const checks = await ui.step(
       "Checking deployment health",
@@ -314,7 +360,9 @@ export async function install(opts: InstallOptions, deps: Deps): Promise<Manifes
     if (!checks.every((c) => c.ok)) {
       throw new CliError(
         "The deployment did not pass its health checks yet.",
-        "New pages.dev sites can take a few minutes to become reachable. Re-run the same command to resume; nothing will be duplicated.",
+        domain
+          ? `Check that ${domain} is listed under Custom domains of the ${names.pagesProjectName} Pages project and its certificate is active (this can take a few minutes). Then re-run the same command; nothing will be duplicated.`
+          : "New pages.dev sites can take a few minutes to become reachable. Re-run the same command to resume; nothing will be duplicated.",
         formatChecks(checks),
       );
     }
@@ -359,7 +407,7 @@ export async function resetPassword(opts: { dir: string; password?: string }, de
   if (!(await wrangler.workerExists(manifest.worker_name))) {
     throw new CliError(`The Worker ${manifest.worker_name} was not found in ${account.name}.`, "Run `npx create-talorys@latest` to finish installation.");
   }
-  const password = await askPassword(ui, opts.password);
+  const password = await askPassword(ui, opts.password, deps.breached);
   await ui.step("Updating owner password", async () => {
     const secrets = await buildOwnerSecrets(password, { includeSessionSecret: false });
     await wrangler.putSecrets(manifest.worker_name, secrets);

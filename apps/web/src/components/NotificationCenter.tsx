@@ -9,7 +9,7 @@ import { useI18n } from "../lib/i18n";
 /** In-app notification center for reminders and automation results. */
 export function NotificationCenter({ open, onClose }: { open: boolean; onClose: () => void }) {
   const i18n = useI18n();
-  const { t } = i18n;
+  const { t, serverText } = i18n;
   const { data, isLoading } = useNotifications();
   const markRead = useApiMutation((id?: string) => api("/notifications/read", { method: "POST", body: id ? { id } : {} }), {
     invalidate: [keys.notifications],
@@ -45,11 +45,11 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
               <span className={cn("mt-2 h-2 w-2 shrink-0 rounded-full", n.read_at ? "bg-transparent" : "bg-accent")} />
               <div className="min-w-0 flex-1" onClick={() => !n.read_at && markRead.mutate(n.id)}>
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-medium">{n.title}</p>
+                  <p className="font-medium">{serverText(n.title)}</p>
                   <time className="shrink-0 text-xs text-fg-subtle">{relativeTime(n.created_at, i18n)}</time>
                 </div>
                 <div className="mt-1 text-sm text-fg-muted">
-                  <Markdown content={n.body} compact />
+                  <Markdown content={serverText(n.body)} compact plainLinks />
                 </div>
               </div>
               <button type="button"

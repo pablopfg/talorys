@@ -1,24 +1,44 @@
-import { CSRF_HEADER, DEV_SESSION_COOKIE, SESSION_COOKIE } from "@talorys/shared";
+import { ACTIVITY_HEADER, CLIENT_GEO_HEADER, CSRF_HEADER, DEV_DEVICE_COOKIE, DEV_MFA_COOKIE, DEV_SESSION_COOKIE, DEVICE_COOKIE, MFA_CHALLENGE_TTL_MS, MFA_COOKIE, SESSION_COOKIE } from "@talorys/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import type { z } from "zod";
 import type { AppEnv } from "./app";
 import { AppError, ValidationError } from "./errors";
+import { type ClientGeo, type ClientInfo, DEVICE_COOKIE_MAX_AGE_S, NO_GEO } from "../auth/auth-log";
 
 /** Routes reachable without a session. Nothing here can claim ownership or read owner data. */
-const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "GET /api/auth/session"]);
+const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "POST /api/auth/mfa", "GET /api/auth/session"]);
+
+/** All a session can do while its password fails the current rules: change it, or leave. */
+const WEAK_PASSWORD_ROUTES = new Set([...PUBLIC_ROUTES, "POST /api/auth/password", "POST /api/auth/logout", "POST /api/auth/heartbeat"]);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** API responses are data, never pages: nothing in them may load, run or be framed. */
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
   c.res.headers.set("cache-control", "no-store");
   c.res.headers.set("x-content-type-options", "nosniff");
   c.res.headers.set("referrer-policy", "same-origin");
+  c.res.headers.set("content-security-policy", API_CSP);
+  c.res.headers.set("x-frame-options", "DENY");
+  if (isHttps(c)) c.res.headers.set("strict-transport-security", "max-age=63072000; includeSubDomains");
 };
 
 function isDevelopment(c: Context<AppEnv>): boolean {
   return c.env.env.TALORYS_ENV === "development";
 }
+
+function isHttps(c: Context<AppEnv>): boolean {
+  return new URL(c.req.url).protocol === "https:";
+}
+
+/** Outside development, plain HTTP is refused before anything reads a cookie or a password. */
+export const requireHttps: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!isDevelopment(c) && !isHttps(c)) throw new AppError("FORBIDDEN", "HTTPS is required.");
+  return next();
+};
 
 function allowedOrigins(c: Context<AppEnv>): Set<string> {
   const origins = new Set([new URL(c.req.url).origin]);
@@ -51,14 +71,18 @@ export const csrfProtection: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+/** The __Host- cookie, always Secure; the plain name only for local development over HTTP. */
 export function sessionCookieName(c: Context<AppEnv>): string {
-  return new URL(c.req.url).protocol === "https:" ? SESSION_COOKIE : DEV_SESSION_COOKIE;
+  return isHttps(c) || !isDevelopment(c) ? SESSION_COOKIE : DEV_SESSION_COOKIE;
 }
 
 export function readSessionToken(c: Context<AppEnv>): string | null {
+  return readCookie(c, sessionCookieName(c));
+}
+
+function readCookie(c: Context<AppEnv>, name: string): string | null {
   const header = c.req.header("cookie");
   if (!header) return null;
-  const name = sessionCookieName(c);
   for (const part of header.split(";")) {
     const [k, ...rest] = part.trim().split("=");
     if (k === name) {
@@ -73,15 +97,80 @@ export function readSessionToken(c: Context<AppEnv>): string | null {
   return null;
 }
 
-export function sessionCookie(c: Context<AppEnv>, token: string, expires: Date | null): string {
-  const secure = new URL(c.req.url).protocol === "https:";
-  const attrs = [
-    `${sessionCookieName(c)}=${expires ? encodeURIComponent(token) : ""}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    expires ? `Expires=${expires.toUTCString()}` : "Max-Age=0",
-  ];
+function deviceCookieName(c: Context<AppEnv>): string {
+  return sessionCookieName(c) === SESSION_COOKIE ? DEVICE_COOKIE : DEV_DEVICE_COOKIE;
+}
+
+export function readDeviceCookie(c: Context<AppEnv>): string | null {
+  return readCookie(c, deviceCookieName(c));
+}
+
+/** The device cookie: random, HttpOnly, for 180 days. It only tells "seen before" from "new"; it never authenticates. */
+export function deviceCookie(c: Context<AppEnv>, value: string): string {
+  const attrs = [`${deviceCookieName(c)}=${encodeURIComponent(value)}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${DEVICE_COOKIE_MAX_AGE_S}`];
+  if (deviceCookieName(c) === DEVICE_COOKIE) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+function mfaCookieName(c: Context<AppEnv>): string {
+  return sessionCookieName(c) === SESSION_COOKIE ? MFA_COOKIE : DEV_MFA_COOKIE;
+}
+
+export function readMfaCookie(c: Context<AppEnv>): string | null {
+  return readCookie(c, mfaCookieName(c));
+}
+
+/** The two-step challenge cookie: random, HttpOnly, 5 minutes; with null, the one that clears it. */
+export function mfaCookie(c: Context<AppEnv>, value: string | null): string {
+  const attrs = [`${mfaCookieName(c)}=${value ? encodeURIComponent(value) : ""}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${value ? MFA_CHALLENGE_TTL_MS / 1000 : 0}`];
+  if (mfaCookieName(c) === MFA_COOKIE) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+const geoText = (value: unknown, max: number) => (typeof value === "string" && value ? value.slice(0, max) : null);
+
+/** The edge's view of the request, from the header the Worker's entry point set (absent in local development). */
+export function clientGeo(c: Context<AppEnv>): ClientGeo {
+  const raw = c.req.header(CLIENT_GEO_HEADER);
+  if (!raw || raw.length > 4096) return NO_GEO;
+  try {
+    const g = JSON.parse(decodeURIComponent(raw)) as Record<string, unknown>;
+    if (!g || typeof g !== "object") return NO_GEO;
+    const country = geoText(g.country, 2);
+    return {
+      country: country && /^[A-Z]{2}$/.test(country) ? country : null,
+      region: geoText(g.region, 100),
+      city: geoText(g.city, 100),
+      asn: typeof g.asn === "number" && Number.isInteger(g.asn) && g.asn > 0 && g.asn < 2 ** 32 ? g.asn : null,
+      asOrg: geoText(g.asOrg, 120),
+      colo: geoText(g.colo, 8),
+    };
+  } catch {
+    return NO_GEO;
+  }
+}
+
+/** Who is behind this request, for the sign-in activity. */
+export async function clientInfo(c: Context<AppEnv>): Promise<ClientInfo> {
+  const ip = c.req.header("cf-connecting-ip") ?? null;
+  return {
+    ip,
+    network: ip ? clientKey(ip) : isDevelopment(c) ? "local" : null,
+    userAgent: c.req.header("user-agent") ?? "",
+    host: new URL(c.req.url).hostname,
+    geo: clientGeo(c),
+    device: await c.env.agent.services.authLog.deviceId(readDeviceCookie(c)),
+  };
+}
+
+/**
+ * The session cookie, or with a null token the one that clears it. It has no Expires or Max-Age,
+ * so the browser drops it when it closes; the server's deadlines are what actually end a session.
+ */
+export function sessionCookie(c: Context<AppEnv>, token: string | null): string {
+  const secure = sessionCookieName(c) === SESSION_COOKIE;
+  const attrs = [`${sessionCookieName(c)}=${token ? encodeURIComponent(token) : ""}`, "Path=/", "HttpOnly", "SameSite=Strict"];
+  if (!token) attrs.push("Max-Age=0");
   if (secure) attrs.push("Secure");
   return attrs.join("; ");
 }
@@ -93,13 +182,29 @@ export const requireSession: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   const route = `${c.req.method} ${new URL(c.req.url).pathname.replace(/\/$/, "")}`;
   const token = readSessionToken(c);
-  const sessionId = token ? await c.env.agent.services.auth.validate(token) : null;
+  const activity = c.req.header(ACTIVITY_HEADER) === "1";
+  const sessionId = token ? await c.env.agent.services.auth.validate(token, { activity }) : null;
   c.set("sessionId", sessionId);
   if (!sessionId && !PUBLIC_ROUTES.has(route)) {
     throw new AppError("UNAUTHORIZED", "Please sign in.");
   }
+  if (sessionId && !WEAK_PASSWORD_ROUTES.has(route) && c.env.agent.services.auth.passwordChangeRequired()) {
+    throw new AppError("PASSWORD_CHANGE_REQUIRED", "Your password no longer meets the minimum requirements. Change it to continue.");
+  }
   return next();
 };
+
+/**
+ * Sensitive actions (turning on remote access, minting a token, export, import) need the password
+ * typed recently, so a stolen session cookie alone can't take the data or open a back door.
+ * Access tokens never reach these routes; if one did, it is refused too.
+ */
+export function requireRecentAuth(c: Context<AppEnv>): void {
+  const sessionId = c.get("sessionId");
+  if (!sessionId || !c.env.agent.services.auth.recentlyConfirmed(sessionId)) {
+    throw new AppError("REAUTH_REQUIRED", "Confirm your password to continue.");
+  }
+}
 
 /** Parses and validates a JSON body with a Zod schema, with a size limit. */
 export async function body<S extends z.ZodType>(c: Context<AppEnv>, schema: S, maxBytes = 256 * 1024): Promise<z.infer<S>> {
@@ -154,7 +259,11 @@ export function query<S extends z.ZodType>(c: Context<AppEnv>, schema: S): z.inf
 
 export function clientId(c: Context<AppEnv>): string {
   // Set by Cloudflare's edge and not spoofable by clients; absent only in local development.
-  return clientKey(c.req.header("cf-connecting-ip") ?? "local");
+  const ip = c.req.header("cf-connecting-ip");
+  if (ip) return clientKey(ip);
+  // Elsewhere every such request would share one rate-limit bucket, so refuse it instead.
+  if (!isDevelopment(c)) throw new AppError("NOT_CONFIGURED", "The client address is missing. Reach Talorys through its Cloudflare URL.");
+  return "local";
 }
 
 export function ipv4Octets(text: string): number[] | null {

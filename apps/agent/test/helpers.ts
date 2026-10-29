@@ -21,7 +21,7 @@ export const freshIp = () => `10.0.${Math.floor(ipCounter / 250)}.${ipCounter++ 
 export interface Client {
   cookie: string | null;
   ip: string;
-  call(path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }): Promise<Response>;
+  call(path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string>; cf?: Record<string, unknown> }): Promise<Response>;
   json<T = any>(path: string, init?: { method?: string; body?: unknown }): Promise<T>;
 }
 
@@ -39,10 +39,17 @@ export function client(opts: { ip?: string; cookie?: string | null } = {}): Clie
         ...init.headers,
       };
       const res = await (exports as unknown as { default: Fetcher }).default.fetch(
-        new Request(`${BASE}${path}`, { method: init.method ?? "GET", headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined }),
+        new Request(`${BASE}${path}`, { method: init.method ?? "GET", headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined, ...(init.cf ? { cf: init.cf } : {}) } as RequestInit),
       );
-      const set = res.headers.get("set-cookie");
-      if (set) c.cookie = set.split(";")[0]!.endsWith("=") ? null : set.split(";")[0]!;
+      // A tiny cookie jar: each Set-Cookie replaces its name, an empty value removes it.
+      const jar = new Map((c.cookie ?? "").split("; ").filter(Boolean).map((kv) => [kv.split("=")[0]!, kv] as const));
+      for (const set of res.headers.getSetCookie()) {
+        const pair = set.split(";")[0]!;
+        const name = pair.split("=")[0]!;
+        if (pair.endsWith("=")) jar.delete(name);
+        else jar.set(name, pair);
+      }
+      c.cookie = jar.size ? [...jar.values()].join("; ") : null;
       return res;
     },
     async json(path, init) {
@@ -101,7 +108,7 @@ export function bearer(token: string, opts: { ip?: string } = {}): Client {
         ...init.headers,
       };
       return (exports as unknown as { default: Fetcher }).default.fetch(
-        new Request(`${BASE}${path}`, { method: init.method ?? "GET", headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined }),
+        new Request(`${BASE}${path}`, { method: init.method ?? "GET", headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined, ...(init.cf ? { cf: init.cf } : {}) } as RequestInit),
       );
     },
     async json(path, init) {

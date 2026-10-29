@@ -8,10 +8,18 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Older uploaded versions must not stay reachable on their own preview URLs.
+  "preview_urls": false,
+  // Public on <name>.<subdomain>.workers.dev, behind the app's own login. The GitHub deploy
+  // turns this off when a custom domain is set.
+  "workers_dev": true,
   "assets": {
     "directory": "../web/dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // Every request meets the Worker first, so the HTTPS redirect, the allowed hosts, the
+    // Access check and the security headers cover the UI too, not only /api.
+    "run_worker_first": true
   },
   "ai": { "binding": "AI" },
   "durable_objects": {

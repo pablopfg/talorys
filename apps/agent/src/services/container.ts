@@ -1,5 +1,7 @@
+import { isBreachedPassword, languagePreferenceSchema, type Settings } from "@talorys/shared";
 import type { Env } from "../env";
 import { Database } from "../db/database";
+import { AuthLog } from "../auth/auth-log";
 import { TaskRepository } from "../db/repositories/tasks";
 import { MemoryRepository } from "../db/repositories/memories";
 import { NoteRepository, ProjectRepository } from "../db/repositories/notes";
@@ -32,6 +34,7 @@ export interface Services {
   usage: UsageService;
   activity: ActivityLog;
   auth: AuthService;
+  authLog: AuthLog;
   automations: AutomationService;
   memoryHistory: MemoryHistoryService;
   push: PushService;
@@ -52,15 +55,17 @@ export function createServices(
   const settings = new SettingsService(db, {
     ...(env.TALORYS_DEFAULT_TIMEZONE ? { timezone: env.TALORYS_DEFAULT_TIMEZONE } : {}),
     ...(env.TALORYS_AGENT_NAME ? { agentName: env.TALORYS_AGENT_NAME } : {}),
+    ...(languagePreferenceSchema.safeParse(env.TALORYS_DEFAULT_LANGUAGE).success ? { language: env.TALORYS_DEFAULT_LANGUAGE as Settings["language"] } : {}),
   });
   const automationsRepo = new AutomationRepository(db);
-  const push = new PushService(new PushSubscriptionRepository(db), env, background);
+  const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
   const notifications = new NotificationRepository(db, (n) => push.notify(n));
   const activity = new ActivityLog(db);
   const memories = new MemoryRepository(db);
-  const usage = new UsageService(db);
+  const usage = new UsageService(db, () => settings.get().timezone);
   const tasks = new TaskRepository(db);
   const projects = new ProjectRepository(db);
+  const authLog = new AuthLog(db, settings, () => env.SESSION_SECRET);
   return {
     db,
     tasks,
@@ -78,7 +83,16 @@ export function createServices(
       passwordHash: env.OWNER_PASSWORD_HASH,
       password: env.OWNER_PASSWORD,
       sessionSecret: env.SESSION_SECRET,
-    }),
+      pepper: env.PASSWORD_PEPPER,
+      ownerEmail: env.OWNER_EMAIL,
+    }, (title, body) => notifications.create({ title, body }), (reason) => {
+      activity.record("auth.session_ended", reason === "idle" ? "Signed out: no use" : reason === "presence" ? "Signed out: no open tab" : "Signed out: maximum session length");
+      authLog.record("session_ended", null, { reason });
+    },
+    // Only local development may skip the breach check; a deploy never accepts an unchecked password.
+    { breached: env.TALORYS_HIBP === "off" && env.TALORYS_ENV === "development" ? undefined : (password) => isBreachedPassword(password) },
+    ),
+    authLog,
     automations: new AutomationService(automationsRepo, settings, activity, scheduler),
     memoryHistory: new MemoryHistoryService(db, memories, settings, usage, activity, memoryHooks),
     push,

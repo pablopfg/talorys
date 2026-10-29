@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, TASK_PRIORITIES } from "./constants";
+import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
 
@@ -290,6 +290,13 @@ export const chatRequestSchema = z.object({
   retry: z.boolean().optional(),
 });
 
+export const transcribeRequestSchema = z.object({
+  /** A recorded clip (WebM/Opus, Ogg or MP4/AAC, as the browser records it) as base64, at most TRANSCRIPTION_LIMITS.maxClipBytes once decoded. */
+  audio: z.string().min(1).max(Math.ceil(TRANSCRIPTION_LIMITS.maxClipBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, "Audio must be base64."),
+  /** Text already dictated, so a clip that continues a sentence keeps its spelling and context. */
+  context: z.string().max(1000).optional(),
+});
+
 export const automationCreateSchema = z.object({
   name: shortText(200),
   kind: z.enum(AUTOMATION_KINDS),
@@ -324,7 +331,20 @@ export const memoryHistorySettingsSchema = z.object({
 });
 export type MemoryHistorySettings = z.infer<typeof memoryHistorySettingsSchema>;
 
-/** UI language. "system" follows the browser and falls back to English. */
+const timeoutIn = ([min, max]: readonly [number, number]) => z.number().int().min(min).max(max);
+export const sessionTimeoutsSchema = z.object({
+  idleMinutes: timeoutIn(SESSION_TIMEOUT_RANGES.idleMinutes),
+  presenceMinutes: timeoutIn(SESSION_TIMEOUT_RANGES.presenceMinutes),
+  maxHours: timeoutIn(SESSION_TIMEOUT_RANGES.maxHours),
+});
+export type SessionTimeouts = z.infer<typeof sessionTimeoutsSchema>;
+
+/** Longest owner-written instructions added to the agent's prompt (characters). */
+export const MAX_CUSTOM_INSTRUCTIONS = 2000;
+/** Owner-written instructions for tone and style; they sit below the agent's safety rules and can't override them. */
+export const customInstructionsSchema = z.string().trim().max(MAX_CUSTOM_INSTRUCTIONS);
+
+/** UI language. "system" follows the browser and falls back to DEFAULT_LANGUAGE. */
 export const languagePreferenceSchema = z.enum(["system", ...LANGUAGES]);
 
 export const settingsSchema = z.object({
@@ -340,24 +360,36 @@ export const settingsSchema = z.object({
   temperature: z.number().min(0).max(1.5),
   limits: limitsSchema,
   autoMemory: z.boolean(),
+  /** Reads a value the current limit rejects (saved before a rollback) as empty, so it can't reset every other setting. */
+  customInstructions: customInstructionsSchema.catch(""),
   /** Documented demo mode: uses the deterministic mock provider instead of Workers AI. */
   demoMode: z.boolean(),
   memoryHistory: memoryHistorySettingsSchema,
   /** Check the npm registry once a day for a newer Talorys release. */
   updateCheck: z.boolean(),
+  session: sessionTimeoutsSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
 export const settingsUpdateSchema = settingsSchema
-  .omit({ limits: true, memoryHistory: true })
+  .omit({ limits: true, memoryHistory: true, session: true })
   .partial()
   .extend({
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
+    customInstructions: customInstructionsSchema.optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
+    session: sessionTimeoutsSchema.partial().optional(),
   });
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
+/** Signing in: the e-mail address is asked for only when OWNER_EMAIL is set. */
+export const signInSchema = loginSchema.extend({ email: z.string().max(254).optional() });
+/** Step-up: the password, or with two-step sign-in on, a current authenticator code. */
+export const confirmSchema = z
+  .object({ password: z.string().min(1).max(256).optional(), code: z.string().min(1).max(40).optional() })
+  .refine((v) => (v.password === undefined) !== (v.code === undefined), { message: "Send the password or a code." });
+export const heartbeatSchema = z.object({ active: z.boolean() });
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1).max(256),
   new_password: z.string().min(1).max(256),
@@ -410,6 +442,12 @@ export type ApiErrorCode =
   | "AI_LIMIT_REACHED"
   | "CONFLICT"
   | "NOT_CONFIGURED"
+  /** A sensitive action needs the password again (POST /api/auth/confirm), then a retry. */
+  | "REAUTH_REQUIRED"
+  /** The password in use fails the current rules: only changing it (POST /api/auth/password) works. */
+  | "PASSWORD_CHANGE_REQUIRED"
+  /** A service the request depends on (such as the breach check) did not answer; retry later. */
+  | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {
@@ -461,6 +499,8 @@ export interface UsageCounters {
   scheduled_ai_runs: number;
   ai_errors: number;
   embedding_requests: number;
+  /** Seconds of chat voice input transcribed. */
+  transcription_seconds: number;
   /** Priced-call subtotal, before free allocation; null when nothing could be priced. */
   neurons_estimate: number | null;
   cost_usd_estimate: number | null;

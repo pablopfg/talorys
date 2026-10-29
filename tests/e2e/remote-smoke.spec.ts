@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, type APIRequestContext, test } from "@playwright/test";
 
-const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
 const BASE = "http://localhost:5173";
 const CSRF = { "x-talorys-request": "1", origin: BASE };
 
