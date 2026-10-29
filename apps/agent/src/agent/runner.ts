@@ -185,6 +185,7 @@ export class AgentRunner {
             maxOutputTokens: 300,
             temperature: 0.2,
             signal: input.signal,
+            reserveNextStep: () => s.usage.reserveAi(limits),
           });
           s.usage.record(result.usage);
           summary = result.text.trim().slice(0, 2000);

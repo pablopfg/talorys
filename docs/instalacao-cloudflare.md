@@ -49,9 +49,10 @@ terminal*.
   - [23. n8n e outras automações (eventos e acesso remoto)](#23-n8n-e-outras-automações-eventos-e-acesso-remoto)
   - [24. Servidores MCP](#24-servidores-mcp)
   - [25. Google Agenda](#25-google-agenda)
+  - [26. Workflows (rotinas que estavam no n8n)](#26-workflows-rotinas-que-estavam-no-n8n)
 - **Parte 5 — Versões e conferência**
-  - [26. Publicar a primeira release](#26-publicar-a-primeira-release)
-  - [27. Conferência final](#27-conferência-final)
+  - [27. Publicar a primeira release](#27-publicar-a-primeira-release)
+  - [28. Conferência final](#28-conferência-final)
 - [Rotina de manutenção](#rotina-de-manutenção)
 - [Problemas comuns](#problemas-comuns)
 - [Referência: variáveis e segredos](#referência-variáveis-e-segredos)
@@ -68,6 +69,7 @@ navegador / Telegram / n8n
  │          ▼                                                        │
  │ Worker "talorys" ── interface (assets) + API                      │
  │   ├─ Durable Object com SQLite: todos os dados e os agendamentos  │
+ │   ├─ Workflow "talorys-workflow": rotinas do menu Workflows      │
  │   ├─ Workers AI: chat, memória e voz                              │
  │   ├─ send_email (opcional): avisos e recuperação por e-mail       │
  │   └─ segredos do Worker: senha, sessão, pepper, chaves…           │
@@ -88,6 +90,7 @@ navegador / Telegram / n8n
 | --- | --- | :---: |
 | Workers | Interface e API | ✅ 100 mil requisições/dia |
 | Durable Objects (SQLite) | Dados e agendamentos | ✅ |
+| Workflows | Rotinas do menu **Workflows** (monitor de sites) | ✅ 100 execuções simultâneas |
 | Workers AI | Modelo do chat, embeddings e transcrição de voz | ✅ 10 mil Neurons/dia |
 | Email Routing (opcional) | Avisos e recuperação de senha por e-mail para o **seu** endereço verificado | ✅ |
 | Turnstile (opcional) | Verificação contra robôs nos logins arriscados | ✅ |
@@ -207,9 +210,10 @@ Talorys. Detalhes: [E o endereço `*.workers.dev`?](deploy-github-actions.md#e-o
 
 ### 5. O que não precisa criar (D1, KV, R2…)
 
-O Talorys **não usa** D1, KV, R2, Vectorize, Queues, Workflows, Pages nem Hyperdrive.
+O Talorys **não usa** D1, KV, R2, Vectorize, Queues, Pages nem Hyperdrive.
 Tudo fica no Durable Object, que o primeiro deploy cria sozinho, junto com a
-migração do banco. O Workers AI também não precisa ser ativado: ele já vem
+migração do banco. O único Workflow (`<nome do Worker>-workflow`, do menu
+**Workflows**) também é criado pelo deploy: não crie nenhum à mão. O Workers AI também não precisa ser ativado: ele já vem
 com a conta.
 
 Não crie esses recursos "por garantia": eles não seriam usados e alguns podem
@@ -796,11 +800,32 @@ alteração. Detalhes e modelo de segurança: [google-calendar.md](google-calend
 | "Permita as duas permissões" | Na página do Google, marque as duas caixas e conecte de novo. |
 | A conexão cai toda semana | O app ainda está em **Teste**. Publique-o (passo 3) e conecte de novo. |
 
+### 26. Workflows (rotinas que estavam no n8n)
+
+O menu **Workflows** roda rotinas que antes ficavam no n8n com os
+[Workflows da Cloudflare](https://developers.cloudflare.com/workflows/):
+cada execução tem etapas que tentam de novo sozinhas e continua mesmo se o
+Worker reiniciar. Está incluído no plano gratuito (até 100 execuções ao mesmo
+tempo e 10 ms de CPU por etapa; esperar a rede não conta).
+
+Não há nada para criar nem segredo para gravar: o deploy cria o Workflow
+`<nome do Worker>-workflow` junto com o Worker, com o mesmo token da etapa 6.
+
+1. Talorys → **Workflows**.
+2. Em cada workflow, toque no lápis, preencha os endereços (um `https://` por
+   linha), escolha de quanto em quanto tempo roda e ligue a chave.
+   Ligar e trocar endereços pedem a senha recente.
+3. **Executar agora** (▶) roda na hora; o resultado aparece em instantes em
+   **Execuções recentes**.
+
+Os avisos chegam pela central de avisos (push, Telegram ou e-mail, conforme
+**Configurações → Avisos**). Detalhes: [workflows.md](workflows.md).
+
 ---
 
 ## Parte 5 — Versões e conferência
 
-### 26. Publicar a primeira release
+### 27. Publicar a primeira release
 
 1. **Actions → Prepare release → Run workflow** → branch `develop` →
    *version* `1.0.0` na primeira vez (depois, `auto`) → **Run workflow**.
@@ -813,13 +838,14 @@ alteração. Detalhes e modelo de segurança: [google-calendar.md](google-calend
 
 O fluxo completo, as regras do changelog e o versionamento: [releases.md](releases.md).
 
-### 27. Conferência final
+### 28. Conferência final
 
 Cloudflare:
 
 - [ ] Verificação em duas etapas ligada na conta da Cloudflare.
 - [ ] Domínio **Active**, SSL/TLS em *Full (strict)*, *Always Use HTTPS* e TLS 1.2+.
 - [ ] Nenhum D1, KV, R2 ou projeto Pages criado para o Talorys.
+- [ ] **Workers & Pages → Workflows** mostra só `<nome do Worker>-workflow`.
 - [ ] Worker → **Settings → Domains & Routes**: só o domínio próprio; `workers.dev` e *Preview URLs* desligados.
 - [ ] Worker → **Settings → Variables and Secrets**: todos os segredos do tipo **Secret**, nenhum como *Text*.
 - [ ] Token de API com data de expiração anotada.
@@ -844,6 +870,7 @@ Talorys:
 - [ ] Com e-mail: o e-mail de teste chegou e o login mostra **Esqueceu a senha?**.
 - [ ] Com push e Telegram: os testes chegaram.
 - [ ] Com Google Agenda: a conta aparece conectada e só as agendas escolhidas estão abertas para o agente.
+- [ ] Workflows: o menu **Workflows** não mostra o aviso de "não configurados", e **Executar agora** termina com sucesso.
 
 ---
 
@@ -919,6 +946,7 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 | `TALORYS_MCP` (`off`), `TALORYS_MCP_MAX_TOOLS` | 24 | não |
 | `TALORYS_MCP_ALLOWED_ORIGINS` | 24 | não (recomendado) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 25 | para a Google Agenda |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | [modelos de IA](modelos-de-ia.md) | só para modelos pagos (geram cobrança) |
 
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.

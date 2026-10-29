@@ -29,6 +29,8 @@ import { emailChannel, pushChannel, telegramChannel } from "../alerts/channels";
 import { EmailAlerts } from "../alerts/email";
 import { raiseSecurityAlert } from "../alerts/security";
 import { TelegramService } from "../telegram/service";
+import { WorkflowRepository } from "../workflows/repository";
+import { WorkflowService } from "../workflows/service";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
 export interface Services {
@@ -58,6 +60,8 @@ export interface Services {
   taskPlans: TaskPlanService;
   mcp: McpService;
   calendar: CalendarService;
+  /** Routines run by Cloudflare Workflows (the Workflows menu). */
+  workflows: WorkflowService;
 }
 
 /** `background` keeps work alive after the request or alarm that started it (the Durable Object's waitUntil). */
@@ -171,5 +175,14 @@ export function createServices(
     taskPlans: new TaskPlanService(db, tasks, projects, activity),
     mcp: new McpService(db, env, activity),
     calendar,
+    workflows: new WorkflowService(
+      new WorkflowRepository(db),
+      settings,
+      activity,
+      alerts,
+      scheduler.workflows?.timer ?? { schedule: async () => "", cancel: async () => {}, exists: async () => false },
+      scheduler.workflows?.launcher ?? { available: () => false, start: async () => {}, forget: () => {} },
+      env.TALORYS_ENV === "development",
+    ),
   };
 }

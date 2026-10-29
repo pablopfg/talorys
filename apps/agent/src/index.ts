@@ -13,6 +13,7 @@ const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; fo
 export { allowedHosts };
 
 export { TalorysAgent } from "./agent/talorys-agent";
+export { TalorysWorkflow } from "./workflows/workflow";
 
 /**
  * Backend entry point. The installer deploys it with workers_dev and preview

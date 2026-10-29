@@ -2,6 +2,9 @@ import { type ReactNode, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  AI_FALLBACKS,
+  AI_PROVIDERS,
+  type AiProviderId,
   GITHUB_URL,
   LANGUAGES,
   LIMIT_CEILINGS,
@@ -10,6 +13,7 @@ import {
   type MemoryHistorySettings,
   SESSION_TIMEOUT_RANGES,
   type SessionTimeouts,
+  PAID_MODELS,
   type Settings,
   TALORYS_VERSION,
 } from "@talorys/shared";
@@ -240,7 +244,62 @@ const LIMIT_FIELDS: { key: keyof Limits; label: PlainMessageKey; hint: PlainMess
   { key: "maxAgentIterations", label: "settings.limitIterations", hint: "settings.limitIterationsHint" },
   { key: "maxAiRequestsPerDay", label: "settings.limitAiRequests", hint: "settings.limitAiRequestsHint" },
   { key: "maxScheduledAiRunsPerDay", label: "settings.limitScheduledRuns", hint: "settings.limitScheduledRunsHint" },
+  { key: "maxPaidAiUsdPerDay", label: "settings.limitPaidUsd", hint: "settings.limitPaidUsdHint" },
 ];
+
+const PROVIDER_LABEL: Record<AiProviderId, string> = { "workers-ai": "Cloudflare Workers AI", anthropic: "Anthropic", openai: "OpenAI" };
+
+/** The chat model's provider and its fallback. Paid providers need their key on the Worker. */
+function ChatModelRows({ settings }: { settings: Settings }) {
+  const { t } = useI18n();
+  const save = useSaveSettings();
+  const info = useSystemInfo();
+  const keys = info.data?.paid_ai_keys;
+  const usable = (id: AiProviderId) => id === "workers-ai" || keys?.[id] === true;
+  const option = (id: AiProviderId) => (
+    <option key={id} value={id} disabled={!usable(id) && settings.aiProvider !== id && settings.aiFallback !== id}>
+      {PROVIDER_LABEL[id]}
+      {usable(id) ? "" : ` (${t("settings.aiNoKey")})`}
+    </option>
+  );
+  return (
+    <>
+      <Row label={t("settings.aiMain")} hint={t("settings.aiMainHint")}>
+        <Select value={settings.aiProvider} disabled={save.isPending} onChange={(e) => save.mutate({ aiProvider: e.target.value as AiProviderId })} aria-label={t("settings.aiMain")}>
+          {AI_PROVIDERS.map(option)}
+        </Select>
+      </Row>
+      <Row label={t("settings.aiFallback")} hint={t("settings.aiFallbackHint")}>
+        <Select
+          value={settings.aiFallback}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate({ aiFallback: e.target.value as Settings["aiFallback"] })}
+          aria-label={t("settings.aiFallback")}
+        >
+          {AI_FALLBACKS.map((id) => (id === "none" ? <option key={id} value={id}>{t("settings.aiFallbackNone")}</option> : id === settings.aiProvider ? null : option(id)))}
+        </Select>
+      </Row>
+      <Row label={t("settings.anthropicModel")} hint={keys?.anthropic ? undefined : t("settings.aiKeyHint", { secret: "ANTHROPIC_API_KEY" })}>
+        <Select value={settings.anthropicModel} disabled={save.isPending} onChange={(e) => save.mutate({ anthropicModel: e.target.value as Settings["anthropicModel"] })} aria-label={t("settings.anthropicModel")}>
+          {PAID_MODELS.anthropic.map((m) => (
+            <option key={m.id} value={m.id}>
+              {t("settings.paidModelOption", { label: m.label, input: m.usdPerMillion.input, output: m.usdPerMillion.output })}
+            </option>
+          ))}
+        </Select>
+      </Row>
+      <Row label={t("settings.openaiModel")} hint={keys?.openai ? undefined : t("settings.aiKeyHint", { secret: "OPENAI_API_KEY" })}>
+        <Select value={settings.openaiModel} disabled={save.isPending} onChange={(e) => save.mutate({ openaiModel: e.target.value as Settings["openaiModel"] })} aria-label={t("settings.openaiModel")}>
+          {PAID_MODELS.openai.map((m) => (
+            <option key={m.id} value={m.id}>
+              {t("settings.paidModelOption", { label: m.label, input: m.usdPerMillion.input, output: m.usdPerMillion.output })}
+            </option>
+          ))}
+        </Select>
+      </Row>
+    </>
+  );
+}
 
 function AiTab({ settings }: { settings: Settings }) {
   const i18n = useI18n();
@@ -256,6 +315,7 @@ function AiTab({ settings }: { settings: Settings }) {
   return (
     <>
       <Section title={t("settings.model")}>
+        <ChatModelRows settings={settings} />
         <Row label={t("settings.workersAiModel")} hint={t("settings.workersAiModelHint", { model: "@cf/zai-org/glm-4.7-flash" })}>
           <form
             className="flex gap-2"
@@ -328,6 +388,7 @@ function AiTab({ settings }: { settings: Settings }) {
               type="number"
               min={0}
               max={LIMIT_CEILINGS[f.key]}
+              step={f.key === "maxPaidAiUsdPerDay" ? 0.5 : 1}
               value={limits[f.key]}
               onChange={(e) => setLimits({ ...limits, [f.key]: Number(e.target.value) })}
               aria-label={t(f.label)}
@@ -662,7 +723,7 @@ function AboutTab({ settings }: { settings: Settings }) {
               </p>
               <p>
                 {t("settings.aiProvider")}{" "}
-                {info.data.ai_provider === "workers-ai" ? "Cloudflare Workers AI" : info.data.ai_provider === "mock" ? t("settings.demoResponder") : t("settings.notAvailable")}
+                {info.data.ai_provider in PROVIDER_LABEL ? PROVIDER_LABEL[info.data.ai_provider as AiProviderId] : info.data.ai_provider === "mock" ? t("settings.demoResponder") : t("settings.notAvailable")}
               </p>
             </>
           ) : (

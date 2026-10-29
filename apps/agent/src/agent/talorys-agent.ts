@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import { type Automation, isSentinelNothing, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
+import { type AiProviderId, type Automation, isSentinelNothing, type PaidAiProviderId, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
 import type { Env } from "../env";
 import { migrate } from "../db/migrations";
 import { createServices, type Services } from "../services/container";
@@ -8,6 +8,8 @@ import { AgentRunner } from "./runner";
 import { createApi } from "../api/app";
 import { CloudflareWorkersAIProvider } from "../ai/workers-ai";
 import { MockAIProvider } from "../ai/mock";
+import { FallbackProvider } from "../ai/fallback";
+import { type PaidBudget, PaidAIProvider } from "../ai/paid";
 import type { AIProvider } from "../ai/provider";
 import { localDayBounds, formatLocal } from "../services/time";
 import { defangLinks } from "../services/text";
@@ -19,6 +21,8 @@ import { createTranscriber, type Transcription } from "../ai/transcription";
 import { classifyAiError } from "../ai/provider";
 import { runWatchers } from "../alerts/watchers";
 import { gateAutomation, type NoticePayload, noticeDue, planNotices } from "../calendar/routines";
+import type { WorkflowKey, WorkflowReport } from "@talorys/shared";
+import type { WorkflowParams } from "../workflows/workflow";
 
 interface AgentState {
   /** Unread notifications, kept in agent state for cheap polling. */
@@ -28,6 +32,13 @@ interface AgentState {
 interface AutomationPayload {
   automationId: string;
 }
+
+interface WorkflowPayload {
+  key: WorkflowKey;
+}
+
+/** The Workflows binding in wrangler config; one Cloudflare Workflow runs every catalog entry. */
+const WORKFLOW_BINDING = "TALORYS_WORKFLOW";
 
 interface AlertPayload {
   notificationId: string;
@@ -64,6 +75,32 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         // One alarm per alert and step: a reconcile after a restart never adds a second one.
         scheduleAlert: async (at, notificationId, step) => {
           await this.schedule<AlertPayload>(at, "escalateAlert", { notificationId, step }, { idempotent: true });
+        },
+        workflows: {
+          timer: {
+            schedule: async (at, key) => (await this.schedule<WorkflowPayload>(at, "runWorkflowRoutine", { key })).id,
+            cancel: async (id) => {
+              await this.cancelSchedule(id);
+            },
+            exists: async (id) => (await this.getScheduleById(id)) !== undefined,
+          },
+          launcher: {
+            available: () => !!this.env.TALORYS_WORKFLOW,
+            start: async (key, runId, config) => {
+              await this.runWorkflow<WorkflowParams>(WORKFLOW_BINDING, { key, runId, config } as WorkflowParams, {
+                id: runId,
+                agentBinding: "TalorysAgent",
+                metadata: { key },
+              });
+            },
+            forget: (runId) => {
+              try {
+                this.deleteWorkflow(runId);
+              } catch {
+                // Only the platform's tracking row; the run history is Talorys' own table.
+              }
+            },
+          },
         },
       };
       this._services = createServices(
@@ -105,6 +142,11 @@ export class TalorysAgent extends Agent<Env, AgentState> {
       console.error("Alert retry reconciliation failed", error);
     }
     try {
+      await services.workflows.reconcile();
+    } catch (error) {
+      console.error("Workflow reconciliation failed", error);
+    }
+    try {
       // Every 15 minutes (UTC clock), the watchers and the daily summary. A cron schedule is
       // idempotent: waking up again never adds a second one.
       await this.schedule(`*/${WATCH.everyMinutes} * * * *`, "watch");
@@ -144,18 +186,59 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
   }
 
-  /** Chooses the AI provider. The mock is only used in local development or explicit demo mode. */
+  /** Whether the mock provider answers instead of a real model: local development or explicit demo mode. */
+  private mockAi(): boolean {
+    return this.services.settings.get().demoMode || (this.env.TALORYS_ENV === "development" && this.env.TALORYS_MOCK_AI === "1");
+  }
+
+  /**
+   * Chooses the chat provider: the main one from Settings → AI and, when set, its fallback. A
+   * provider without its key (or Workers AI without its binding) is skipped.
+   */
   aiProvider(): AIProvider | null {
+    if (this.mockAi()) return new MockAIProvider();
+    const s = this.services;
+    const settings = s.settings.get();
+    const primary = this.chatProvider(settings.aiProvider);
+    const fallback = settings.aiFallback === "none" || settings.aiFallback === settings.aiProvider ? null : this.chatProvider(settings.aiFallback);
+    if (!primary || !fallback) return primary ?? fallback;
+    return new FallbackProvider(primary, fallback, (usage) => s.usage.record(usage), (from, to, error) => {
+      console.warn(`Chat model fell back from ${from.model} to ${to.model}`, error.code);
+    });
+  }
+
+  private chatProvider(id: AiProviderId): AIProvider | null {
     const settings = this.services.settings.get();
-    if (settings.demoMode) return new MockAIProvider();
-    if (this.env.TALORYS_ENV === "development" && this.env.TALORYS_MOCK_AI === "1") return new MockAIProvider();
-    if (!this.env.AI) return null;
-    return new CloudflareWorkersAIProvider(this.env.AI, settings.model);
+    if (id === "workers-ai") return this.env.AI ? new CloudflareWorkersAIProvider(this.env.AI, settings.model) : null;
+    const key = id === "anthropic" ? this.env.ANTHROPIC_API_KEY : this.env.OPENAI_API_KEY;
+    if (!key) return null;
+    const model = id === "anthropic" ? settings.anthropicModel : settings.openaiModel;
+    return new PaidAIProvider(id, key, model, this.paidBudget);
+  }
+
+  /** Worst-case cost of the paid calls in progress, shared by every turn (see PaidBudget). */
+  private paidInFlightUsd = 0;
+  private readonly paidBudget: PaidBudget = {
+    allows: () => this.services.usage.paidCostToday() + this.paidInFlightUsd < this.services.settings.get().limits.maxPaidAiUsdPerDay,
+    hold: (usd) => {
+      this.paidInFlightUsd += usd;
+      let held = true;
+      return () => {
+        if (!held) return;
+        held = false;
+        this.paidInFlightUsd = Math.max(0, this.paidInFlightUsd - usd);
+      };
+    },
+  };
+
+  /** Which paid providers have their key set on the Worker (never the keys themselves). */
+  paidAiKeys(): Record<PaidAiProviderId, boolean> {
+    return { anthropic: !!this.env.ANTHROPIC_API_KEY, openai: !!this.env.OPENAI_API_KEY };
   }
 
   /** Clef for the memory-history AI check: only with real Workers AI (not mock AI or demo mode). */
   clefRun(): ClefRun | null {
-    if (!this.env.AI || !(this.aiProvider() instanceof CloudflareWorkersAIProvider)) return null;
+    if (!this.env.AI || this.mockAi()) return null;
     const ai = this.env.AI;
     return (request, signal) => ai.run(CLEF_MODEL, { ...request }, { signal });
   }
@@ -208,6 +291,23 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   /** Scheduled callback invoked by the Agents SDK (Durable Object alarm). */
   async runAutomation(payload: AutomationPayload, schedule: { id: string }): Promise<void> {
     await this.services.automations.fire(payload.automationId, schedule.id, (a) => this.executeAutomation(a));
+    this.refreshUnread();
+  }
+
+  /** Scheduled callback: the next run of a workflow from the Workflows menu. */
+  async runWorkflowRoutine(payload: WorkflowPayload, schedule: { id: string }): Promise<void> {
+    await this.services.workflows.fire(payload.key, schedule.id);
+  }
+
+  /** Called by the Cloudflare Workflow (RPC from TalorysWorkflow) with what a run found. */
+  async workflowReport(runId: string, report: WorkflowReport): Promise<void> {
+    this.services.workflows.report(runId, report);
+    this.refreshUnread();
+  }
+
+  /** A Cloudflare Workflow run failed (reported by AgentWorkflow when a step runs out of retries). */
+  override async onWorkflowError(_workflowName: string, workflowId: string, error: string): Promise<void> {
+    this.services.workflows.fail(workflowId, error);
     this.refreshUnread();
   }
 

@@ -53,6 +53,11 @@ export function isPrivateAddress(address: string): boolean {
 
 const isIpLiteral = (host: string) => ipv4Octets(host) !== null || host.startsWith("[");
 
+/** True for a host (lower case, without the final dot) that is a private address or a name that only means something on a private network. */
+export function isPrivateHost(host: string): boolean {
+  return isIpLiteral(host) ? isPrivateAddress(host) : !host.includes(".") || PRIVATE_SUFFIXES.some((s) => host === s.slice(1) || host.endsWith(s));
+}
+
 /**
  * Validates an MCP endpoint and returns it normalized. Production endpoints must be HTTPS on a
  * public host name or public IP; development also allows http://localhost for a local test server.
@@ -74,7 +79,7 @@ export function validateEndpoint(raw: string, opts: { development: boolean }): U
   if (url.username || url.password) throw new ValidationError("Put credentials in the authentication field, not in the URL.");
   if (url.hash) throw new ValidationError("The MCP server URL can't contain a #fragment.");
   if (localDev) return url;
-  if (isIpLiteral(host) ? isPrivateAddress(host) : !host.includes(".") || PRIVATE_SUFFIXES.some((s) => host === s.slice(1) || host.endsWith(s))) {
+  if (isPrivateHost(host)) {
     throw new ValidationError("This address is on a private or local network. Talorys only connects to public MCP servers.");
   }
   return url;

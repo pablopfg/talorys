@@ -21,6 +21,9 @@ import type {
   Settings,
   Task,
   UsageReport,
+  Workflow,
+  WorkflowRun,
+  PaidAiProviderId,
 } from "@talorys/shared";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -51,6 +54,7 @@ export const keys = {
   mcpServers: ["mcp", "servers"] as const,
   mcpTools: (id: string) => ["mcp", "tools", id] as const,
   googleCalendar: ["calendar", "google"] as const,
+  workflows: ["workflows"] as const,
 };
 
 export function useSettings() {
@@ -142,6 +146,15 @@ export function useAutomations() {
   });
 }
 
+export function useWorkflows() {
+  return useQuery({
+    queryKey: keys.workflows,
+    queryFn: () => api<{ available: boolean; workflows: Workflow[]; runs: WorkflowRun[]; timezone: string }>("/workflows"),
+    // A run takes seconds to a few minutes on Cloudflare: refresh sooner while one is going.
+    refetchInterval: (query) => (query.state.data?.runs.some((r) => r.status === "running") ? 5_000 : 60_000),
+  });
+}
+
 /** One automation's run history, newest first, paged with "Load more". */
 export function useAutomationRuns(id: string | null, status?: AutomationRun["status"]) {
   return useInfiniteQuery({
@@ -208,7 +221,7 @@ export function useSystemInfo() {
   return useQuery({
     queryKey: keys.system,
     queryFn: () =>
-      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; environment: string }>("/system"),
+      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; paid_ai_keys?: Record<PaidAiProviderId, boolean>; environment: string }>("/system"),
   });
 }
 

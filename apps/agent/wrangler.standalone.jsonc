@@ -26,5 +26,7 @@
     "bindings": [{ "name": "TalorysAgent", "class_name": "TalorysAgent" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TalorysAgent"] }],
+  // Cloudflare Workflows behind the Workflows menu (included in the Workers Free plan).
+  "workflows": [{ "name": "talorys-workflow", "binding": "TALORYS_WORKFLOW", "class_name": "TalorysWorkflow" }],
   "observability": { "enabled": true }
 }

@@ -5,6 +5,8 @@ export interface Env {
   /** The built web UI, in the one-Worker deploy only (wrangler.standalone.jsonc). */
   ASSETS?: Fetcher;
   TalorysAgent: DurableObjectNamespace<TalorysAgent>;
+  /** Cloudflare Workflows behind the Workflows menu (free plan). Without it the menu shows workflows as unavailable. */
+  TALORYS_WORKFLOW?: Workflow;
   /** PBKDF2 hash of the owner password, set by the installer as a Worker secret. */
   OWNER_PASSWORD_HASH?: string;
   /** Plain owner password, for deploys that cannot set the hash (a one-Worker deploy). Ignored when the hash is set; a weak one counts as not configured. */
@@ -56,6 +58,12 @@ export interface Env {
    */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /**
+   * Paid chat models, with the owner's own keys (Worker secrets). Without a key that provider
+   * can't be chosen and nothing else changes; spend is capped per day in Settings → AI.
+   */
+  ANTHROPIC_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
   /** Comma-separated origins MCP servers may use (https://n8n.example.com, https://*.example.com). Unset: any public host. */

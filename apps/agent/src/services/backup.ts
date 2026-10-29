@@ -23,7 +23,7 @@ import { clip } from "./text";
  * Settings a backup may never change: they control cost, model behaviour (the agent's name and
  * instructions go into every prompt) and how long a session lasts, and a backup file is untrusted input. The owner changes them in Settings instead.
  */
-export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "customInstructions", "agentName", "memoryHistory", "session"] as const;
+export const IMPORT_IGNORED_SETTINGS = ["model", "aiProvider", "aiFallback", "anthropicModel", "openaiModel", "limits", "demoMode", "autoMemory", "customInstructions", "agentName", "memoryHistory", "session"] as const;
 
 /** Builds a portable backup. Sessions, login attempts and credentials are never exported. */
 export function exportData(s: Services): Backup {
@@ -307,6 +307,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
   raiseSecurityAlert(s.alerts, "data_imported");
   // Disarm automations the backup paused; a new timezone also moves the owner's existing schedules.
   if (paused > 0 || s.settings.get().timezone !== previousTimezone) await s.automations.rearmAll();
+  if (s.settings.get().timezone !== previousTimezone) await s.workflows.rearmAll();
   s.activity.record("data.imported", `Imported backup from ${backup.exported_at}`);
   return summary;
 }
