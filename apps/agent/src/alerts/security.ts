@@ -47,6 +47,14 @@ export const SECURITY_EVENTS = {
     title: "Push device removed",
     body: "A device was removed from push notifications. If it wasn't you, check the devices in Settings → Alerts and change your password.",
   },
+  passkey_added: {
+    title: "Passkey added",
+    body: "A new passkey can now do the second sign-in step. If it wasn't you, remove it in Settings → Security and change your password.",
+  },
+  passkey_removed: {
+    title: "Passkey removed",
+    body: "A passkey was removed from your sign-in. If it wasn't you, change your password now and check Settings → Security.",
+  },
   mcp_added: {
     title: "MCP server added",
     body: "A new MCP server was added: the agent can now use its tools. If it wasn't you, remove it in Settings → Integrations and change your password.",

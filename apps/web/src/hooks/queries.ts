@@ -8,6 +8,7 @@ import type {
   McpServerInfo,
   McpToolInfo,
   MfaStatus,
+  PasskeyInfo,
   Memory,
   MemoryHistory,
   MemoryReview,
@@ -41,6 +42,7 @@ export const keys = {
   sessions: ["sessions"] as const,
   authActivity: ["auth-activity"] as const,
   mfa: ["auth", "mfa"] as const,
+  passkeys: ["auth", "passkeys"] as const,
   system: ["system"] as const,
   update: ["system", "update"] as const,
   remoteStatus: ["remote", "status"] as const,
@@ -173,6 +175,10 @@ export function useAuthActivity(failuresOnly: boolean, enabled: boolean) {
 
 export function useMfaStatus(enabled = true) {
   return useQuery({ queryKey: keys.mfa, enabled, queryFn: () => api<MfaStatus>("/auth/mfa/status") });
+}
+
+export function usePasskeys(enabled = true) {
+  return useQuery({ queryKey: keys.passkeys, enabled, queryFn: () => api<{ passkeys: PasskeyInfo[] }>("/auth/passkeys").then((r) => r.passkeys) });
 }
 
 export function useAuthActivitySummary() {

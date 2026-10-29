@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AtSign, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
+import { AtSign, Eye, EyeOff, Fingerprint, KeyRound, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { TurnstileWidget } from "../components/TurnstileWidget";
 import { Button } from "../components/ui";
@@ -28,6 +29,7 @@ export function LoginPage({
   const [codeStep, setCodeStep] = useState(false);
   const [code, setCode] = useState("");
   const [recovery, setRecovery] = useState(false);
+  const [passkey, setPasskey] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   // Kept from the moment the lock screen appeared, so a later session refresh doesn't erase it.
@@ -87,10 +89,11 @@ export function LoginPage({
     }
     try {
       const body = { password, ...(emailRequired ? { email } : {}), ...(token ? { turnstile_token: token } : {}) };
-      const result = await api<{ authenticated: boolean; mfa_required?: boolean }>("/auth/login", { method: "POST", body });
+      const result = await api<{ authenticated: boolean; mfa_required?: boolean; passkey?: boolean }>("/auth/login", { method: "POST", body });
       setPassword("");
       if (result.mfa_required) {
         setCodeStep(true);
+        setPasskey(!!result.passkey);
         setCode("");
         setRecovery(false);
         return;
@@ -117,6 +120,35 @@ export function LoginPage({
     }
   }
 
+  /** A failed second step: back to the password when the challenge is over, else try again here. */
+  function secondStepFailed(err: unknown) {
+    setError(err instanceof Error ? err.message : t("login.failed"));
+    if (err instanceof ApiError && (err.details as { mfa?: string } | undefined)?.mfa === "expired") {
+      setCodeStep(false);
+      inputRef.current?.focus();
+    } else {
+      codeRef.current?.focus();
+    }
+  }
+
+  async function signInWithPasskey() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const { options } = await api<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"] }>("/auth/mfa/passkey/options", { method: "POST", body: {} });
+      const response = await startAuthentication({ optionsJSON: options });
+      await api("/auth/mfa/passkey", { method: "POST", body: { response } });
+      await qc.invalidateQueries({ queryKey: ["session"] });
+    } catch (err) {
+      // Closing the browser's prompt isn't a wrong answer: the code is still there to use.
+      if (err instanceof Error && (err.name === "NotAllowedError" || err.name === "AbortError")) setError(t("login.passkeyCancelled"));
+      else secondStepFailed(err);
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function submitCode(e: FormEvent) {
     e.preventDefault();
     if (!code.trim() || pending) return;
@@ -127,14 +159,8 @@ export function LoginPage({
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
       setCode("");
-      setError(err instanceof Error ? err.message : t("login.failed"));
       // A challenge that ran out (time or tries) starts again from the password.
-      if (err instanceof ApiError && (err.details as { mfa?: string } | undefined)?.mfa === "expired") {
-        setCodeStep(false);
-        inputRef.current?.focus();
-      } else {
-        codeRef.current?.focus();
-      }
+      secondStepFailed(err);
     } finally {
       setPending(false);
     }
@@ -170,6 +196,11 @@ export function LoginPage({
       <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!code.trim()}>
         {t("login.verify")}
       </Button>
+      {passkey && (
+        <Button type="button" variant="outline" className="h-12 w-full justify-center rounded-xl text-[15px]" disabled={pending} onClick={() => void signInWithPasskey()}>
+          <Fingerprint className="h-4 w-4" /> {t("login.usePasskey")}
+        </Button>
+      )}
       {error && (
         <p id="login-error" role="alert" className="text-center text-sm text-danger">
           {error}

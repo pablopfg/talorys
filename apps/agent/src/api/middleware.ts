@@ -10,6 +10,8 @@ const PUBLIC_ROUTES = new Set([
   "GET /api/health",
   "POST /api/auth/login",
   "POST /api/auth/mfa",
+  "POST /api/auth/mfa/passkey/options",
+  "POST /api/auth/mfa/passkey",
   "GET /api/auth/session",
   "POST /api/auth/recovery",
   "POST /api/auth/recovery/complete",
@@ -47,7 +49,7 @@ export const requireHttps: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
-function allowedOrigins(c: Context<AppEnv>): Set<string> {
+export function allowedOrigins(c: Context<AppEnv>): Set<string> {
   const origins = new Set([new URL(c.req.url).origin]);
   if (isDevelopment(c)) {
     for (const o of (c.env.env.TALORYS_DEV_ORIGINS ?? "").split(",")) if (o.trim()) origins.add(o.trim());

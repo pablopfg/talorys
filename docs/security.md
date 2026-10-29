@@ -97,7 +97,22 @@ screen but Settings (it can be put off for 3 days on a browser, never for good).
 - **Activity.** Each step is in the [sign-in activity](#sign-in-activity):
   code asked, wrong code (and why), which factor signed in, turned on or off,
   new codes. Codes themselves are never logged.
-- Passkeys come later, once the deployment has its own domain.
+- **Passkeys.** With two-step sign-in on, Settings → Security → Passkeys adds
+  passkeys (Face ID, Touch ID, Windows Hello, Android, a password manager or a
+  security key) as another way to do the second step: after the password,
+  **Use a passkey** instead of typing a code. They need two-step sign-in on, so
+  the recovery codes remain the way back in; turning it off (or
+  `reset-password`) removes every passkey. Only the public key and the
+  signature counter are stored; each request's challenge is random, kept on
+  the server, tied to the page's own domain and origin and used once, right or
+  wrong, so a phishing page relaying the request gets an answer that is
+  refused. A counter that goes backwards (a copied security key) is refused
+  too. A wrong answer counts like a wrong code. Adding or removing one needs
+  the password typed in the last 15 minutes, is logged and raises a security
+  alert. At most 10. A passkey belongs to the domain it was made on: one made
+  on the `workers.dev` address doesn't work on your own domain, so add them
+  after moving to the custom domain (the list marks the others as "Other
+  address").
 
 ## Password recovery by e-mail
 

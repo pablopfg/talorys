@@ -21,6 +21,8 @@ export const AUTH_EVENT_KINDS = [
   "mfa_enabled",
   "mfa_disabled",
   "mfa_codes_regenerated",
+  "passkey_added",
+  "passkey_removed",
   "login_human_check",
   "recovery_requested",
   "recovery_failure",

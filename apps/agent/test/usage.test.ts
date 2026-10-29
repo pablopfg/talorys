@@ -141,6 +141,7 @@ describe("local model consumption", () => {
       db.run("DROP TABLE tal_alert_corrections");
       // Migration 24 (sentinel routines).
       db.run("ALTER TABLE tal_automations DROP COLUMN sentinel");
+      db.run("ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge");
       // Migration 23 (events access tokens) moved the old table aside.
       db.run("DROP TABLE IF EXISTS tal_remote_tokens_v8");
       // Migration 22 (push device last seen).

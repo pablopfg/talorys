@@ -5,6 +5,10 @@ import {
   confirmSchema,
   heartbeatSchema,
   mfaCodeSchema,
+  MAX_PASSKEYS,
+  passkeyAssertionSchema,
+  passkeyRegistrationSchema,
+  passkeyRenameSchema,
   randomToken,
   recoveryCompleteSchema,
   recoveryRequestSchema,
@@ -17,8 +21,9 @@ import type { AuthEventKind } from "@talorys/shared";
 import type { ClientInfo } from "../../auth/auth-log";
 import type { SignedIn } from "../../auth/auth-service";
 import type { MfaFactor } from "../../auth/mfa";
+import type { RelyingParty } from "../../auth/passkeys";
 import { raiseSecurityAlert } from "../../alerts/security";
-import { body, clientId, clientInfo, deviceCookie, mfaCookie, readDeviceCookie, readMfaCookie, readSessionToken, requireRecentAuth, sessionCookie } from "../middleware";
+import { allowedOrigins, body, clientId, clientInfo, deviceCookie, mfaCookie, readDeviceCookie, readMfaCookie, readSessionToken, requireRecentAuth, sessionCookie } from "../middleware";
 import { AppError, ValidationError, errorResponse } from "../errors";
 
 export const authRoutes = new Hono<AppEnv>();
@@ -53,7 +58,12 @@ authRoutes.post("/login", async (c) => {
     // The password was right; the code comes next. This line is worth seeing if the code never does.
     s.authLog.record("mfa_challenge", client);
     c.header("set-cookie", mfaCookie(c, result.mfa.token));
-    return c.json({ authenticated: false, mfa_required: true, expires_at: result.mfa.expiresAt.toISOString() });
+    return c.json({
+      authenticated: false,
+      mfa_required: true,
+      passkey: s.auth.passkeys.usableHere(relyingParty(c).rpId),
+      expires_at: result.mfa.expiresAt.toISOString(),
+    });
   }
   return finishSignIn(c, client, result, "password");
 });
@@ -72,6 +82,44 @@ authRoutes.post("/mfa", async (c) => {
   } catch (error) {
     // Once the challenge is over, its cookie goes too: the next try starts from the password.
     // Built here, because the error handler's own response would drop headers set on the context.
+    if (!(error instanceof AppError) || (error.details as { mfa?: string } | undefined)?.mfa !== "expired") throw error;
+    const res = errorResponse(error);
+    res.headers.append("set-cookie", mfaCookie(c, null));
+    return res;
+  }
+});
+
+/**
+ * The passkey's domain and origin: the page's own address (the Origin header, when it is one this
+ * app accepts, as in development behind Vite), never a value the page could pick freely.
+ */
+function relyingParty(c: Context<AppEnv>): RelyingParty {
+  const header = c.req.header("origin");
+  const origin = header && allowedOrigins(c).has(header) ? header : new URL(c.req.url).origin;
+  return { rpId: new URL(origin).hostname, origin };
+}
+
+/** The passkey request for the sign-in waiting for its second step. */
+authRoutes.post("/mfa/passkey/options", async (c) => {
+  const s = c.env.agent.services;
+  const row = await s.auth.passkeyChallenge(readMfaCookie(c));
+  const options = await s.auth.passkeys.authenticationOptions(row.id, relyingParty(c));
+  if (!options) throw new AppError("NOT_FOUND", "No passkey works on this address. Use the code from your authenticator app.");
+  return c.json({ options });
+});
+
+/** The second step with a passkey: the browser's signed answer. */
+authRoutes.post("/mfa/passkey", async (c) => {
+  const { response } = await body(c, passkeyAssertionSchema, 32 * 1024);
+  const s = c.env.agent.services;
+  const client = await clientInfo(c);
+  try {
+    const result = await s.auth.completePasskey(readMfaCookie(c), response, relyingParty(c), c.req.header("user-agent") ?? "", clientId(c), (reason) =>
+      s.authLog.record("mfa_failure", client, { reason: reason === "wrong_code" ? "passkey" : reason }),
+    );
+    c.header("set-cookie", mfaCookie(c, null), { append: true });
+    return finishSignIn(c, client, result, result.factor);
+  } catch (error) {
     if (!(error instanceof AppError) || (error.details as { mfa?: string } | undefined)?.mfa !== "expired") throw error;
     const res = errorResponse(error);
     res.headers.append("set-cookie", mfaCookie(c, null));
@@ -331,6 +379,50 @@ authRoutes.post("/mfa/recovery-codes", async (c) => {
   s.authLog.record("mfa_codes_regenerated", client, { session: c.get("sessionId")!.slice(0, 16) });
   s.activity.record("auth.mfa_codes", "New recovery codes made");
   return c.json({ recovery_codes: codes });
+});
+
+// ---------- Passkeys (owner session only) ----------
+
+authRoutes.get("/passkeys", (c) => c.json({ passkeys: c.env.agent.services.auth.passkeys.list(relyingParty(c).rpId) }));
+
+/** What the browser needs to create a passkey. Needs two-step sign-in on and the password typed recently. */
+authRoutes.post("/passkeys/options", async (c) => {
+  requireRecentAuth(c);
+  const s = c.env.agent.services;
+  if (!s.auth.mfa.enabled()) throw new AppError("CONFLICT", "Turn on two-step sign-in with an authenticator app first. Its recovery codes are the way back in if you lose your passkeys.");
+  if (s.auth.passkeys.count() >= MAX_PASSKEYS) throw new AppError("CONFLICT", `You already have ${MAX_PASSKEYS} passkeys. Remove one first.`);
+  const agent = s.settings.get().agentName;
+  return c.json({ options: await s.auth.passkeys.registrationOptions(relyingParty(c), { rpName: agent, userName: agent }) });
+});
+
+/** Stores the passkey the browser just created. */
+authRoutes.post("/passkeys", async (c) => {
+  requireRecentAuth(c);
+  const { name, response } = await body(c, passkeyRegistrationSchema, 48 * 1024);
+  const s = c.env.agent.services;
+  if (!s.auth.mfa.enabled()) throw new AppError("CONFLICT", "Turn on two-step sign-in with an authenticator app first. Its recovery codes are the way back in if you lose your passkeys.");
+  const passkey = await s.auth.passkeys.register(name, response, relyingParty(c));
+  if (!passkey) throw new ValidationError("This passkey couldn't be checked, or the request expired. Try again.");
+  s.authLog.record("passkey_added", await clientInfo(c), { session: c.get("sessionId")!.slice(0, 16) });
+  s.activity.record("auth.passkey_added", "Passkey added");
+  raiseSecurityAlert(s.alerts, "passkey_added");
+  return c.json({ passkey }, 201);
+});
+
+authRoutes.patch("/passkeys/:id", async (c) => {
+  const { name } = await body(c, passkeyRenameSchema, 1024);
+  if (!c.env.agent.services.auth.passkeys.rename(c.req.param("id"), name)) throw new AppError("NOT_FOUND", "Passkey not found.");
+  return c.json({ ok: true });
+});
+
+authRoutes.delete("/passkeys/:id", async (c) => {
+  requireRecentAuth(c);
+  const s = c.env.agent.services;
+  if (!s.auth.passkeys.remove(c.req.param("id"))) throw new AppError("NOT_FOUND", "Passkey not found.");
+  s.authLog.record("passkey_removed", await clientInfo(c), { session: c.get("sessionId")!.slice(0, 16) });
+  s.activity.record("auth.passkey_removed", "Passkey removed");
+  raiseSecurityAlert(s.alerts, "passkey_removed");
+  return c.json({ ok: true });
 });
 
 /** Turning the second step on or off signs out every other session, and the owner is told. */

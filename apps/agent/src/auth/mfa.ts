@@ -54,7 +54,7 @@ export interface ChallengeRow {
 }
 
 /** Which second step was used: recorded in the sign-in activity. */
-export type MfaFactor = "totp" | "recovery_code";
+export type MfaFactor = "totp" | "recovery_code" | "passkey";
 
 /**
  * The second sign-in step (authenticator app and recovery codes) for the single owner.
@@ -158,13 +158,16 @@ export class MfaService {
     return codes;
   }
 
-  /** Turns it off: the secret, the codes and any sign-in waiting for a code are gone. */
+  /** Turns it off: the secret, the codes, the passkeys and any sign-in waiting for its second step are gone. */
   disable(): void {
     this.db.transaction(() => {
       this.settings.delete(MFA_KEY);
       this.settings.delete(PENDING_KEY);
       this.settings.delete(WRONG_KEY);
+      this.settings.delete("auth.passkey_pending");
       this.db.run(`DELETE FROM tal_mfa_challenges`);
+      // Passkeys are a second step too; without the recovery codes behind them they'd have no way back.
+      this.db.run(`DELETE FROM tal_passkeys`);
     });
   }
 
