@@ -6,6 +6,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Added
 
+- **Verificação em duas etapas.** Em Configurações → Segurança, ative um app autenticador (Google Authenticator, Microsoft Authenticator, 1Password, Aegis e outros) lendo um QR code: depois disso, o login pede a senha e um código de 6 dígitos. Você recebe 10 códigos de recuperação, mostrados uma única vez, para entrar se perder o celular; dá para gerar novos quando acabarem. Enquanto a verificação estiver desligada, um lembrete aparece nas telas do app (pode ser adiado por 3 dias, nunca para sempre). A confirmação de ações sensíveis também aceita um código do app no lugar da senha. Veja [docs/security.md](docs/security.md#two-step-sign-in).
+
 - **Atividade de acesso.** Configurações → Segurança mostra cada login, tentativa que falhou, bloqueio, saída e troca de senha, com IP, país, região, cidade, provedor e navegador, um resumo das últimas 24 horas e filtro só de falhas. Os detalhes ficam 90 dias (ajustável de 30 a 180) e depois viram só contagens diárias por país, guardadas por um ano. Dá para exportar em CSV ou apagar tudo. Ver os detalhes, exportar, apagar e mudar o prazo pedem a senha, e uma enxurrada de tentativas bloqueadas não apaga o registro dos seus logins nem gasta gravações à toa. A localização vem só da Cloudflare, nunca do navegador, e senhas e e-mails digitados nunca são guardados. Veja [docs/security.md](docs/security.md#sign-in-activity).
 
 - **Domínio próprio no instalador.** `npx create-talorys@latest update --domain talorys.exemplo.com` passa a usar o seu domínio para tudo (verificação, `status`, `doctor`) e fecha os endereços `*.pages.dev`. Depois de uma mudança de endereço, os aparelhos inscritos no endereço antigo saem da lista de push quando você abre as Configurações no novo, para reativar lá. No deploy pelo GitHub, a variável opcional `TALORYS_VAPID_SUBJECT` define o contato enviado aos serviços de push. Veja [docs/deployment.md](docs/deployment.md).
@@ -32,8 +34,13 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - A verificação de atualizações começa desligada em instalações novas. Ligue em Configurações → Sobre.
 - **Node.js 26 (LTS ativo) no desenvolvimento, no CI e no deploy.** A versão fica em `.nvmrc` (`nvm use`) e todos os workflows a leem de lá. As actions `checkout`, `setup-node` e as do GitHub Pages foram atualizadas para versões que rodam no Node.js 24 do runner, já que o Node.js 20 das actions saiu de suporte.
 
+### Corrigido
+
+- O aviso de sessão encerrada por inatividade não é mais trocado pelo aviso genérico quando outro pedido recebe 401 durante a saída.
+
 ### Segurança
 
+- **Segundo fator protegido.** O segredo do app autenticador fica cifrado (AES-256-GCM, chave derivada do `SESSION_SECRET`) e nunca entra no backup; os códigos de recuperação ficam só como hash e valem uma vez. Cada código do app vale uma vez, o login em duas etapas expira em 5 minutos e aceita 5 códigos errados (também com pedidos em paralelo), depois de 10 códigos errados em 15 minutos só as redes onde você já entrou podem tentar, e a senha certa continua contando como falha no limite de tentativas até o código ser confirmado. Três códigos errados seguidos, o uso de um código de recuperação e ligar ou desligar a verificação geram um aviso; ligar ou desligar também encerra as outras sessões. O `reset-password` pelo terminal desliga a verificação em duas etapas, para quem perdeu o celular e os códigos.
 - **HTTPS em tudo, sem depender da configuração da zona.** No deploy pelo GitHub (Worker único), o Worker passa a rodar antes de todo arquivo da interface: uma página pedida por `http://` é movida para `https://` (301), um envio por HTTP (como um login) ou uma chamada à API com credencial é recusado em vez de redirecionado, e a interface ganha os mesmos portões da API: só responde no domínio configurado (404 no `*.workers.dev` e em qualquer outro host), passa pelo Cloudflare Access quando ele está ligado e sai sempre com HSTS e os cabeçalhos de segurança. Depois de cada deploy com domínio próprio, o workflow confere que `http://` redireciona e que o `workers.dev` e as URLs de preview estão desligados (pela API da Cloudflare e de fora). Veja [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
 - **Senhas fortes, sempre.** Senhas novas precisam de 15 caracteres, e palavras comuns (como "senha" ou "flamengo", também escritas com @ ou 0), sequências como 1234 ou qwerty, repetições, o seu e-mail e o nome do agente não contam para esse mínimo. A senha nova também é conferida no Have I Been Pwned por k-anonimato (só 5 caracteres de um hash saem do servidor); se a conferência não responder, a troca é recusada. Quem entrar com uma senha que não segue essas regras só consegue trocá-la antes de usar o resto do app.
 - **E-mail e senha no login (opcional).** Com o segredo `OWNER_EMAIL`, a tela de login pede também o e-mail. O servidor confere os dois sempre, no mesmo tempo, e responde só "E-mail ou senha incorretos.", sem dizer qual errou.
@@ -86,6 +93,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Upgrading
 
+- A migração 18 cria a tabela `tal_mfa_challenges`, para o login em duas etapas. Não há segredo novo, e a verificação começa desligada: ative em Configurações → Segurança. A interface ganha a dependência `qrcode-generator` (MIT, sem dependências) para desenhar o QR code no navegador.
 - A migração 17 cria as tabelas `tal_auth_events`, `tal_auth_daily` e `tal_known_devices`. Não há segredo novo. O primeiro login depois da atualização marca o navegador como conhecido, sem aviso.
 - Instalações novas usam o fuso horário America/Sao_Paulo quando o instalador não consegue detectar o da máquina, e a sessão passa a durar 30 minutos sem uso e 6 horas no máximo. Quem já ajustou esses tempos em Configurações mantém os seus.
 - Se a sua senha atual tiver menos de 15 caracteres ou for previsível, o próximo login leva direto à troca de senha. `npx create-talorys@latest reset-password` também grava a senha nova junto com o `PASSWORD_PEPPER`.

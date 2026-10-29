@@ -21,6 +21,7 @@ import { RemoteAccessCard } from "../components/RemoteAccessCard";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
 import { AuthActivityCard } from "../components/AuthActivityCard";
+import { TwoFactorCard } from "../components/TwoFactorCard";
 import { UsageBreakdown, UsagePricingNote } from "../components/UsageBreakdown";
 import { keys, useApiMutation, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
 import { useSession } from "../hooks/session";
@@ -572,6 +573,7 @@ function SecurityTab({ settings }: { settings: Settings }) {
       <Section title={t("settings.changePassword")}>
         <ChangePasswordForm agentName={settings.agentName} />
       </Section>
+      <TwoFactorCard timezone={settings.timezone} />
       <SessionTimeoutsSection settings={settings} />
       <Section title={t("settings.activeSessions")}>
         {sessions.isLoading ? (

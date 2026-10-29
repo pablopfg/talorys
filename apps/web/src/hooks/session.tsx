@@ -107,12 +107,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(
     async (reason: LogoutReason = "manual") => {
       broadcast({ type: "logout", reason });
+      // Locks at once, before the server answers: a request that gets a 401 meanwhile then can't
+      // replace the reason shown on the sign-in screen with the general one.
+      signOutHere(reason);
       try {
         await api("/auth/logout", { method: "POST", body: {} });
       } catch {
-        // The screen locks anyway; the server ends the session on its own deadline.
-      } finally {
-        signOutHere(reason);
+        // The screen is locked anyway; the server ends the session on its own deadline.
       }
     },
     [signOutHere],

@@ -19,6 +19,11 @@ const KIND_LABEL: Record<AuthEventKind, PlainMessageKey> = {
   confirm_success: "authActivity.confirmSuccess",
   confirm_failure: "authActivity.confirmFailure",
   remote_token_rejected: "authActivity.remoteTokenRejected",
+  mfa_challenge: "authActivity.mfaChallenge",
+  mfa_failure: "authActivity.mfaFailure",
+  mfa_enabled: "authActivity.mfaEnabled",
+  mfa_disabled: "authActivity.mfaDisabled",
+  mfa_codes_regenerated: "authActivity.mfaCodesRegenerated",
 };
 
 /** Reasons worth showing next to the kind; the others say nothing the kind doesn't. */
@@ -30,6 +35,14 @@ const REASON_LABEL: Record<string, PlainMessageKey> = {
   password_change: "authActivity.reasonPasswordChange",
   invalid: "authActivity.reasonInvalidToken",
   malformed: "authActivity.reasonMalformedToken",
+  totp: "authActivity.reasonTotp",
+  recovery_code: "authActivity.reasonRecoveryCode",
+  wrong_code: "authActivity.reasonWrongCode",
+  too_many: "authActivity.reasonTooMany",
+  expired: "authActivity.reasonExpired",
+  rate_limited: "authActivity.reasonRateLimited",
+  disable: "authActivity.reasonMfaDisable",
+  recovery_codes: "authActivity.reasonMfaCodes",
 };
 
 const RETENTION_CHOICES = [30, 60, 90, 120, 180];

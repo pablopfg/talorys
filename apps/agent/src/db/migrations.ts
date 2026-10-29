@@ -475,6 +475,22 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 18,
+    name: "two-step sign-in",
+    statements: [
+      // A sign-in waiting for the second step. Only HMAC(SESSION_SECRET, challenge cookie) is stored.
+      `CREATE TABLE IF NOT EXISTS tal_mfa_challenges (
+        id TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        login_attempt INTEGER,
+        weak_password INTEGER NOT NULL DEFAULT 0,
+        user_agent TEXT NOT NULL DEFAULT ''
+      )`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

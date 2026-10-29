@@ -285,7 +285,7 @@ export class AuthLog {
     const networks = this.db.one<{ n: number }>(`SELECT count(DISTINCT network) AS n FROM tal_auth_events WHERE last_at > ? AND network IS NOT NULL`, since)?.n ?? 0;
     return {
       successes: sum(["login_success"]),
-      failures: sum(["login_failure", "confirm_failure", "remote_token_rejected"]),
+      failures: sum(["login_failure", "confirm_failure", "remote_token_rejected", "mfa_failure"]),
       blocked: sum(["login_rate_limited"]),
       networks,
       retention_days: this.retentionDays(),

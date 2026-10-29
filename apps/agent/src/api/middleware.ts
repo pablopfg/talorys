@@ -1,4 +1,4 @@
-import { ACTIVITY_HEADER, CLIENT_GEO_HEADER, CSRF_HEADER, DEV_DEVICE_COOKIE, DEV_SESSION_COOKIE, DEVICE_COOKIE, SESSION_COOKIE } from "@talorys/shared";
+import { ACTIVITY_HEADER, CLIENT_GEO_HEADER, CSRF_HEADER, DEV_DEVICE_COOKIE, DEV_MFA_COOKIE, DEV_SESSION_COOKIE, DEVICE_COOKIE, MFA_CHALLENGE_TTL_MS, MFA_COOKIE, SESSION_COOKIE } from "@talorys/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import type { z } from "zod";
 import type { AppEnv } from "./app";
@@ -6,7 +6,7 @@ import { AppError, ValidationError } from "./errors";
 import { type ClientGeo, type ClientInfo, DEVICE_COOKIE_MAX_AGE_S, NO_GEO } from "../auth/auth-log";
 
 /** Routes reachable without a session. Nothing here can claim ownership or read owner data. */
-const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "GET /api/auth/session"]);
+const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "POST /api/auth/mfa", "GET /api/auth/session"]);
 
 /** All a session can do while its password fails the current rules: change it, or leave. */
 const WEAK_PASSWORD_ROUTES = new Set([...PUBLIC_ROUTES, "POST /api/auth/password", "POST /api/auth/logout", "POST /api/auth/heartbeat"]);
@@ -109,6 +109,21 @@ export function readDeviceCookie(c: Context<AppEnv>): string | null {
 export function deviceCookie(c: Context<AppEnv>, value: string): string {
   const attrs = [`${deviceCookieName(c)}=${encodeURIComponent(value)}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${DEVICE_COOKIE_MAX_AGE_S}`];
   if (deviceCookieName(c) === DEVICE_COOKIE) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+function mfaCookieName(c: Context<AppEnv>): string {
+  return sessionCookieName(c) === SESSION_COOKIE ? MFA_COOKIE : DEV_MFA_COOKIE;
+}
+
+export function readMfaCookie(c: Context<AppEnv>): string | null {
+  return readCookie(c, mfaCookieName(c));
+}
+
+/** The two-step challenge cookie: random, HttpOnly, 5 minutes; with null, the one that clears it. */
+export function mfaCookie(c: Context<AppEnv>, value: string | null): string {
+  const attrs = [`${mfaCookieName(c)}=${value ? encodeURIComponent(value) : ""}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${value ? MFA_CHALLENGE_TTL_MS / 1000 : 0}`];
+  if (mfaCookieName(c) === MFA_COOKIE) attrs.push("Secure");
   return attrs.join("; ");
 }
 

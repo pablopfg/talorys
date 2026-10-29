@@ -7,6 +7,7 @@ import type {
   ChatMessage,
   McpServerInfo,
   McpToolInfo,
+  MfaStatus,
   Memory,
   MemoryHistory,
   MemoryReview,
@@ -39,6 +40,7 @@ export const keys = {
   usage: ["usage"] as const,
   sessions: ["sessions"] as const,
   authActivity: ["auth-activity"] as const,
+  mfa: ["auth", "mfa"] as const,
   system: ["system"] as const,
   update: ["system", "update"] as const,
   remoteStatus: ["remote", "status"] as const,
@@ -167,6 +169,10 @@ export function useAuthActivity(failuresOnly: boolean, enabled: boolean) {
     },
     getNextPageParam: (last) => last.next_before ?? undefined,
   });
+}
+
+export function useMfaStatus(enabled = true) {
+  return useQuery({ queryKey: keys.mfa, enabled, queryFn: () => api<MfaStatus>("/auth/mfa/status") });
 }
 
 export function useAuthActivitySummary() {
