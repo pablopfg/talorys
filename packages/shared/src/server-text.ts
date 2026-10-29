@@ -223,6 +223,8 @@ const PT_BR: Catalog = {
   "Only the owner can use these buttons.": "Só o dono pode usar estes botões.",
   "This alert no longer exists.": "Este aviso não existe mais.",
   "Snoozed for 1 hour.": "Adiado por 1 hora.",
+  "This alert was already handled.": "Este aviso já foi tratado.",
+  "Snoozed alert. Its full text is in the notification center.": "Aviso adiado. O texto completo está na central de notificações.",
   "Marked as done.": "Marcado como feito.",
   "Done": "Feito",
   "Snooze 1 h": "Adiar 1 h",

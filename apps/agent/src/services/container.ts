@@ -1,4 +1,4 @@
-import { isBreachedPassword, languagePreferenceSchema, type Settings } from "@talorys/shared";
+import { type AlertCategory, isBreachedPassword, languagePreferenceSchema, type Settings } from "@talorys/shared";
 import type { Env } from "../env";
 import { Database } from "../db/database";
 import { AuthLog } from "../auth/auth-log";
@@ -68,10 +68,11 @@ export function createServices(
   const notifications = new NotificationRepository(db);
   const activity = new ActivityLog(db);
   const automations = new AutomationService(automationsRepo, settings, activity, scheduler);
-  const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, notifications, automations, activity, background);
+  const fullText = (category: AlertCategory) => alerts.preferences().fullText.includes(category);
+  const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, notifications, automations, activity, background, fullText);
   const channels = {
     push: pushChannel(push),
-    telegram: telegramChannel(telegram, (n) => alerts.preferences().fullText.includes(n.category)),
+    telegram: telegramChannel(telegram, (n) => fullText(n.category)),
   };
   const alerts: AlertService = new AlertService(notifications, new AlertDeliveryRepository(db), settings, channels);
   const memories = new MemoryRepository(db);

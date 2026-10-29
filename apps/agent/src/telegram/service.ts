@@ -35,15 +35,18 @@ export interface TelegramLink {
   /** The app's address, for the "Open Talorys" button. */
   appUrl: string | null;
   linkedAt: string | null;
-  /** Highest update already handled, so a redelivered update is ignored. */
-  lastUpdateId: number;
+  /**
+   * Recent update ids already handled, so a redelivered update is ignored. Not a watermark:
+   * Telegram may restart ids at random after a quiet week, and updates can arrive out of order.
+   */
+  seenUpdates: number[];
 }
 
 const LINK_KEY = "telegram.link";
 const CODE_KEY = "telegram.code";
 const EMPTY: TelegramLink = {
   bot: null, userId: null, chatId: null, groupId: null, groupTitle: null, isForum: false, topics: {},
-  topicsUnavailable: false, appUrl: null, linkedAt: null, lastUpdateId: 0,
+  topicsUnavailable: false, appUrl: null, linkedAt: null, seenUpdates: [],
 };
 /** Unambiguous letters and digits for the link code. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -51,6 +54,7 @@ const START = /^\/start(?:@\w+)?\s+([A-Z2-9]{8})\s*$/;
 /** Longest alert body sent to Telegram (its limit is 4096 characters with markup). */
 const MAX_BODY = 3000;
 export const SNOOZE_MINUTES = 60;
+const SEEN_UPDATES = 100;
 
 /** English labels, translated with the server-text catalog like every other server text. */
 const CATEGORY_TEXT: Record<AlertCategory, string> = {
@@ -74,6 +78,7 @@ export interface TgUpdate { update_id: number; message?: TgMessage; callback_que
 export class TelegramService {
   readonly client: TelegramClient | null;
   private readonly pending = new Set<Promise<unknown>>();
+  private readonly creatingTopics = new Map<AlertCategory, Promise<number | null>>();
 
   constructor(
     token: string | undefined,
@@ -83,6 +88,8 @@ export class TelegramService {
     private readonly automations: AutomationService,
     private readonly activity: ActivityLog,
     private readonly background: (work: Promise<unknown>) => void,
+    /** Whether a category's full text may go to Telegram (the owner's preferences). */
+    private readonly fullText: (category: AlertCategory) => boolean = () => false,
   ) {
     this.client = token ? new TelegramClient(token) : null;
   }
@@ -158,7 +165,7 @@ export class TelegramService {
     const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
     const expiresAt = Date.now() + TELEGRAM_LINK_TTL_MS;
     this.settings.setJson(CODE_KEY, { hash: await sha256Hex(code), expiresAt });
-    this.save({ bot, appUrl: origin, topicsUnavailable: false });
+    this.save({ bot, appUrl: origin, topicsUnavailable: false, seenUpdates: [] });
     this.activity.record("telegram.connect", "Started linking Telegram");
     return {
       code,
@@ -214,14 +221,25 @@ export class TelegramService {
 
   async handle(update: TgUpdate): Promise<void> {
     const link = this.link();
-    if (!Number.isSafeInteger(update.update_id) || update.update_id <= link.lastUpdateId) return;
-    this.save({ lastUpdateId: update.update_id });
-    if (update.message) await this.onMessage(update.message);
-    else if (update.callback_query) await this.onCallback(update.callback_query);
+    if (!Number.isSafeInteger(update.update_id)) return;
+    const message = update.message;
+    const callback = update.callback_query;
+    // Updates from strangers (other people's messages, groups that added the bot) cost no storage:
+    // only the owner's, the linked chats' and link attempts are remembered.
+    const relevant = callback
+      ? link.userId !== null && callback.from.id === link.userId
+      : !!message && (message.chat.id === link.chatId || message.chat.id === link.groupId || START.test(message.text ?? ""));
+    if (relevant) {
+      const seen = link.seenUpdates ?? [];
+      if (seen.includes(update.update_id)) return;
+      this.save({ seenUpdates: [...seen, update.update_id].slice(-SEEN_UPDATES) });
+    }
+    if (message) await this.onMessage(message);
+    else if (callback) await this.onCallback(callback);
   }
 
   private async onMessage(m: TgMessage): Promise<void> {
-    const link = this.link();
+    let link = this.link();
     const isGroup = m.chat.type === "group" || m.chat.type === "supergroup";
     // A group upgraded to a supergroup gets a new id; Telegram says so in the old group.
     if (isGroup && m.migrate_to_chat_id && m.chat.id === link.groupId) {
@@ -231,7 +249,10 @@ export class TelegramService {
     const from = m.from;
     if (!from || from.is_bot) return;
     const start = START.exec(m.text ?? "");
-    if (start && (await this.codeMatches(start[1]!))) {
+    const linking = !!start && (await this.codeMatches(start[1]!));
+    // Read again after the await: another update may have linked meanwhile.
+    link = this.link();
+    if (linking) {
       if (m.chat.type === "private") {
         // The first chat linked fixes the owner's account; another account can never take over.
         if (link.userId !== null && link.userId !== from.id) return;
@@ -251,6 +272,11 @@ export class TelegramService {
         await this.reply(m.chat.id, this.text("This group now receives Talorys alerts."));
         return;
       }
+    }
+    // Someone added the bot to a group that isn't the linked one: leave it.
+    if (isGroup && m.chat.id !== link.groupId) {
+      await this.client?.call("leaveChat", { chat_id: m.chat.id }).catch(() => undefined);
+      return;
     }
     // Only the owner, only in the private chat. Talking to the agent arrives in a later version.
     if (m.chat.type === "private" && link.userId !== null && from.id === link.userId && m.chat.id === link.chatId) {
@@ -273,12 +299,20 @@ export class TelegramService {
       await answer(this.text("This alert no longer exists."));
       return;
     }
+    // A second press (two quick taps, or the button in another chat) does nothing twice.
+    if (n.read_at !== null) {
+      await answer(this.text("This alert was already handled."));
+      return;
+    }
+    this.notifications.markRead(n.id);
     let reply: string;
     if (match[1] === "snooze") {
+      // The reminder is sent as a reminder: it carries the text only if the alert's own category may.
+      const showText = n.category === "reminder" || this.fullText(n.category);
       await this.automations.create({
         name: clip(n.title, 120),
         kind: "reminder",
-        message: n.body,
+        message: showText ? n.body : "Snoozed alert. Its full text is in the notification center.",
         schedule: { type: "once", at: toLocalMinute(new Date(Date.now() + SNOOZE_MINUTES * 60_000 + 59_000), this.settings.get().timezone) },
         enabled: true,
       });
@@ -286,7 +320,6 @@ export class TelegramService {
     } else {
       reply = "Marked as done.";
     }
-    this.notifications.markRead(n.id);
     await answer(this.text(reply));
     if (q.message) {
       await client.call("editMessageReplyMarkup", {
@@ -361,20 +394,34 @@ export class TelegramService {
   }
 
   /** The forum topic for a category, created on first use when the bot may manage topics. */
-  private async topic(category: AlertCategory): Promise<number | null> {
+  private topic(category: AlertCategory): Promise<number | null> {
     const l = this.link();
-    if (l.groupId === null || !l.isForum || l.topicsUnavailable || !this.client) return null;
+    if (l.groupId === null || !l.isForum || l.topicsUnavailable || !this.client) return Promise.resolve(null);
     const known = l.topics[category];
-    if (known) return known;
+    if (known) return Promise.resolve(known);
+    // Two alerts of a new category at once share one topic instead of creating two.
+    let creating = this.creatingTopics.get(category);
+    if (!creating) {
+      creating = this.createTopic(l.groupId, category).finally(() => this.creatingTopics.delete(category));
+      this.creatingTopics.set(category, creating);
+    }
+    return creating;
+  }
+
+  private async createTopic(groupId: number, category: AlertCategory): Promise<number | null> {
     try {
-      const topic = await this.client.call<{ message_thread_id: number }>("createForumTopic", {
-        chat_id: l.groupId,
+      const topic = await this.client!.call<{ message_thread_id: number }>("createForumTopic", {
+        chat_id: groupId,
         name: this.text(CATEGORY_TEXT[category]),
       });
+      // The group may have been unlinked or replaced meanwhile.
+      if (this.link().groupId !== groupId) return null;
       this.save({ topics: { ...this.link().topics, [category]: topic.message_thread_id } });
       return topic.message_thread_id;
-    } catch {
-      this.save({ topicsUnavailable: true });
+    } catch (error) {
+      // Refused (the bot is not an admin, topics are off): stop trying until the group is linked
+      // again. A network error or a rate limit only skips the topic this time.
+      if (error instanceof TelegramError && (error.code === 400 || error.code === 403)) this.save({ topicsUnavailable: true });
       return null;
     }
   }

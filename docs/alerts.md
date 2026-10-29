@@ -96,7 +96,10 @@ chegam nas próximas entregas.
 - **Botões.** Todo aviso tem **Abrir o Talorys**. Avisos de prioridade alta e crítica
   também têm **Feito** (marca como lido no app) e **Adiar 1 h** (cria um lembrete único
   para daqui a uma hora, com o mesmo título e texto, e marca o aviso como lido). Depois de
-  tocar, os botões somem da mensagem.
+  tocar, os botões somem da mensagem; um segundo toque responde "Este aviso já foi
+  tratado." O lembrete do **Adiar** só leva o texto do aviso quando a categoria original
+  pode mostrar o texto completo no Telegram (ou é um lembrete); senão ele diz que o texto
+  está na central de notificações.
 - **Tópicos.** Se o grupo tiver **tópicos** ligados e o bot for **administrador** com a
   permissão *Gerenciar tópicos*, o Talorys cria um tópico por categoria (Lembretes,
   Rotinas, Segurança…) na primeira vez que precisar. Sem a permissão, tudo vai para o
@@ -166,7 +169,10 @@ no Worker; para desligar o bot de vez, apague o segredo
 - Com o Cloudflare Access ligado, a rota só fica livre do token do Access quando traz esse
   cabeçalho certo e nenhum cookie ou `Authorization`.
 - A rota responde 200 na hora (o trabalho segue em segundo plano), aceita no máximo 64 KB
-  e ignora atualizações repetidas, então o Telegram não reenvia nada em loop.
+  e ignora atualizações repetidas (guarda os últimos 100 ids), então o Telegram não reenvia
+  nada em loop.
+- Mensagens de outras pessoas não gravam nada no banco. Se alguém adicionar o bot a outro
+  grupo, o bot sai dele na primeira mensagem que receber de lá.
 - O código de vinculação vale 10 minutos, é guardado só como hash e deixa de valer quando
   o grupo é vinculado. A primeira conta que vincula o chat privado vira a dona; outra conta
   com o mesmo código não toma o lugar.

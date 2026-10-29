@@ -169,15 +169,45 @@ describe("linking", () => {
 
   it("follows a group that became a supergroup and ignores repeated updates", async () => {
     await inAgent(async (agent) => {
+      const fake = fakeTelegram();
       const t = agent.services.telegram;
-      const code = await linkChat(agent);
+      const code = await linkChat(agent, fake);
       await t.handle(groupMessage(`/start ${code}`));
       await t.handle(update({ message: { message_id: 2, chat: { id: GROUP, type: "group" }, migrate_to_chat_id: -100777 } }));
       expect(t.target()).toBe(-100777);
-      const old = update({ message: { message_id: 3, chat: { id: -100777, type: "supergroup" }, migrate_to_chat_id: -1 } });
-      agent.services.settings.setJson("telegram.link", { ...t.link(), lastUpdateId: old.update_id });
-      await t.handle(old);
-      expect(t.target()).toBe(-100777);
+      const hello = privateMessage("hello");
+      await t.handle(hello);
+      await t.handle(hello);
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Talorys only sends alerts"))).toHaveLength(1);
+    });
+  });
+
+  it("keeps working when Telegram restarts update ids at a lower number or sends them out of order", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      await t.handle({ ...privateMessage("a"), update_id: 900_000 });
+      await t.handle({ ...privateMessage("b"), update_id: 5 });
+      await t.handle({ ...privateMessage("c"), update_id: 899_999 });
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Talorys only sends alerts"))).toHaveLength(3);
+      // Only the last 100 ids are kept.
+      for (let i = 0; i < 120; i++) await t.handle({ ...privateMessage("x"), update_id: 1_000_000 + i });
+      expect(t.link().seenUpdates).toHaveLength(100);
+    });
+  });
+
+  it("stores nothing for strangers and leaves groups it was not linked to", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const before = JSON.stringify(t.link());
+      await t.handle(privateMessage("spam", STRANGER));
+      await t.handle(update({ message: { message_id: 1, from: { id: STRANGER }, chat: { id: -100999, type: "supergroup", title: "Other" }, text: "hi bot" } }));
+      await t.handle(update({ callback_query: { id: "x", from: { id: STRANGER }, data: "n:done:abc" } }));
+      expect(JSON.stringify(t.link())).toBe(before);
+      expect(fake.calls.filter((c) => c.method === "leaveChat").map((c) => c.params.chat_id)).toEqual([-100999]);
     });
   });
 
@@ -317,6 +347,31 @@ describe("alerts on Telegram", () => {
   });
 });
 
+describe("forum topics under load", () => {
+  it("creates one topic for alerts raised together, and keeps trying after a transient failure", async () => {
+    await inAgent(async (agent) => {
+      let topic = 70;
+      let down = true;
+      const fake = fakeTelegram({
+        createForumTopic: () => (down ? { ok: false, error_code: 429, description: "Too Many Requests" } : { message_thread_id: ++topic }),
+      });
+      const t = agent.services.telegram;
+      const code = await linkChat(agent, fake);
+      await t.handle(groupMessage(`/start ${code}`, OWNER, { is_forum: true }));
+      agent.services.alerts.raise({ title: "a", body: "b", category: "digest" });
+      await t.idle();
+      // A rate limit is not a refusal: topics stay on.
+      expect(t.link().topicsUnavailable).toBe(false);
+      down = false;
+      agent.services.alerts.raise({ title: "c", body: "d", category: "digest" });
+      agent.services.alerts.raise({ title: "e", body: "f", category: "digest" });
+      await t.idle();
+      expect(fake.calls.filter((c) => c.method === "createForumTopic" && c.params.name === "Digests")).toHaveLength(2);
+      expect(fake.sent().slice(-2).map((c) => c.params.message_thread_id)).toEqual([71, 71]);
+    });
+  });
+});
+
 describe("buttons", () => {
   const press = (data: string, from = OWNER): TgUpdate =>
     update({ callback_query: { id: "cb1", from: { id: from }, data, message: { message_id: 9, chat: { id: OWNER, type: "private" } } } });
@@ -347,6 +402,24 @@ describe("buttons", () => {
       const at = Date.parse(`${(reminder.schedule as { at: string }).at}:00Z`);
       expect(at - Date.now()).toBeGreaterThan(59 * 60_000);
       expect(at - Date.now()).toBeLessThan(62 * 60_000);
+      await agent.services.automations.delete(reminder.id);
+    });
+  });
+
+  it("acts once on repeated presses, and keeps a discreet category's text out of the snoozed reminder", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      agent.services.alerts.updatePreferences({ ...DEFAULT_ALERT_PREFERENCES, fullText: ["reminder"] });
+      const n = agent.services.alerts.raise({ title: "Odd sign-in", body: "From a new country", category: "security", priority: "high" })!;
+      const before = agent.services.automations.list().length;
+      await agent.services.telegram.handle(press(`n:snooze:${n.id}`));
+      await agent.services.telegram.handle(press(`n:snooze:${n.id}`));
+      const created = agent.services.automations.list();
+      expect(created.length).toBe(before + 1);
+      const reminder = created.find((a) => a.name === "Odd sign-in")!;
+      expect(reminder.message).toBe("Snoozed alert. Its full text is in the notification center.");
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.params.text)).toEqual(["Snoozed for 1 hour.", "This alert was already handled."]);
       await agent.services.automations.delete(reminder.id);
     });
   });
