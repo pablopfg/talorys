@@ -85,21 +85,21 @@ jobs:
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-      # The token goes only into a config file outside the checkout, read by the steps that need it.
-      - name: Configure GitHub Packages
+      # The token is written only for the step that uses it, into a file outside the checkout,
+      # and removed right after: npm ci and the build (third-party install scripts) never see it.
+      - name: Already published?
+        id: published
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "NAME=@$owner/create-talorys" >> "$GITHUB_ENV"
-          umask 077
-          printf '@%s:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' "$owner" "$NODE_AUTH_TOKEN" > "$RUNNER_TEMP/packages.npmrc"
-      - name: Already published?
-        id: published
-        run: |
-          if npm view "$NAME@$VERSION" version --userconfig "$RUNNER_TEMP/packages.npmrc" >/dev/null 2>&1; then
-            echo "$NAME@$VERSION is already on GitHub Packages."
+          rc="$RUNNER_TEMP/packages.npmrc"
+          trap 'rm -f "$rc"' EXIT
+          (umask 077; printf '@%s:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' "$owner" "$NODE_AUTH_TOKEN" > "$rc")
+          if npm view "@$owner/create-talorys@$VERSION" version --userconfig "$rc" >/dev/null 2>&1; then
+            echo "@$owner/create-talorys@$VERSION is already on GitHub Packages."
             echo "done=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.published.outputs.done != 'true'
@@ -109,12 +109,15 @@ jobs:
         run: npm run test:pack
       - name: Publish
         if: steps.published.outputs.done != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           node scripts/release.mjs github-package "$GITHUB_REPOSITORY"
           tag=latest
           case "$VERSION" in *-*) tag=next ;; esac
-          npm publish ./packages/create-talorys --tag "$tag" --ignore-scripts --userconfig "$RUNNER_TEMP/packages.npmrc"
+          rc="$RUNNER_TEMP/packages.npmrc"
+          trap 'rm -f "$rc"' EXIT
+          (umask 077; printf '@%s:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' "${GITHUB_REPOSITORY_OWNER,,}" "$NODE_AUTH_TOKEN" > "$rc")
+          npm publish ./packages/create-talorys --tag "$tag" --ignore-scripts --userconfig "$rc"
           echo "### Published $NAME@$VERSION to GitHub Packages" >> "$GITHUB_STEP_SUMMARY"
-      - if: always()
-        run: rm -f "$RUNNER_TEMP/packages.npmrc"
