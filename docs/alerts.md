@@ -249,7 +249,7 @@ Resumos com
 
 - tarefas atrasadas;
 - tarefas que vencem hoje;
-- os compromissos de hoje nas agendas do Google abertas (veja [google-calendar.md](google-calendar.md#daily-routines-with-the-calendar));
+- os compromissos de hoje nas agendas do Google abertas (veja [google-calendar.md](google-calendar.md#rotinas-do-dia-com-a-agenda));
 - o que está agendado para hoje (lembretes e automações ligadas);
 - os avisos de prioridade baixa das últimas 24 horas que ficaram no app sem ler;
 - às **sextas-feiras**, o que a prioridade aprendeu na semana.
@@ -508,7 +508,7 @@ sem chave de API.
   `exemplo[.]com`), no e-mail e no Telegram, para nenhum aviso trazer um link de golpe.
 - O e-mail também traz o link de **Esqueceu a senha?** da tela de login (no máximo 3 por
   dia, contados como alertas de segurança no limite acima). Veja
-  [security.md](security.md#password-recovery-by-e-mail).
+  [security.md](security.md#recuperação-de-senha-por-e-mail).
 - Em **Configurações → Avisos → E-mail** aparece o destino mascarado (`d•••@exemplo.com.br`),
   quantos e-mails saíram hoje e o botão **Enviar e-mail de teste**.
 

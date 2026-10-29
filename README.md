@@ -29,7 +29,7 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 npx create-talorys@latest
 ```
 
-Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#one-worker-without-pages):
+Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#um-worker-sem-pages):
 
 [![Instalar com o Appflare](https://appflare.dev/badge.svg)](https://appflare.dev/install/talorys/)
 
@@ -246,7 +246,7 @@ Todos os dados ficam num único Durable Object com SQLite (`personal-agent`) **n
 
 A Cloudflare processa seus dados para prestar os serviços dela — inclusive a inferência do Workers AI sobre as suas mensagens do chat e as memórias relevantes incluídas em cada prompt. Leia a política de privacidade da Cloudflare e os termos do Workers AI.
 
-Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia os argumentos dessa chamada ao servidor, fora da sua conta Cloudflare. Nada é enviado a um servidor MCP a menos que você o tenha conectado e ligado a ferramenta. Veja [docs/mcp.md](docs/mcp.md#privacy).
+Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia os argumentos dessa chamada ao servidor, fora da sua conta Cloudflare. Nada é enviado a um servidor MCP a menos que você o tenha conectado e ligado a ferramenta. Veja [docs/mcp.md](docs/mcp.md#privacidade).
 
 | Leia mais | |
 | --- | --- |

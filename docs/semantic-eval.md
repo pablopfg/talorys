@@ -1,35 +1,37 @@
-# Semantic surfaces eval
+# Avaliação das superfícies semânticas
 
-Model: `@cf/baai/bge-m3`  
-Date: 2026-10-15T04:05:42.551Z  
-Floor: 0.55
+Relatório gerado por `scripts/semantic-eval.mjs`. As consultas e os itens são os casos de teste, em inglês.
 
-Result: PASS (18/18 cases pass)
+Modelo: `@cf/baai/bge-m3`  
+Data: 2026-10-15T04:05:42.551Z  
+Piso: 0.55
 
-| Case | Query | Kind | Target | Target cosine | Rank | Best distractor | Distractor cosine | Prompt section | Result |
+Resultado: PASSOU (18/18 casos passam)
+
+| Caso | Consulta | Tipo | Alvo | Cosseno do alvo | Posição | Melhor distrator | Cosseno do distrator | Seção do prompt | Resultado |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| EX-T1 | doc appt soon? | positive | patel | 0.607 | 1 | dentist | 0.577 | 2 items | pass |
-| EX-T2 | travel prep? | positive | passport | 0.641 | 1 | brakes | 0.519 | 1 item | pass |
-| EX-T3 | car stuff? | positive | brakes | 0.640 | 1 | gutters | 0.531 | 1 item | pass |
-| EX-T4 | whats 2+2 | negative | — | — | — | plants | 0.370 | none | pass |
-| EX-T5 | gm | negative | — | — | — | router | 0.456 | none | pass |
-| EX-T6 | capital of france | negative | — | — | — | lisbon | 0.407 | none | pass |
-| EX-N1 | gift ideas for dad? | positive | skillet | 0.608 | 1 | mom-birthday | 0.543 | 1 item | pass |
-| EX-N2 | door code? | positive | keypad | 0.600 | 1 | garage | 0.571 | 2 items | pass |
-| EX-N3 | dogs ok here? | positive | lease | 0.585 | 1 | review | 0.510 | 1 item | pass |
-| EX-N4 | who wrote hamlet | negative | — | — | — | lake-house | 0.328 | none | pass |
-| EX-N5 | who won last nite | negative | — | — | — | recipes | 0.459 | none | pass |
-| EX-N6 | thx | negative | — | — | — | plants | 0.420 | none | pass |
-| EX-A1 | garbage night? | positive | bins | 0.584 | 1 | gutters | 0.557 | 2 items | pass |
-| EX-A2 | bill reminders? | positive | rent | 0.550 | 4 | bins | 0.614 | 3 items | pass |
-| EX-A3 | vit D reminder? | positive | vitamin | 0.648 | 1 | bins | 0.525 | 1 item | pass |
-| EX-A4 | brb | negative | — | — | — | brakes | 0.399 | none | pass |
-| EX-A5 | weather tmrw | negative | — | — | — | umbrella | 0.478 | none | pass |
-| EX-A6 | hi | negative | — | — | — | review | 0.534 | none | pass |
+| EX-T1 | doc appt soon? | positivo | patel | 0.607 | 1 | dentist | 0.577 | 2 itens | passou |
+| EX-T2 | travel prep? | positivo | passport | 0.641 | 1 | brakes | 0.519 | 1 item | passou |
+| EX-T3 | car stuff? | positivo | brakes | 0.640 | 1 | gutters | 0.531 | 1 item | passou |
+| EX-T4 | whats 2+2 | negativo | — | — | — | plants | 0.370 | nenhum | passou |
+| EX-T5 | gm | negativo | — | — | — | router | 0.456 | nenhum | passou |
+| EX-T6 | capital of france | negativo | — | — | — | lisbon | 0.407 | nenhum | passou |
+| EX-N1 | gift ideas for dad? | positivo | skillet | 0.608 | 1 | mom-birthday | 0.543 | 1 item | passou |
+| EX-N2 | door code? | positivo | keypad | 0.600 | 1 | garage | 0.571 | 2 itens | passou |
+| EX-N3 | dogs ok here? | positivo | lease | 0.585 | 1 | review | 0.510 | 1 item | passou |
+| EX-N4 | who wrote hamlet | negativo | — | — | — | lake-house | 0.328 | nenhum | passou |
+| EX-N5 | who won last nite | negativo | — | — | — | recipes | 0.459 | nenhum | passou |
+| EX-N6 | thx | negativo | — | — | — | plants | 0.420 | nenhum | passou |
+| EX-A1 | garbage night? | positivo | bins | 0.584 | 1 | gutters | 0.557 | 2 itens | passou |
+| EX-A2 | bill reminders? | positivo | rent | 0.550 | 4 | bins | 0.614 | 3 itens | passou |
+| EX-A3 | vit D reminder? | positivo | vitamin | 0.648 | 1 | bins | 0.525 | 1 item | passou |
+| EX-A4 | brb | negativo | — | — | — | brakes | 0.399 | nenhum | passou |
+| EX-A5 | weather tmrw | negativo | — | — | — | umbrella | 0.478 | nenhum | passou |
+| EX-A6 | hi | negativo | — | — | — | review | 0.534 | nenhum | passou |
 
-## Informational rows
+## Linhas informativas
 
-| Row | Query | Against | Cosine |
+| Linha | Consulta | Comparada com | Cosseno |
 | --- | --- | --- | --- |
 | XT-weather-umbrella | weather tmrw | umbrella reminder | 0.478 |
 | XT-trash-old | trash | bins reminder, old text | 0.540 |

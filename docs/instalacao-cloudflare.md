@@ -578,7 +578,7 @@ redes) e em todo pedido de recuperação de senha.
    verificação aparece acima do botão de entrar.
 
 Precisa das duas chaves: só uma deixa o Turnstile desligado. Detalhes:
-[security.md](security.md#robot-check-turnstile).
+[security.md](security.md#verificação-contra-robôs-turnstile).
 
 ### 20. Avisos e recuperação de senha por e-mail (Email Routing)
 
