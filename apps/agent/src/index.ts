@@ -4,6 +4,10 @@ import type { Env } from "./env";
 import { AppError, errorResponse } from "./api/errors";
 import { AccessMisconfigured, accessConfig, verifyAccessToken } from "./auth/access";
 import { allowedHosts } from "./hosts";
+import { WEB_HEADERS, withWebHeaders } from "./web-headers";
+
+/** API responses are data, never pages: nothing in them may load, run or be framed. */
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 export { allowedHosts };
 
@@ -12,37 +16,79 @@ export { TalorysAgent } from "./agent/talorys-agent";
 /**
  * Backend entry point. The installer deploys it with workers_dev and preview
  * URLs disabled, so it is reachable only through the Pages Function service
- * binding. A one-Worker deploy (wrangler.standalone.jsonc) serves the UI as
- * static assets and routes /api here; it is then public, behind the same auth.
+ * binding. A one-Worker deploy (wrangler.standalone.jsonc) also serves the UI from its
+ * ASSETS binding and runs first on every request; it is then public, behind the same auth.
  *
  * Every /api request is forwarded to the single owner agent ("personal-agent").
  * The instance name is fixed server-side; clients cannot choose agent identities.
  *
- * Before that, two optional gates (AUTH-03): TALORYS_ALLOWED_HOSTS answers 404 on any other
- * host, and with Cloudflare Access configured every request must carry a valid Access token.
+ * Gates, in order, for the UI and the API alike: TALORYS_ALLOWED_HOSTS answers 404 on any other
+ * host (AUTH-03); plain HTTP is sent to HTTPS, or refused when it carries a body or a
+ * credential; with
+ * Cloudflare Access configured every request must carry a valid Access token.
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const hosts = allowedHosts(env);
+    if (hosts && !hosts.has(url.hostname.toLowerCase())) return notFound();
+    if (url.protocol !== "https:" && env.TALORYS_ENV !== "development") return toHttps(request, url);
     // A "sub" path segment is the Agents SDK's sub-agent routing marker; Talorys has no sub-agents.
     const isSubAgentPath = url.pathname.split("/").includes("sub");
-    if ((!url.pathname.startsWith("/api/") && url.pathname !== "/api") || isSubAgentPath) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
-    }
-    const hosts = allowedHosts(env);
-    if (hosts && !hosts.has(url.hostname.toLowerCase())) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
-    }
+    const isApi = url.pathname.startsWith("/api/") || url.pathname === "/api";
+    if (!isApi && !env.ASSETS) return notFound();
+    if (isSubAgentPath && isApi) return notFound();
     const denied = await accessDenied(request, url, env);
-    if (denied) return denied;
+    if (denied) return gate(denied);
+    if (!isApi) return withWebHeaders(await env.ASSETS!.fetch(request), url.pathname);
     // WebSocket upgrades are not part of the API surface.
     if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "WebSockets are not supported" } }, { status: 400 });
+      return gate(Response.json({ error: { code: "FORBIDDEN", message: "WebSockets are not supported" } }, { status: 400 }));
     }
     const agent = await getAgentByName(env.TalorysAgent, AGENT_INSTANCE_NAME);
     return withoutRawErrors(await agent.fetch(withoutInternalHeaders(request)));
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * The API's header set on the entry point's own answers (404, refusals, redirects). Browsers
+ * ignore HSTS received over plain HTTP, so sending it on every answer is safe.
+ */
+function gate(response: Response): Response {
+  const res = new Response(response.body, response);
+  res.headers.set("cache-control", "no-store");
+  res.headers.set("x-content-type-options", "nosniff");
+  res.headers.set("referrer-policy", "same-origin");
+  res.headers.set("content-security-policy", API_CSP);
+  res.headers.set("x-frame-options", "DENY");
+  res.headers.set("strict-transport-security", WEB_HEADERS["strict-transport-security"]);
+  return res;
+}
+
+function notFound(): Response {
+  return gate(Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 }));
+}
+
+/**
+ * "Always Use HTTPS" inside the app, whatever the zone settings say: an anonymous page or read
+ * is moved to the same address over HTTPS for good (301), and HSTS keeps the browser there.
+ * Anything else is refused instead of redirected. A body (a password, a message) or a credential
+ * (a session cookie, a bearer token from n8n or another client) already crossed the network in
+ * clear text; a redirect would make the client send it again and hide the leak for good.
+ */
+function toHttps(request: Request, url: URL): Response {
+  // Only the API reads cookies; a page visit may carry unrelated cookies of the parent domain.
+  const isApi = url.pathname.startsWith("/api/") || url.pathname === "/api";
+  const anonymous = !request.headers.has("authorization") && !(isApi && request.headers.has("cookie"));
+  if ((request.method === "GET" || request.method === "HEAD") && anonymous) {
+    const target = new URL(url);
+    target.protocol = "https:";
+    target.port = "";
+    target.hash = "";
+    return gate(new Response(null, { status: 301, headers: { location: target.href } }));
+  }
+  return gate(errorResponse(new AppError("FORBIDDEN", "HTTPS is required.")));
+}
 
 /**
  * With Cloudflare Access configured, a request without a valid Access token is refused here,

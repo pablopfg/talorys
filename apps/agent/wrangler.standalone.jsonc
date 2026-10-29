@@ -15,8 +15,11 @@
   "workers_dev": true,
   "assets": {
     "directory": "../web/dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*"]
+    // Every request meets the Worker first, so the HTTPS redirect, the allowed hosts, the
+    // Access check and the security headers cover the UI too, not only /api.
+    "run_worker_first": true
   },
   "ai": { "binding": "AI" },
   "durable_objects": {
