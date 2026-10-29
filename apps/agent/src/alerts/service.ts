@@ -7,6 +7,8 @@ import {
   type AlertPreferences,
   type AlertPriority,
   type AlertsOverview,
+  type AlertProfile,
+  type AutomationPriority,
   alertPreferencesSchema,
   DEFAULT_ALERT_PREFERENCES,
   confirmedOnlyOutOfBand,
@@ -25,6 +27,7 @@ import { AppError, NotFoundError, ValidationError } from "../api/errors";
 import { clip } from "../services/text";
 import { toLocalMinute } from "../services/time";
 import type { AlertDeliveryRepository } from "./repository";
+import { type AlertCorrection, AlertLearning } from "./learning";
 
 /** Alerts no route setting can keep in the app. */
 export function isAlwaysSent(n: Pick<Notification, "category" | "priority">): boolean {
@@ -66,6 +69,8 @@ export interface AlertServiceDeps {
   timers?: AlertTimers;
   automations?: AutomationService;
   activity?: ActivityLog;
+  /** The priority that learns from the owner's use; without it alerts keep what they ask for. */
+  learning?: AlertLearning;
 }
 
 export interface RaiseInput {
@@ -78,6 +83,13 @@ export interface RaiseInput {
   dedupeKey?: string;
   /** Minutes the dedupe key blocks a repeat. Defaults to 6 hours. */
   cooldownMinutes?: number;
+  /** A name for the alert's learned profile in the app (the routine's or reminder's name). */
+  profileLabel?: string;
+  /**
+   * Groups the alert's profile by this kind instead of by its automation, e.g. "once" for one-time
+   * reminders, which each have their own automation and would never learn alone.
+   */
+  profileKind?: string;
 }
 
 export const DEFAULT_COOLDOWN_MINUTES = 6 * 60;
@@ -108,14 +120,24 @@ export class AlertService {
       const since = new Date(Date.now() - minutes * 60_000).toISOString();
       if (this.notifications.raisedSince(input.dedupeKey, since)) return null;
     }
+    const learning = this.deps.learning;
+    // Security alerts have no profile: nothing the owner does may make them quieter.
+    const profile = learning && input.category !== "security" ? AlertLearning.profileKey(input) : null;
+    const asked = input.priority ?? "normal";
+    const decided = learning
+      ? learning.decide(input.category, asked, profile, input.profileLabel ?? null)
+      : { priority: input.category === "security" ? ("critical" as const) : asked, reason: null };
     const n = this.notifications.create({
       title: input.title,
       body: input.body,
       automation_id: input.automationId ?? null,
-      priority: input.priority ?? "normal",
+      priority: decided.priority,
       category: input.category,
       dedupe_key: input.dedupeKey ?? null,
+      profile,
+      priority_reason: decided.reason,
     });
+    if (profile) learning!.sweepIgnored(profile);
     const sending = this.dispatch(n);
     // Only an alert that left the app can insist: with every channel off there is nobody to remind.
     const security = confirmedOnlyOutOfBand(n);
@@ -243,11 +265,14 @@ export class AlertService {
       if (n.escalation !== "active") return "already";
       if (locked) throw new ValidationError("Security alerts stop insisting only from Telegram.");
       this.notifications.setEscalation(n.id, "muted", n.attempts, null);
+      this.deps.learning?.observe(n, "mute");
       return "muted";
     }
     // A security alert read in the app is still waiting for Telegram: the answer there confirms it.
     const pending = n.escalation === "active" && outOfBand;
     if (n.read_at !== null && !pending) return "already";
+    if (action === "done") this.deps.learning?.read(n);
+    else this.deps.learning?.observe(n, "snooze");
     this.notifications.markRead(n.id);
     if (outOfBand) this.notifications.acknowledge(n.id, { outOfBand });
     if (action === "done") return "done";
@@ -265,6 +290,23 @@ export class AlertService {
       priority: isInsistent(n.priority) ? "high" : "normal",
     });
     return "snoozed";
+  }
+
+  /**
+   * The owner read one alert in the app (how fast teaches the priority), or every alert at once
+   * (clearing the list says nothing about any one of them).
+   */
+  markRead(id?: string): void {
+    if (id) {
+      const n = this.notifications.get(id);
+      if (n && n.read_at === null) this.deps.learning?.read(n);
+    }
+    this.notifications.markRead(id);
+  }
+
+  /** A task was finished: an alert about it shortly before was worth sending. */
+  taskCompleted(taskId: string): void {
+    this.deps.learning?.taskCompleted(taskId);
   }
 
   /** The owner wrote to the bot: every alert still insisting counts as seen, security ones too. */
@@ -319,14 +361,54 @@ export class AlertService {
     return next;
   }
 
-  /** The owner corrects how loud an alert is; lowering it below high stops its insistence. */
+  /**
+   * The owner corrects how loud an alert is: the alert's profile learns from it, and lowering it
+   * below high stops its insistence. Security alerts are always critical.
+   */
   setPriority(id: string, priority: AlertPriority): Notification | null {
-    const n = this.notifications.setPriority(id, priority);
-    if (n?.escalation === "active" && !isInsistent(priority) && !confirmedOnlyOutOfBand(n)) {
+    const before = this.notifications.get(id);
+    if (!before) return null;
+    if (before.category === "security") {
+      if (priority === "critical") return before;
+      throw new ValidationError("Security alerts are always critical.");
+    }
+    if (before.priority === priority) return before;
+    this.deps.learning?.corrected(before, priority);
+    const n = this.notifications.setPriority(id, priority, "corrected");
+    if (n?.escalation === "active" && !isInsistent(priority)) {
       this.notifications.setEscalation(n.id, null, n.attempts, null);
       return this.notifications.get(n.id);
     }
     return n;
+  }
+
+  /** The owner's latest corrections of reminder priorities, for the agent. */
+  reminderCorrections(): AlertCorrection[] {
+    return this.deps.learning?.reminderCorrections() ?? [];
+  }
+
+  /** What the priority learned, per kind of alert (empty without learning). */
+  profiles(): AlertProfile[] {
+    return this.deps.learning?.list() ?? [];
+  }
+
+  /** Fixes a learned profile at a priority, or lets it learn again (null). */
+  pinProfile(id: string, pinned: AutomationPriority | null): AlertProfile {
+    const learning = this.deps.learning;
+    const p = learning?.get(id);
+    if (!learning || !p) throw new NotFoundError("This alert profile no longer exists.");
+    const next = learning.pin(id, pinned)!;
+    this.deps.activity?.record("alerts.profile", pinned ? "Fixed the priority of a kind of alert" : "Let a kind of alert learn its priority again");
+    return next;
+  }
+
+  /** Forgets what one profile learned. */
+  resetProfile(id: string): AlertProfile {
+    const learning = this.deps.learning;
+    if (!learning?.get(id)) throw new NotFoundError("This alert profile no longer exists.");
+    const next = learning.reset(id)!;
+    this.deps.activity?.record("alerts.profile", "Reset what Talorys learned about a kind of alert");
+    return next;
   }
 
   overview(): AlertsOverview {

@@ -218,6 +218,11 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   owner's Telegram (a button, or a message in the bot's private chat) confirms
   them. Push notifications of these alerts carry no buttons. See
   [alerts.md](alerts.md#insistência).
+- The learned priority never touches security alerts: they have no profile, are
+  always critical, can't be pinned, and lowering one (app, API or Telegram) is
+  refused. Learning can't make any alert critical, and events from outside
+  Talorys stay at most high. The owner's corrections reach the model only as a
+  data block (tags defused), never as instructions.
 - Push notification buttons (Done, Snooze, Mute) call
   `POST /api/notifications/:id/action` from the service worker with the session
   cookie and the CSRF header, like the app; remote access tokens can't reach it.

@@ -436,6 +436,11 @@ describe("migration from the previous schema", () => {
       db.run(`DROP INDEX tal_notifications_escalation`);
       for (const col of ["escalation", "attempts", "next_attempt_at"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
       db.run(`ALTER TABLE tal_automations DROP COLUMN priority`);
+      // Migration 21 (learned alert priority).
+      db.run(`DROP INDEX tal_notifications_profile`);
+      for (const col of ["profile", "priority_reason", "signal"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run(`DROP TABLE tal_alert_profiles`);
+      db.run(`DROP TABLE tal_alert_corrections`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
         `INSERT INTO tal_memories (id, content, category, source, created_at, updated_at) VALUES ('legacy-1', 'Legacy memory about sailing', 'fact', 'manual', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,

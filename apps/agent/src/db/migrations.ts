@@ -531,6 +531,42 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_automations ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
     ],
   },
+  {
+    version: 21,
+    name: "learned alert priority",
+    statements: [
+      // The profile an alert belongs to, why it got its priority, and the one behaviour signal it gave.
+      `ALTER TABLE tal_notifications ADD COLUMN profile TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN priority_reason TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN signal TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_profile ON tal_notifications(profile, created_at)`,
+      `CREATE TABLE IF NOT EXISTS tal_alert_profiles (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL,
+        label TEXT,
+        shift INTEGER NOT NULL DEFAULT 0,
+        pinned TEXT,
+        score REAL NOT NULL DEFAULT 0,
+        samples INTEGER NOT NULL DEFAULT 0,
+        changed_at TEXT,
+        last_change INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      // The owner's corrections, newest kept; the agent reads the latest reminder ones.
+      `CREATE TABLE IF NOT EXISTS tal_alert_corrections (
+        id TEXT PRIMARY KEY,
+        notification_id TEXT NOT NULL,
+        profile TEXT NOT NULL,
+        category TEXT NOT NULL,
+        text TEXT NOT NULL,
+        from_priority TEXT NOT NULL,
+        to_priority TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

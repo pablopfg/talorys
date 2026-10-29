@@ -2,7 +2,7 @@ import { z } from "zod";
 import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
-import { AUTOMATION_PRIORITIES, type AlertCategory, type AlertEscalation, type AlertPriority, type AutomationPriority } from "./alerts";
+import { AUTOMATION_PRIORITIES, type AlertCategory, type AlertEscalation, type AlertPriority, type AutomationPriority, type PriorityReason } from "./alerts";
 
 // ---------- Primitives ----------
 
@@ -218,6 +218,10 @@ export interface Notification {
   attempts: number;
   /** When the next try goes out (or the alert is recorded as unacknowledged), while insisting. */
   next_attempt_at: string | null;
+  /** The learned profile this alert belongs to (category + origin); null for security alerts. */
+  profile: string | null;
+  /** Why it has this priority; null for alerts raised before the priority learned. */
+  priority_reason: PriorityReason | null;
   created_at: string;
 }
 

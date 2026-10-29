@@ -43,6 +43,9 @@ export interface TelegramChat {
 export interface TelegramAlerts {
   respond(id: string, action: NotificationAction, opts: { outOfBand: true }): Promise<NotificationActionResult>;
   acknowledgeAll(): boolean;
+  /** The owner corrects an alert's priority from its buttons; the alert center learns from it. */
+  setPriority(id: string, priority: AlertPriority): Notification | null;
+  get(id: string): Notification | null;
 }
 
 /** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
@@ -110,6 +113,15 @@ const CATEGORY_TEXT: Record<AlertCategory, string> = {
   reminder: "Reminders", digest: "Digests", routine: "Routines", task: "Tasks", system: "System", security: "Security", event: "Events",
 };
 const PRIORITY_TEXT: Record<AlertPriority, string> = { low: "Low priority", normal: "Normal priority", high: "High priority", critical: "Critical" };
+/** Priorities the owner can pick from an alert's buttons; critical is kept for security alerts. */
+const PICKABLE: readonly AlertPriority[] = ["low", "normal", "high"];
+const PRIORITY_BUTTON: Record<AlertPriority, string> = { low: "Low", normal: "Normal", high: "High", critical: "Critical" };
+/** "Why this priority", when it is not simply what the alert asked for. */
+const REASON_TEXT: Partial<Record<NonNullable<Notification["priority_reason"]>, string>> = {
+  raised: "Louder than usual: learned from how you handle these alerts",
+  lowered: "Quieter than usual: learned from how you handle these alerts",
+  pinned: "The priority you fixed for these alerts",
+};
 const ICON: Record<AlertPriority, string> = { low: "🔕", normal: "🔔", high: "⚠️", critical: "🚨" };
 
 /** Minimal shapes of the Bot API objects Talorys reads. */
@@ -574,6 +586,7 @@ export class TelegramService {
       await answer(this.text("Only the owner can use these buttons."));
       return;
     }
+    if (await this.onPriorityCallback(q, answer)) return;
     const match = /^n:(done|snooze|mute):([\w-]{1,64})$/.exec(q.data ?? "");
     let result: NotificationActionResult | null = null;
     if (match) {
@@ -603,6 +616,50 @@ export class TelegramService {
     }
   }
 
+  /**
+   * "Change priority" under an alert: c:<id> shows the priorities, p:<priority>:<id> applies one
+   * (the alert center learns from it), k:<id> goes back to the alert's buttons. True when handled.
+   */
+  private async onPriorityCallback(q: TgCallback, answer: (text: string) => Promise<unknown>): Promise<boolean> {
+    const match = /^(?:(c|k):|p:(low|normal|high):)([\w-]{1,64})$/.exec(q.data ?? "");
+    if (!match) return false;
+    const [, view, priority, id] = match;
+    const edit = (markup: ReturnType<TelegramService["keyboard"]>) =>
+      q.message
+        ? this.client!.call("editMessageReplyMarkup", { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: markup }).catch(() => undefined)
+        : Promise.resolve(undefined);
+    let n: Notification | null = null;
+    try {
+      n = priority ? this.alerts.setPriority(id!, priority as AlertPriority) : this.alerts.get(id!);
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error;
+      // Security alerts are always critical; their keyboard never offers this.
+      await answer(this.text(error.message));
+      return true;
+    }
+    if (!n) {
+      await answer(this.text("This alert no longer exists."));
+      return true;
+    }
+    if (priority) {
+      await answer(this.text(`Priority changed to ${PRIORITY_BUTTON[n.priority]}. Talorys learns from this.`));
+      await edit(this.keyboard(n));
+    } else {
+      await answer("");
+      await edit(view === "c" ? this.priorityKeyboard(n) : this.keyboard(n));
+    }
+    return true;
+  }
+
+  private priorityKeyboard(n: Notification): { inline_keyboard: { text: string; callback_data: string }[][] } {
+    return {
+      inline_keyboard: [
+        PICKABLE.map((p) => ({ text: `${p === n.priority ? "✓ " : ""}${this.text(PRIORITY_BUTTON[p])}`, callback_data: `p:${p}:${n.id}` })),
+        [{ text: this.text("Back"), callback_data: `k:${n.id}` }],
+      ],
+    };
+  }
+
   private async reply(chatId: number, text: string): Promise<void> {
     await this.client?.call("sendMessage", { chat_id: chatId, text }).catch(() => undefined);
   }
@@ -617,6 +674,8 @@ export class TelegramService {
       ]);
       rows.push([{ text: this.text("Mute this alert"), callback_data: `n:mute:${n.id}` }]);
     }
+    // Security alerts are always critical: nothing to correct.
+    if (n && n.category !== "security") rows.push([{ text: this.text("Change priority"), callback_data: `c:${n.id}` }]);
     const url = this.link().appUrl;
     if (url) rows.push([{ text: this.text("Open Talorys"), url }]);
     return { inline_keyboard: rows };
@@ -628,6 +687,8 @@ export class TelegramService {
     const body = fullText ? escapeHtml(clip(this.text(n.body), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
     const parts = [this.text(CATEGORY_TEXT[n.category]), this.text(PRIORITY_TEXT[n.priority])];
     if (attempt) parts.push(this.text(`Try ${attempt.number} of ${ESCALATION.attempts}, not confirmed yet`));
+    const why = n.priority_reason ? REASON_TEXT[n.priority_reason] : undefined;
+    if (why) parts.push(this.text(why));
     return `${ICON[n.priority]} <b>${title}</b>\n${body}\n\n<i>${escapeHtml(parts.join(" · "))}</i>`;
   }
 

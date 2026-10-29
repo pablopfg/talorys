@@ -82,6 +82,8 @@ beforeEach(async () => {
     s.db.run(`DELETE FROM tal_notifications`);
     s.db.run(`DELETE FROM tal_alert_deliveries`);
     s.db.run(`DELETE FROM tal_push_subscriptions`);
+    s.db.run(`DELETE FROM tal_alert_profiles`);
+    s.db.run(`DELETE FROM tal_alert_corrections`);
     s.settings.delete("alerts.preferences");
     s.settings.delete("telegram.link");
     s.settings.delete("telegram.code");
@@ -283,8 +285,8 @@ describe("alerts on Telegram", () => {
       expect(msg.text).not.toContain("Today");
       expect(msg.text).toContain("Open Talorys to read it.");
       expect(msg.text).toContain("Reminders · Normal priority");
-      // Normal alerts get only the "Open Talorys" button.
-      expect(msg.reply_markup.inline_keyboard).toEqual([[{ text: "Open Talorys", url: BASE }]]);
+      // Normal alerts get only "Change priority" and "Open Talorys".
+      expect(msg.reply_markup.inline_keyboard).toEqual([[{ text: "Change priority", callback_data: `c:${n.id}` }], [{ text: "Open Talorys", url: BASE }]]);
       const row = agent.services.db.one<{ status: string; reached: number }>(`SELECT status, reached FROM tal_alert_deliveries WHERE notification_id = ? AND channel = 'telegram'`, n.id);
       expect(row).toEqual({ status: "sent", reached: 1 });
 
@@ -440,6 +442,61 @@ describe("buttons", () => {
     });
   });
 
+  it("corrects an alert's priority from its buttons, and offers no correction on security alerts", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      const n = agent.services.alerts.raise({ title: "Weekly report", body: "b", category: "routine" })!;
+      await agent.services.telegram.idle();
+      expect(fake.sent().at(-1)!.params.reply_markup.inline_keyboard[0]).toEqual([{ text: "Change priority", callback_data: `c:${n.id}` }]);
+      await agent.services.telegram.handle(press(`c:${n.id}`));
+      const edits = () => fake.calls.filter((c) => c.method === "editMessageReplyMarkup");
+      expect(edits().at(-1)!.params.reply_markup.inline_keyboard).toEqual([
+        [
+          { text: "Low", callback_data: `p:low:${n.id}` },
+          { text: "✓ Normal", callback_data: `p:normal:${n.id}` },
+          { text: "High", callback_data: `p:high:${n.id}` },
+        ],
+        [{ text: "Back", callback_data: `k:${n.id}` }],
+      ]);
+      await agent.services.telegram.handle(press(`p:high:${n.id}`));
+      expect(agent.services.notifications.get(n.id)).toMatchObject({ priority: "high", priority_reason: "corrected" });
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.params.text).toBe("Priority changed to High. Talorys learns from this.");
+      // Back on the alert's own buttons, now with the ones of a high alert.
+      expect(edits().at(-1)!.params.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Done", callback_data: `n:done:${n.id}` });
+      await agent.services.telegram.handle(press(`k:${n.id}`));
+      expect(edits().at(-1)!.params.reply_markup.inline_keyboard.at(-2)).toEqual([{ text: "Change priority", callback_data: `c:${n.id}` }]);
+      // Someone else in the group can't correct anything.
+      await agent.services.telegram.handle(press(`p:low:${n.id}`, STRANGER));
+      expect(agent.services.notifications.get(n.id)!.priority).toBe("high");
+      // Gone, or a forged press on a security alert: nothing changes.
+      await agent.services.telegram.handle(press(`p:low:missing`));
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.params.text).toBe("This alert no longer exists.");
+      const security = agent.services.alerts.raise({ title: "New sign-in", body: "b", category: "security", priority: "critical" })!;
+      await agent.services.telegram.idle();
+      expect(fake.sent().at(-1)!.params.reply_markup.inline_keyboard.flat().some((b: { callback_data?: string }) => b.callback_data?.startsWith("c:"))).toBe(false);
+      await agent.services.telegram.handle(press(`p:low:${security.id}`));
+      expect(agent.services.notifications.get(security.id)!.priority).toBe("critical");
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.params.text).toBe("Security alerts are always critical.");
+      await agent.services.telegram.handle(press(`n:done:${security.id}`));
+    });
+  });
+
+  it("explains a learned priority in the alert", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      agent.services.db.run(
+        `INSERT INTO tal_alert_profiles (id, key, category, shift, created_at, updated_at) VALUES ('p1', 'routine:general', 'routine', 1, ?, ?)`,
+        new Date().toISOString(), new Date().toISOString(),
+      );
+      agent.services.alerts.raise({ title: "Learned", body: "b", category: "routine" });
+      await agent.services.telegram.idle();
+      expect(fake.sent().at(-1)!.params.text).toContain("Routines · High priority · Louder than usual: learned from how you handle these alerts");
+      agent.services.db.run(`DELETE FROM tal_alert_profiles`);
+    });
+  });
+
   it("shows Mute under insistent alerts, and muting stops the insistence but keeps the alert unread", async () => {
     await inAgent(async (agent) => {
       const fake = fakeTelegram();
@@ -456,10 +513,12 @@ describe("buttons", () => {
         "Muted. Talorys stops insisting on this alert.",
         "This alert was already handled.",
       ]);
-      // A normal alert has no Done, Snooze or Mute.
+      // A normal alert has no Done, Snooze or Mute; only Change priority.
       agent.services.alerts.raise({ title: "FYI", body: "b", category: "reminder" });
       await agent.services.telegram.idle();
-      expect(fake.sent().at(-1)!.params.reply_markup.inline_keyboard.flat().some((b: { callback_data?: string }) => b.callback_data)).toBe(false);
+      const data = fake.sent().at(-1)!.params.reply_markup.inline_keyboard.flat().map((b: { callback_data?: string }) => b.callback_data).filter(Boolean);
+      expect(data).toHaveLength(1);
+      expect(data[0]).toMatch(/^c:/);
     });
   });
 

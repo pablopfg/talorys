@@ -201,7 +201,15 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     switch (a.kind) {
       case "reminder": {
         // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.
-        s.alerts.raise({ title: "Reminder", body: defangLinks(a.message || a.name), automationId: a.id, category: "reminder", priority: a.priority });
+        s.alerts.raise({
+          title: "Reminder",
+          body: defangLinks(a.message || a.name),
+          automationId: a.id,
+          category: "reminder",
+          priority: a.priority,
+          // One-time reminders learn together; a recurring one learns as itself.
+          ...(a.schedule.type === "once" ? { profileKind: "once", profileLabel: "One-time reminders" } : { profileLabel: a.name }),
+        });
         return { status: "success", result: "Reminder delivered" };
       }
       case "task_digest": {
@@ -219,7 +227,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           `${open} open task(s) in total.`,
         ].filter(Boolean);
         if (a.message) parts.unshift(a.message);
-        s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest", priority: a.priority });
+        s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest", priority: a.priority, profileLabel: a.name });
         return { status: "success", result: `${overdue.length} overdue, ${today.length} due today` };
       }
       case "agent_prompt": {
@@ -233,7 +241,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           throw error;
         }
         // The reply is model-written: links in it stay visible but can't be clicked.
-        s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine", priority: a.priority });
+        s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine", priority: a.priority, profileLabel: a.name });
         return { status: "success", result: text };
       }
     }

@@ -1,5 +1,5 @@
 import { BellOff, Trash2 } from "lucide-react";
-import { ALERT_PRIORITIES, type AlertPriority, ESCALATION } from "@talorys/shared";
+import { type AlertPriority, ESCALATION, type PriorityReason } from "@talorys/shared";
 import { Badge, Button, Dialog, EmptyState, Spinner } from "./ui";
 import { Markdown } from "./Markdown";
 import { keys, useApiMutation, useNotifications } from "../hooks/queries";
@@ -7,7 +7,20 @@ import { api } from "../lib/api";
 import { cn, relativeTime } from "../lib/utils";
 import { useI18n } from "../lib/i18n";
 import { PRIORITY_LABELS, PRIORITY_TONES } from "../lib/alerts";
-import { CATEGORY_LABELS } from "./AlertsCard";
+import { ALERT_PROFILES_KEY, CATEGORY_LABELS } from "./AlertsCard";
+import type { PlainMessageKey } from "../lib/i18n";
+
+/** "Why this priority", when it is not simply what the alert asked for. */
+const REASON_TEXT: Partial<Record<PriorityReason, PlainMessageKey>> = {
+  rule: "notifications.reason.rule",
+  raised: "notifications.reason.raised",
+  lowered: "notifications.reason.lowered",
+  pinned: "notifications.reason.pinned",
+  corrected: "notifications.reason.corrected",
+};
+
+/** Priorities the owner can pick; critical is kept for security alerts. */
+const CORRECTABLE: AlertPriority[] = ["low", "normal", "high"];
 
 /** In-app notification center for reminders and automation results. */
 export function NotificationCenter({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -24,7 +37,7 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
   });
   const setPriority = useApiMutation(
     (v: { id: string; priority: AlertPriority }) => api(`/notifications/${v.id}`, { method: "PATCH", body: { priority: v.priority } }),
-    { invalidate: [keys.notifications], success: t("alerts.priorityChanged") },
+    { invalidate: [keys.notifications, ALERT_PROFILES_KEY], success: t("alerts.priorityChanged") },
   );
 
   return (
@@ -87,19 +100,29 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
                   )}
                   {n.escalation === "unacknowledged" && !n.read_at && <Badge tone="danger">{t("notifications.unacknowledged")}</Badge>}
                   {n.escalation === "muted" && !n.read_at && <span>{t("notifications.mutedLabel")}</span>}
-                  <select
-                    className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-fg-muted"
-                    value={n.priority}
-                    aria-label={t("alerts.changePriority")}
-                    disabled={setPriority.isPending}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => setPriority.mutate({ id: n.id, priority: e.target.value as AlertPriority })}
-                  >
-                    {ALERT_PRIORITIES.map((p) => (
-                      <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
-                    ))}
-                  </select>
+                  {n.category === "security" ? (
+                    <span>{t("notifications.securityCritical")}</span>
+                  ) : (
+                    <label className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {t("notifications.correct")}
+                      <select
+                        className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-fg-muted"
+                        value={n.priority}
+                        aria-label={t("alerts.changePriority")}
+                        disabled={setPriority.isPending}
+                        onChange={(e) => setPriority.mutate({ id: n.id, priority: e.target.value as AlertPriority })}
+                      >
+                        {/* A critical alert that isn't about security can still be corrected down from it. */}
+                        {(n.priority === "critical" ? [...CORRECTABLE, "critical" as const] : CORRECTABLE).map((p) => (
+                          <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
+                {n.priority_reason && REASON_TEXT[n.priority_reason] && (
+                  <p className="mt-1 text-xs text-fg-subtle">{t(REASON_TEXT[n.priority_reason]!)}</p>
+                )}
               </div>
               <button type="button"
                 onClick={() => remove.mutate(n.id)}

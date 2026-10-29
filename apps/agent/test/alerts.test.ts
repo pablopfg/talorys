@@ -13,6 +13,8 @@ beforeEach(async () => {
     const db = agent.services.db;
     db.run(`DELETE FROM tal_notifications`);
     db.run(`DELETE FROM tal_alert_deliveries`);
+    db.run(`DELETE FROM tal_alert_profiles`);
+    db.run(`DELETE FROM tal_alert_corrections`);
     db.run(`DELETE FROM tal_push_subscriptions`);
     agent.services.settings.delete("alerts.preferences");
   });

@@ -25,7 +25,11 @@ export interface TaskQuery {
 const PRIORITY_ORDER = `CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END`;
 
 export class TaskRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    /** Called after a task becomes done (the alert center learns that its alert was acted upon). */
+    private readonly onCompleted?: (id: string) => void,
+  ) {}
 
   list(query: TaskQuery = {}): Task[] {
     const where: string[] = [];
@@ -112,6 +116,7 @@ export class TaskRepository {
   update(id: string, patch: Partial<TaskInput>): Task {
     const existing = this.require(id);
     const next: Task = { ...existing, ...stripUndefined(patch), updated_at: now() } as Task;
+    const finished = patch.status === "done" && existing.status !== "done";
     if (patch.status && patch.status !== existing.status) {
       next.completed_at = patch.status === "done" ? next.updated_at : null;
     }
@@ -121,6 +126,7 @@ export class TaskRepository {
       next.title, next.description, next.status, next.priority, next.due_at, next.project_id,
       next.updated_at, next.completed_at, id,
     );
+    if (finished) this.onCompleted?.(id);
     return next;
   }
 

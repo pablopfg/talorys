@@ -7,6 +7,7 @@ import {
   type AutomationKind,
   type AutomationRun,
   type Notification,
+  type PriorityReason,
   type ScheduleSpec,
   describeSchedule,
 } from "@talorys/shared";
@@ -132,7 +133,10 @@ export class AutomationRepository {
 }
 
 /** Everything the API returns; dedupe_key stays internal. */
-const COLUMNS = "id, title, body, automation_id, priority, category, read_at, escalation, attempts, next_attempt_at, created_at";
+const COLUMNS = "id, title, body, automation_id, priority, category, read_at, escalation, attempts, next_attempt_at, profile, priority_reason, created_at";
+
+/** What the owner did with an alert, as one learning signal (see AlertLearning). */
+export type AlertSignal = "fast" | "read" | "slow" | "snooze" | "mute" | "ignored" | "task";
 
 export class NotificationRepository {
   constructor(private readonly db: Database) {}
@@ -163,6 +167,8 @@ export class NotificationRepository {
     priority?: AlertPriority;
     category?: AlertCategory;
     dedupe_key?: string | null;
+    profile?: string | null;
+    priority_reason?: PriorityReason | null;
   }): Notification {
     const n: Notification = {
       id: newId(),
@@ -175,12 +181,14 @@ export class NotificationRepository {
       escalation: null,
       attempts: 1,
       next_attempt_at: null,
+      profile: input.profile ?? null,
+      priority_reason: input.priority_reason ?? null,
       created_at: now(),
     };
     this.db.run(
-      `INSERT INTO tal_notifications (id, title, body, automation_id, priority, category, dedupe_key, read_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
-      n.id, n.title, n.body, n.automation_id, n.priority, n.category, input.dedupe_key ?? null, n.created_at,
+      `INSERT INTO tal_notifications (id, title, body, automation_id, priority, category, dedupe_key, profile, priority_reason, read_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      n.id, n.title, n.body, n.automation_id, n.priority, n.category, input.dedupe_key ?? null, n.profile, n.priority_reason, n.created_at,
     );
     this.db.run(
       `DELETE FROM tal_notifications WHERE id NOT IN (SELECT id FROM tal_notifications ORDER BY created_at DESC LIMIT 500)`,
@@ -193,9 +201,35 @@ export class NotificationRepository {
     return !!this.db.one(`SELECT 1 AS x FROM tal_notifications WHERE dedupe_key = ? AND created_at >= ? LIMIT 1`, dedupeKey, since);
   }
 
-  setPriority(id: string, priority: AlertPriority): Notification | null {
-    this.db.run(`UPDATE tal_notifications SET priority = ? WHERE id = ?`, priority, id);
+  setPriority(id: string, priority: AlertPriority, reason: PriorityReason | null = null): Notification | null {
+    this.db.run(`UPDATE tal_notifications SET priority = ?, priority_reason = coalesce(?, priority_reason) WHERE id = ?`, priority, reason, id);
     return this.get(id);
+  }
+
+  /** Records the one behaviour signal an alert gives; false when it already gave one. */
+  claimSignal(id: string, signal: AlertSignal): boolean {
+    return this.db.run(`UPDATE tal_notifications SET signal = ? WHERE id = ? AND signal IS NULL AND profile IS NOT NULL`, signal, id).changes > 0;
+  }
+
+  /** Alerts of a profile still unread and without a signal, raised before `before` (ISO time). */
+  unanswered(profile: string, before: string, limit = 20): Notification[] {
+    return this.db.all<Notification>(
+      `SELECT ${COLUMNS} FROM tal_notifications
+       WHERE profile = ? AND read_at IS NULL AND signal IS NULL AND created_at < ? ORDER BY created_at LIMIT ?`,
+      profile, before, limit,
+    );
+  }
+
+  /** The latest alert about a task (its dedupe key ends in `:<task id>`) raised at or after `since`. */
+  latestForTask(taskId: string, since: string): Notification | null {
+    return (
+      this.db.one<Notification>(
+        `SELECT ${COLUMNS} FROM tal_notifications
+         WHERE dedupe_key LIKE 'task-%' AND substr(dedupe_key, -length(?) - 1) = ':' || ? AND created_at >= ?
+         ORDER BY created_at DESC LIMIT 1`,
+        taskId, taskId, since,
+      ) ?? null
+    );
   }
 
   /** Reading an alert confirms it: an alert still insisting stops. */

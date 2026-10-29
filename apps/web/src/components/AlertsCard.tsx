@@ -8,9 +8,12 @@ import {
   type AlertChannel,
   type AlertDelivery,
   type AlertPreferences,
+  type AlertProfile,
   type AlertsOverview,
+  AUTOMATION_PRIORITIES,
+  type AutomationPriority,
 } from "@talorys/shared";
-import { Badge, Button, Card, ErrorNotice, Input, Switch } from "./ui";
+import { Badge, Button, Card, ErrorNotice, Input, Select, Switch } from "./ui";
 import { useApiMutation } from "../hooks/queries";
 import { api } from "../lib/api";
 import { relativeTime } from "../lib/utils";
@@ -18,6 +21,8 @@ import { type PlainMessageKey, useI18n } from "../lib/i18n";
 import { PRIORITY_LABELS, PRIORITY_TONES } from "../lib/alerts";
 
 export const ALERTS_KEY = ["alerts"] as const;
+/** Under ALERTS_KEY, so anything that refreshes the alerts refreshes what was learned too. */
+export const ALERT_PROFILES_KEY = ["alerts", "profiles"] as const;
 
 export const CATEGORY_LABELS: Record<AlertCategory, PlainMessageKey> = {
   reminder: "alerts.category.reminder",
@@ -95,6 +100,7 @@ export function AlertsCard() {
           </div>
         </Card>
       </section>
+      <LearnedProfiles />
       {data && <DeliveryHistory deliveries={data.deliveries} />}
     </>
   );
@@ -198,6 +204,77 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
         <p className="px-5 py-4 text-xs leading-5 text-warning">{t("alerts.telegramUnavailable")}</p>
       )}
     </>
+  );
+}
+
+/** Settings → Alerts: what the priority learned per kind of alert, with fix and reset. */
+function LearnedProfiles() {
+  const i18n = useI18n();
+  const { t, serverText } = i18n;
+  const profiles = useQuery({ queryKey: ALERT_PROFILES_KEY, queryFn: () => api<{ profiles: AlertProfile[] }>("/alerts/profiles") });
+  const pin = useApiMutation(
+    (v: { id: string; pinned: AutomationPriority | null }) => api(`/alerts/profiles/${encodeURIComponent(v.id)}`, { method: "PUT", body: { pinned: v.pinned } }),
+    { invalidate: [ALERT_PROFILES_KEY], success: t("alerts.learn.saved") },
+  );
+  const reset = useApiMutation((id: string) => api(`/alerts/profiles/${encodeURIComponent(id)}`, { method: "DELETE" }), {
+    invalidate: [ALERT_PROFILES_KEY],
+    success: t("alerts.learn.resetDone"),
+  });
+  const name = (p: AlertProfile) =>
+    p.label ? serverText(p.label) : t("alerts.learn.general", { category: t(CATEGORY_LABELS[p.category]) });
+  const effect = (p: AlertProfile) =>
+    p.pinned
+      ? t("alerts.learn.pinned", { priority: t(PRIORITY_LABELS[p.pinned]) })
+      : p.shift > 0
+        ? t("alerts.learn.shift", { count: p.shift })
+        : p.shift < 0
+          ? t("alerts.learn.shiftDown", { count: -p.shift })
+          : t("alerts.learn.none");
+  const list = profiles.data?.profiles ?? [];
+  return (
+    <section className="space-y-2">
+      <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-fg-subtle">{t("alerts.learnedTitle")}</h2>
+      <Card>
+        <p className="px-5 py-4 text-xs leading-5 text-fg-subtle">{t("alerts.learnedHint")}</p>
+        {profiles.error ? (
+          <div className="px-5 py-4"><ErrorNotice error={profiles.error} onRetry={() => void profiles.refetch()} /></div>
+        ) : list.length === 0 ? (
+          <p className="border-t border-border px-5 py-4 text-sm text-fg-subtle">{t("alerts.learnedEmpty")}</p>
+        ) : (
+          <ul className="divide-y divide-border border-t border-border">
+            {list.map((p) => (
+              <li key={p.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{name(p)}</p>
+                  <p className="text-xs text-fg-subtle">
+                    {t(CATEGORY_LABELS[p.category])} · {effect(p)}
+                    {!p.pinned && p.samples > 0 ? ` · ${t("alerts.learn.signals", { count: p.samples })}` : ""}
+                    {p.changed_at ? ` · ${t("alerts.learn.changed", { when: relativeTime(p.changed_at, i18n) })}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Select
+                    className="h-9 w-40"
+                    value={p.pinned ?? ""}
+                    aria-label={t("alerts.learn.pinAria", { name: name(p) })}
+                    disabled={pin.isPending}
+                    onChange={(e) => pin.mutate({ id: p.id, pinned: (e.target.value || null) as AutomationPriority | null })}
+                  >
+                    <option value="">{t("alerts.learn.auto")}</option>
+                    {AUTOMATION_PRIORITIES.map((priority) => (
+                      <option key={priority} value={priority}>{t(PRIORITY_LABELS[priority])}</option>
+                    ))}
+                  </Select>
+                  <Button variant="ghost" size="sm" onClick={() => reset.mutate(p.id)} loading={reset.isPending && reset.variables === p.id}>
+                    {t("alerts.learn.reset")}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </section>
   );
 }
 

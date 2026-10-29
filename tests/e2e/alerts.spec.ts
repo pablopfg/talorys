@@ -76,7 +76,7 @@ test.describe("Alerts", () => {
     await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences).toMatchObject({ routes: { reminder: ["push"] }, fullText: ["reminder"] });
   });
 
-  test("changes a notification's priority from the notification center", async ({ page }) => {
+  test("corrects a notification's priority and shows what Talorys learned", async ({ page }) => {
     await login(page);
     const created = await page.request.post("/api/automations", {
       headers: CSRF,
@@ -88,9 +88,24 @@ test.describe("Alerts", () => {
     await page.getByRole("button", { name: /Notifications/ }).first().click();
     const item = page.getByRole("listitem").filter({ hasText: "Priority check" }).first();
     await expect(item).toBeVisible();
-    await item.getByRole("combobox", { name: "Change priority" }).selectOption("critical");
+    // Critical is kept for security alerts.
+    await expect(item.getByRole("combobox", { name: "Change priority" }).locator("option")).toHaveText(["Low", "Normal", "High"]);
+    await item.getByRole("combobox", { name: "Change priority" }).selectOption("high");
     await expect(page.getByText("Priority changed")).toBeVisible();
-    await expect(item.locator("span").filter({ hasText: /^Critical$/ })).toBeVisible();
+    await expect(item.locator("span").filter({ hasText: /^High$/ })).toBeVisible();
+    await expect(item.getByText("You changed this priority; Talorys learns from it")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // The correction moved this routine's kind one level up.
+    await page.goto("/settings?tab=Alerts");
+    await expect(page.getByRole("heading", { name: "What Talorys learned" })).toBeVisible();
+    const learned = page.getByRole("listitem").filter({ hasText: "E2E priority" });
+    await expect(learned.getByText(/1 level louder/)).toBeVisible();
+    await learned.getByRole("combobox", { name: "Priority for E2E priority" }).selectOption("low");
+    await expect(learned.getByText(/Fixed at Low/)).toBeVisible();
+    await learned.getByRole("button", { name: "Reset" }).click();
+    await expect(page.getByText("Reset. Talorys learns this kind again from zero.")).toBeVisible();
+    await expect(learned).toHaveCount(0);
     await page.request.delete(`/api/automations/${automation.id}`, { headers: CSRF });
   });
 

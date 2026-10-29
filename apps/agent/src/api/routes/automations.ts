@@ -1,6 +1,7 @@
 import {
   automationCreateSchema,
   alertPreferencesSchema,
+  alertProfileUpdateSchema,
   automationUpdateSchema,
   notificationActionSchema,
   notificationPriorityUpdateSchema,
@@ -83,7 +84,7 @@ automationRoutes.get("/notifications", (c) => {
 
 automationRoutes.post("/notifications/read", async (c) => {
   const { id } = await body(c, z.object({ id: z.string().max(64).optional() }));
-  c.env.agent.services.notifications.markRead(id);
+  c.env.agent.services.alerts.markRead(id);
   c.env.agent.refreshUnread();
   return c.json({ unread: c.env.agent.services.notifications.unreadCount() });
 });
@@ -124,3 +125,15 @@ automationRoutes.put("/alerts/preferences", async (c) => {
   s.activity.record("alerts.preferences", "Changed alert preferences");
   return c.json({ preferences });
 });
+
+/** What the priority learned from the owner's use, per kind of alert. */
+automationRoutes.get("/alerts/profiles", (c) => c.json({ profiles: c.env.agent.services.alerts.profiles() }));
+
+/** Fixes a kind of alert at a priority, or lets it learn again. */
+automationRoutes.put("/alerts/profiles/:id", async (c) => {
+  const { pinned } = await body(c, alertProfileUpdateSchema, 1024);
+  return c.json({ profile: c.env.agent.services.alerts.pinProfile(c.req.param("id"), pinned) });
+});
+
+/** Forgets what Talorys learned about a kind of alert. */
+automationRoutes.delete("/alerts/profiles/:id", (c) => c.json({ profile: c.env.agent.services.alerts.resetProfile(c.req.param("id")) }));

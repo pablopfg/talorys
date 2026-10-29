@@ -156,6 +156,8 @@ export class AgentRunner {
         .withCurrentState(s.pendingActions.withCurrentStatus(s.conversations.messages(conversation.id, { limit: 200 })))
         .filter((m) => m.role === "user" || m.status === "complete")
         .map(withApprovalOutcomes);
+      // How the owner corrected reminder priorities before: the agent picks new ones the same way.
+      const alertCorrections = s.alerts.reminderCorrections();
       let summary = conversation.summary;
       let summaryUpto = conversation.summary_upto;
       const baseSystem = buildSystemPrompt({
@@ -168,6 +170,7 @@ export class AgentRunner {
         conversationSummary: summary,
         ...(items ? { items } : {}),
         externalTools: this.mcpTools.length > 0,
+        alertCorrections,
       });
       const historyBudget = Math.max(500, limits.maxContextTokens - estimateTokens(baseSystem) - 600);
       let window = buildContextWindow(history, historyBudget, summaryUpto);
@@ -207,6 +210,7 @@ export class AgentRunner {
             conversationSummary: summary,
             ...(items ? { items } : {}),
             externalTools: this.mcpTools.length > 0,
+            alertCorrections,
           });
 
       // 3. Tools with per-turn limits. Built-in (or semantic) tools come first, so an MCP tool can
