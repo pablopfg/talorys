@@ -5,7 +5,6 @@ import {
   hashPassword,
   hmacSha256Hex,
   isPasswordHash,
-  isPepperedHash,
   meetsLegacyPolicy,
   randomToken,
   sha256Hex,
@@ -204,14 +203,6 @@ export class AuthService {
     return timingSafeEqual(encode(given), encode(expected));
   }
 
-  /** A password changed in the app before the pepper existed gets a peppered hash at the next sign-in. */
-  private async upgradeHash(password: string): Promise<void> {
-    const pepper = this.pepper();
-    const override = this.settings.getJson<string>(OVERRIDE_KEY);
-    if (!pepper || !override || isPepperedHash(override)) return;
-    this.settings.setJson(OVERRIDE_KEY, await hashPassword(password, { pepper }));
-  }
-
   /** Signing in from a network with no sign-in in 30 days tells the owner (not on the very first one). */
   private alertNewNetwork(trusted: boolean): void {
     if (trusted) return;
@@ -344,7 +335,6 @@ export class AuthService {
     if (!passwordOk || !emailOk) throw new AppError("UNAUTHORIZED", this.emailRequired() ? "Incorrect email or password." : "Incorrect password.");
     this.alertNewNetwork(trusted);
     this.markAttemptSucceeded(attempt);
-    await this.upgradeHash(password);
     this.notePasswordStrength(password);
     return this.createSession(userAgent);
   }

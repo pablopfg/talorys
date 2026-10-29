@@ -1,6 +1,6 @@
-import { hashPassword, isPepperedHash } from "@talorys/shared";
+import { hashPassword, isBreachedPassword, isPepperedHash } from "@talorys/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import { type AuthChecks, type AuthSecrets, AuthService } from "../src/auth/auth-service";
+import { type AuthChecks, type AuthSecrets, AuthService, MAX_FAILURES_PER_CLIENT } from "../src/auth/auth-service";
 import type { TalorysAgent } from "../src/agent/talorys-agent";
 import { client, freshIp, inAgent, loggedIn } from "./helpers";
 
@@ -24,7 +24,7 @@ const failure = async (p: Promise<unknown>) => {
 
 afterEach(() =>
   inAgent((agent) => {
-    for (const key of ["auth.secret_fingerprint", "auth.password_override", "auth.short_password_alerted"]) agent.services.settings.delete(key);
+    for (const key of ["auth.secret_fingerprint", "auth.password_override", "auth.password_change_required"]) agent.services.settings.delete(key);
     agent.services.db.run(`DELETE FROM tal_login_attempts`);
   }),
 );
@@ -50,7 +50,7 @@ describe("e-mail and password (OWNER_EMAIL)", () => {
     await inAgent(async (agent) => {
       const auth = service(agent, { passwordHash: await hashPassword(PASSWORD), ownerEmail: "owner@example.com" });
       const ip = freshIp();
-      for (let i = 0; i < 5; i++) await failure(auth.login(PASSWORD, ip, "t", "other@example.com"));
+      for (let i = 0; i < MAX_FAILURES_PER_CLIENT; i++) expect((await failure(auth.login(PASSWORD, ip, "t", "other@example.com"))).code).toBe("UNAUTHORIZED");
       expect((await failure(auth.login(PASSWORD, ip, "t", "owner@example.com"))).code).toBe("RATE_LIMITED");
     });
   });
@@ -69,18 +69,6 @@ describe("password pepper (PASSWORD_PEPPER)", () => {
       expect((await service(agent, { passwordHash: hash, pepper: PEPPER }).login(PASSWORD, freshIp(), "t")).token).toBeTruthy();
       agent.services.settings.delete("auth.secret_fingerprint");
       expect((await failure(service(agent, { passwordHash: hash }).login(PASSWORD, freshIp(), "t"))).code).toBe("UNAUTHORIZED");
-    });
-  });
-
-  it("re-hashes a password changed in the app with the pepper at the next sign-in", async () => {
-    await inAgent(async (agent) => {
-      const auth = service(agent, { passwordHash: await hashPassword("Installer-password-123"), pepper: PEPPER });
-      await auth.validate("sync-the-fingerprint");
-      agent.services.settings.setJson("auth.password_override", await hashPassword(PASSWORD));
-      await auth.login(PASSWORD, freshIp(), "t");
-      const override = agent.services.settings.getJson<string>("auth.password_override");
-      expect(isPepperedHash(override)).toBe(true);
-      expect((await auth.login(PASSWORD, freshIp(), "t")).token).toBeTruthy();
     });
   });
 
@@ -124,6 +112,17 @@ describe("new password rules", () => {
     });
   });
 
+  it("asks the breach service with request options the Workers runtime accepts", async () => {
+    let asked = "";
+    // Building the Request here runs the runtime's own checks on the options (workerd refuses redirect: "error").
+    const fetcher = (async (input: string, init?: RequestInit) => {
+      asked = new Request(input, init).url;
+      return new Response("0000000000000000000000000000000000A:0\r\n");
+    }) as typeof fetch;
+    expect(await isBreachedPassword("Correct-Horse-Battery", fetcher)).toBe(false);
+    expect(asked).toMatch(/^https:\/\/api\.pwnedpasswords\.com\/range\/[0-9A-F]{5}$/);
+  });
+
   it("refuses predictable passwords however long, and the owner's own details", async () => {
     await inAgent(async (agent) => {
       const auth = service(agent, { passwordHash: await hashPassword(PASSWORD), ownerEmail: "maria.silva@example.com" });
@@ -149,6 +148,9 @@ describe("new password rules", () => {
     await inAgent(async (agent) => {
       expect(service(agent, { password: "Old-rule-pw1" }).isConfigured()).toBe(true);
       expect(service(agent, { password: "short-pw1" }).isConfigured()).toBe(false);
+      // The previous rule still holds for a plain secret: one kind of character or a common word is refused.
+      expect(service(agent, { password: "abcdefghij" }).isConfigured()).toBe(false);
+      expect(service(agent, { password: "password12" }).isConfigured()).toBe(false);
       const auth = service(agent, { password: "Old-rule-pw1" });
       await auth.login("Old-rule-pw1", freshIp(), "t");
       expect(auth.passwordChangeRequired()).toBe(true);

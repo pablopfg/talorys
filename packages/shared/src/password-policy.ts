@@ -91,7 +91,12 @@ export function checkPasswordStrength(password: string, context: readonly string
 /** Whether a password set before the current rule may still be used to sign in. */
 export function meetsLegacyPolicy(password: string): boolean {
   const n = length(password);
-  return n >= LEGACY_PASSWORD_MIN_LENGTH && n <= PASSWORD_MAX_LENGTH && !isRepeatedGrapheme(password);
+  if (n < LEGACY_PASSWORD_MIN_LENGTH || n > PASSWORD_MAX_LENGTH || isRepeatedGrapheme(password)) return false;
+  if (n >= 16) return true;
+  // The previous rule, unchanged: under 16 characters, two kinds of character and no common word.
+  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) => r.test(password)).length;
+  const lowered = password.toLowerCase();
+  return classes >= 2 && !["password", "talorys", "qwerty", "123456", "letmein", "iloveyou", "admin"].some((c) => lowered.includes(c));
 }
 
 function isRepeatedGrapheme(password: string): boolean {
@@ -119,7 +124,8 @@ export async function isBreachedPassword(password: string, fetcher: typeof fetch
     const res = await fetcher(`${BREACH_API}${hex.slice(0, 5)}`, {
       headers: { "add-padding": "true", "user-agent": "talorys-breach-check" },
       signal: AbortSignal.timeout(BREACH_TIMEOUT_MS),
-      redirect: "error",
+      // Workers accept only "follow" or "manual"; a redirect is not ok, so it fails closed below.
+      redirect: "manual",
     });
     if (!res.ok) return null;
     const suffix = hex.slice(5);
