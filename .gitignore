@@ -14,3 +14,6 @@ packages/create-talorys/templates/
 .env.*
 test-results/
 apps/agent/wrangler.deploy.json
+# Preferências locais de agentes de código (as do projeto ficam em .claude/settings.json)
+.claude/settings.local.json
+CLAUDE.local.md

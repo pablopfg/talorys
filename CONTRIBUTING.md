@@ -61,6 +61,16 @@ Se você mexeu no instalador, rode também `npm run test:pack`.
 - Escreva títulos e descrições de PR, mensagens de commit, a documentação e o
   changelog em português do Brasil.
 
+## Agentes de código
+
+Quem usa um agente de IA (Claude Code, Codex, Cursor, Copilot) encontra as
+instruções do projeto em [AGENTS.md](AGENTS.md). O Claude Code também lê o
+[CLAUDE.md](CLAUDE.md) e a pasta [`.claude/`](.claude/): regras por área,
+subagentes de revisão, skills (`/verificar`, `/auditoria-seguranca`,
+`/preparar-pr`, `/nova-migration`, `/nova-ferramenta`) e a memória do projeto
+(decisões, armadilhas e glossário). Ao mudar uma convenção, atualize esses
+arquivos no mesmo pull request.
+
 ## Changelog e releases
 
 Os títulos de pull request seguem o
