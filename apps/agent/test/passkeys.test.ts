@@ -2,6 +2,7 @@ import { MAX_PASSKEYS, totpCode, totpStep } from "@talorys/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { BASE, type Client, client, inAgent, loggedIn, password } from "./helpers";
 import { softPasskey, type SoftPasskey } from "./soft-authenticator";
+import { PasskeyService } from "../src/auth/passkeys";
 
 const RP_ID = new URL(BASE).hostname;
 
@@ -85,6 +86,17 @@ describe("adding a passkey", () => {
     expect((await c.json("/api/auth/passkeys")).passkeys).toEqual([]);
   });
 
+  it("stores nothing when two-step sign-in went off while the answer was being checked", async () => {
+    await inAgent(async (a) => {
+      const service = new PasskeyService(a.services.db, a.services.settings, () => false);
+      const rp = { rpId: RP_ID, origin: BASE };
+      const options = await service.registrationOptions(rp, { rpName: "Talorys", userName: "Talorys" });
+      const key = await softPasskey();
+      expect(await service.register("Phone", (await key.register(options as never, BASE)) as never, rp)).toBeNull();
+      expect(service.count()).toBe(0);
+    });
+  });
+
   it(`keeps at most ${MAX_PASSKEYS}`, async () => {
     const c = await loggedIn();
     await turnOnMfa();
@@ -143,6 +155,24 @@ describe("signing in with a passkey", () => {
     expect((await events()).filter((e) => e.kind === "mfa_failure").map((e) => e.reason)).toContain("passkey");
   });
 
+  it("three wrong passkey answers in a row tell the owner, and say passkey, not code", async () => {
+    const { key } = await withPasskey();
+    for (let i = 0; i < 3; i++) {
+      const { c, options } = await passwordThenOptions();
+      const res = await c.call("/api/auth/mfa/passkey", { method: "POST", body: { response: await key.assert(options!, "https://talorys.evil.example") } });
+      expect((await errorOf(res)).message).toContain("passkey");
+    }
+    expect(await alerts("Wrong sign-in codes")).toHaveLength(1);
+  });
+
+  it("a right passkey answer ends a run of wrong codes", async () => {
+    const { key } = await withPasskey();
+    await inAgent((a) => a.services.settings.setJson("auth.mfa", { ...a.services.settings.getJson<object>("auth.mfa"), failures: 2 }));
+    const { c, options } = await passwordThenOptions();
+    expect((await c.call("/api/auth/mfa/passkey", { method: "POST", body: { response: await key.assert(options!, BASE) } })).status).toBe(200);
+    expect(await inAgent((a) => a.services.auth.mfa.consecutiveFailures())).toBe(0);
+  });
+
   it("a passkey made on another address isn't offered here", async () => {
     await withPasskey();
     await inAgent((a) => a.services.db.run(`UPDATE tal_passkeys SET rp_id = 'talorys.exemplo.com.br'`));
@@ -173,11 +203,14 @@ describe("removing a passkey", () => {
     expect(login.passkey).toBe(false);
   });
 
-  it("can be renamed", async () => {
+  it("can be renamed, with the password typed recently", async () => {
     const c = await loggedIn();
     await turnOnMfa();
     const key = await softPasskey();
     await add(c, key);
+    await stale();
+    expect((await c.call(`/api/auth/passkeys/${key.id}`, { method: "PATCH", body: { name: "Work key" } })).status).toBe(403);
+    await fresh();
     expect((await c.call(`/api/auth/passkeys/${key.id}`, { method: "PATCH", body: { name: "Work key" } })).status).toBe(200);
     expect((await c.json("/api/auth/passkeys")).passkeys[0].name).toBe("Work key");
   });

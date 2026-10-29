@@ -413,6 +413,7 @@ const PT_BR: Catalog = {
     "Ative primeiro a verificação em duas etapas com um app autenticador. Os códigos de recuperação dela são o caminho de volta se você perder suas passkeys.",
   "You already have {max} passkeys. Remove one first.": "Você já tem {max} passkeys. Remova uma primeiro.",
   "This passkey couldn't be checked, or the request expired. Try again.": "Não foi possível verificar esta passkey, ou o pedido expirou. Tente de novo.",
+  "This passkey wasn't accepted. Try again or use the code from your app.": "Esta passkey não foi aceita. Tente de novo ou use o código do app.",
   "Passkey not found.": "Passkey não encontrada.",
   "Passkey added": "Passkey adicionada",
   "Passkey removed": "Passkey removida",

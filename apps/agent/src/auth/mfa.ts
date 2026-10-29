@@ -212,6 +212,12 @@ export class MfaService {
     return null;
   }
 
+  /** Counts a passkey answer in the run of wrong second steps: a wrong one adds to it, a right one ends it. */
+  noteResult(ok: boolean): void {
+    const s = this.stored();
+    if (s) this.settings.setJson(MFA_KEY, { ...s, failures: ok ? 0 : s.failures + 1 } satisfies StoredMfa);
+  }
+
   /** Wrong codes in a row since the last right one. */
   consecutiveFailures(): number {
     return this.stored()?.failures ?? 0;

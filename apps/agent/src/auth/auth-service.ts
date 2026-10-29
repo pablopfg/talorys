@@ -111,10 +111,10 @@ export interface AuthSecrets {
   ownerEmail?: string;
 }
 
-/** A finished sign-in: the session to set as a cookie. */
 /** Why a second step was refused, for the sign-in activity. */
 export type MfaFailure = "expired" | "wrong_code" | "too_many" | "rate_limited";
 
+/** A finished sign-in: the session to set as a cookie. */
 export interface SignedIn {
   token: string;
   expiresAt: Date;
@@ -183,7 +183,7 @@ export class AuthService {
     private readonly checks: AuthChecks = {},
   ) {
     this.mfa = new MfaService(db, settings, () => this.requireConfigured().sessionSecret);
-    this.passkeys = new PasskeyService(db, settings);
+    this.passkeys = new PasskeyService(db, settings, () => this.mfa.enabled());
   }
 
   private pepper(): string | undefined {
@@ -524,7 +524,7 @@ export class AuthService {
     client: string,
     noteFailure: (reason: MfaFailure) => void = () => {},
   ): Promise<SignedIn & { factor: MfaFactor }> {
-    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, () => this.mfa.verify(code, { recovery: true }));
+    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, "Incorrect code.", () => this.mfa.verify(code, { recovery: true }));
   }
 
   /** The second step with a passkey: its signed answer to the challenge sent for this sign-in. Wrong answers count like wrong codes. */
@@ -536,9 +536,12 @@ export class AuthService {
     client: string,
     noteFailure: (reason: MfaFailure) => void = () => {},
   ): Promise<SignedIn & { factor: MfaFactor }> {
-    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, async (row) =>
-      this.mfa.enabled() && (await this.passkeys.verify(row.id, response, rp)) ? "passkey" : null,
-    );
+    return this.completeSecondStep(challengeToken, userAgent, client, noteFailure, "This passkey wasn't accepted. Try again or use the code from your app.", async (row) => {
+      const ok = this.mfa.enabled() && (await this.passkeys.verify(row.id, response, rp));
+      // Wrong answers in a row count with wrong codes for the owner's alert; a right one ends the run.
+      this.mfa.noteResult(ok);
+      return ok ? "passkey" : null;
+    });
   }
 
   /** The live sign-in challenge for the cookie, for sending a passkey request. */
@@ -554,6 +557,7 @@ export class AuthService {
     userAgent: string,
     client: string,
     noteFailure: (reason: MfaFailure) => void,
+    wrong: string,
     check: (row: ChallengeRow) => Promise<MfaFactor | null>,
   ): Promise<SignedIn & { factor: MfaFactor }> {
     this.requireConfigured();
@@ -581,7 +585,7 @@ export class AuthService {
       if (left === 0) this.mfa.deleteChallenge(row.id);
       noteFailure(left === 0 ? "too_many" : "wrong_code");
       if (left === 0) throw new AppError("UNAUTHORIZED", "Too many wrong codes. Enter your password again.", { mfa: "expired" });
-      throw new AppError("UNAUTHORIZED", "Incorrect code.", { mfa: "retry", attempts_left: left });
+      throw new AppError("UNAUTHORIZED", wrong, { mfa: "retry", attempts_left: left });
     }
     this.mfa.deleteChallenge(row.id);
     if (row.login_attempt !== null) this.markAttemptSucceeded(row.login_attempt);

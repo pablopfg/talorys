@@ -410,6 +410,7 @@ authRoutes.post("/passkeys", async (c) => {
 });
 
 authRoutes.patch("/passkeys/:id", async (c) => {
+  requireRecentAuth(c);
   const { name } = await body(c, passkeyRenameSchema, 1024);
   if (!c.env.agent.services.auth.passkeys.rename(c.req.param("id"), name)) throw new AppError("NOT_FOUND", "Passkey not found.");
   return c.json({ ok: true });

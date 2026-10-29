@@ -67,6 +67,8 @@ export class PasskeyService {
   constructor(
     private readonly db: Database,
     private readonly settings: SettingsService,
+    /** Whether two-step sign-in is on: passkeys exist only alongside it. */
+    private readonly mfaEnabled: () => boolean,
     private readonly clock: () => number = () => Date.now(),
   ) {}
 
@@ -152,7 +154,8 @@ export class PasskeyService {
     } catch {
       return null;
     }
-    if (!verified.verified) return null;
+    // Checked again after the await: two-step sign-in may have been turned off meanwhile.
+    if (!verified.verified || !this.mfaEnabled()) return null;
     const { credential, credentialBackedUp } = verified.registrationInfo;
     if (this.db.one(`SELECT 1 AS x FROM tal_passkeys WHERE id = ?`, credential.id)) return null;
     const now = new Date(this.clock()).toISOString();
