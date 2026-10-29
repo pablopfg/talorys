@@ -11,7 +11,7 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-1f6f63)](LICENSE)
 [![Roda na Cloudflare](https://img.shields.io/badge/roda%20na-Cloudflare-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
-[![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Node.js 24+](https://img.shields.io/badge/node-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-1f6f63)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-1f6f63)](#-onde-ficam-seus-dados)
 
@@ -330,7 +330,7 @@ Mais em [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## 🛠️ Desenvolvimento local
 
-Requisito: **Node.js 22+**.
+Requisito: **Node.js 24+** (recomendado: o LTS ativo, Node.js 26, fixado em `.nvmrc`; com nvm, rode `nvm use`).
 
 ```bash
 git clone https://github.com/rociiu/talorys.git

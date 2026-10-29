@@ -24,6 +24,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - Os limites diários de IA agora viram à meia-noite do seu fuso horário, e não à meia-noite UTC (21h em Brasília). As ferramentas usadas numa resposta que falhou também passam a contar no uso do dia.
 - A verificação de atualizações começa desligada em instalações novas. Ligue em Configurações → Sobre.
+- **Node.js 26 (LTS ativo) no desenvolvimento, no CI e no deploy.** A versão fica em `.nvmrc` (`nvm use`) e todos os workflows a leem de lá. As actions `checkout`, `setup-node` e as do GitHub Pages foram atualizadas para versões que rodam no Node.js 24 do runner, já que o Node.js 20 das actions saiu de suporte.
 
 ### Segurança
 
@@ -66,6 +67,10 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - A importação de backup não acrescenta mais mensagens a uma conversa que você já tinha nem renomeia essa conversa; descarta datas de vencimento ilegíveis (que quebravam a tela de Tarefas e o resumo diário); corta memórias em 2.000 caracteres, como a API; e ignora servidores MCP cujo id não seja UUID. Mensagens restauradas de qualquer papel continuam marcadas como importadas também no resumo da conversa.
 - A busca por significado feita com um token de acesso usa no máximo metade do limite diário de embeddings, então um script ou token vazado não desliga a busca por significado do seu chat.
 - Se o Durable Object falhar ao iniciar, a API responde com o erro genérico em JSON, nunca com o stack trace do Agents SDK.
+
+### Incompatível
+
+- **O instalador e o projeto exigem Node.js 24 ou mais novo.** O Node.js 22 entrou em manutenção e perde o suporte em abril de 2027. Quem roda `npx create-talorys` com uma versão anterior recebe a mensagem pedindo para atualizar; instale o LTS atual em https://nodejs.org.
 
 ### Upgrading
 

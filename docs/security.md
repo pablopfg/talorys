@@ -239,6 +239,16 @@ does on its own:
 - Dependabot proposes updates daily, after a cooldown of 3 to 14 days, so a
   compromised release is usually pulled before it reaches a PR. Security
   updates skip the cooldown.
+- With npm 11 (bundled with Node.js 26, from `.nvmrc`), no dependency install
+  script runs: npm blocks them by default, and the `allowScripts` field in the
+  root `package.json` records the ones in the tree as denied (`esbuild`,
+  `workerd`, `core-js-pure`). Their binaries come from platform packages in the
+  lockfile. The deploy job also installs with
+  `--ignore-scripts`. Review any new package that `npm install-scripts ls`
+  lists before approving it.
+- Development, CI and deploy use the Node.js version in `.nvmrc` (the active
+  LTS). The installer accepts the oldest supported LTS in `engines` and is
+  tested on it in CI.
 
 ## Update check
 
