@@ -25,6 +25,8 @@ Options
   --account-id <id>     Cloudflare account to use
   --name <name>         Agent name (default: Talorys)
   --semantic / --no-semantic  Turn semantic recall on or off without asking (default No; update keeps the last answer)
+  --domain <host>       Serve Talorys on your own domain (added to the Pages project as a custom domain);
+                        the pages.dev address then stops answering. "--domain none" goes back to pages.dev
   -y, --yes             Skip confirmation prompts
   -h, --help            Show this help
   -v, --version         Show version
@@ -136,6 +138,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       name: { type: "string" },
       semantic: { type: "boolean" },
       "no-semantic": { type: "boolean" },
+      domain: { type: "string" },
       yes: { type: "boolean", short: "y" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -171,7 +174,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       case "install":
       case "update":
         await install(
-          { dir, yes: values.yes, accountId: values["account-id"], agentName: values.name, semantic, password, mode: command },
+          { dir, yes: values.yes, accountId: values["account-id"], agentName: values.name, semantic, domain: values.domain, password, mode: command },
           deps,
         );
         return 0;

@@ -6,6 +6,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Added
 
+- **Domínio próprio no instalador.** `npx create-talorys@latest update --domain talorys.exemplo.com` passa a usar o seu domínio para tudo (verificação, `status`, `doctor`) e fecha os endereços `*.pages.dev`. Depois de uma mudança de endereço, os aparelhos inscritos no endereço antigo saem da lista de push, para você reativar no novo. No deploy pelo GitHub, a variável opcional `TALORYS_VAPID_SUBJECT` define o contato enviado aos serviços de push. Veja [docs/deployment.md](docs/deployment.md).
+
 - **AI task planning.** Ask Talorys to plan a goal ("Help me prepare for my trip to Japan") and it proposes a structured plan as a card in chat: tasks with priorities, optional due dates (suggested dates are marked as suggestions) and an optional existing or new project. You can edit titles, descriptions, priorities and dates, remove tasks or change the project, then confirm or cancel. Nothing is created until you confirm; confirming creates every task (and the new project) in one transaction, at most once, even if the button is pressed twice or in two tabs. Plans expire after 24 hours, survive reloads, and use no extra AI requests for editing or confirming.
 
 - **Deploy automático pelo GitHub.** Cada merge na `main` testa e publica na Cloudflare, pelo GitHub Actions, o Worker único (interface + API), atrás do ambiente protegido `production`, e confere o `/api/health` no fim. O token da Cloudflare nunca chega aos PRs nem ao job de build, e os segredos do Worker ficam fora do GitHub. Veja [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
@@ -25,6 +27,10 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Segurança
 
+- **Cloudflare Access opcional, conferido dentro do Worker.** Com `TALORYS_ACCESS_TEAM_DOMAIN` e `TALORYS_ACCESS_AUD`, toda requisição precisa do token assinado pelo Access para a sua aplicação. Um endereço fora do Access (como um `*.workers.dev` esquecido) não serve de atalho. Só o health check anônimo fica aberto, para o deploy se conferir. Veja o passo 6 de [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
+- **A API responde só no seu endereço.** Com `TALORYS_ALLOWED_HOSTS`, preenchida pelo deploy do GitHub com o domínio próprio, qualquer outro host recebe 404.
+- **Um ataque de senha vindo de muitas redes não bloqueia mais você.** Antes, 25 falhas em 15 minutos travavam o login de qualquer rede nova. Agora, cada rede desconhecida tem uma tentativa por janela, as suas redes recentes seguem normais, e você recebe uma notificação quando isso começa.
+- HSTS por 2 anos, incluindo subdomínios (`max-age=63072000; includeSubDomains`).
 - O agente não agenda mais uma rotina de IA sozinho: ele propõe a rotina num cartão de aprovação com o prompt e o horário completos, e nada roda até você aprovar. Uma instrução escondida numa nota, memória ou resultado de ferramenta não consegue criar uma rotina que roda sem você.
 - Memórias e o resumo da conversa chegam à IA marcados como dados, uma memória por linha, para que um texto guardado não se passe por regra.
 - Trocar a descrição de uma tarefa que já tem descrição agora pede aprovação, como reescrever uma nota. O agente conclui no máximo 3 tarefas por mensagem e para de acrescentar texto numa nota ao chegar a 50.000 caracteres.

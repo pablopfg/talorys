@@ -124,7 +124,10 @@ describe("brute-force protection", () => {
     await inAgent((a) => {
       for (let i = 0; i < 25; i++) a.services.db.run(`INSERT INTO tal_login_attempts (client, success, at) VALUES (?, 0, ?)`, `bot-${i}`, Date.now());
     });
-    expect((await client().call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
+    // One attempt per unknown network while the cap is tripped (AUTH-02), never a lockout.
+    const bot = client();
+    expect((await bot.call("/api/auth/login", { method: "POST", body: { password: "guess" } })).status).toBe(401);
+    expect((await bot.call("/api/auth/login", { method: "POST", body: { password: password() } })).status).toBe(429);
     await inAgent((a) => a.services.db.run(`DELETE FROM tal_login_attempts`));
   });
 

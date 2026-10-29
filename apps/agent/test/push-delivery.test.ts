@@ -1,3 +1,4 @@
+import { env as workerEnv } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { TalorysAgent } from "../src/agent/talorys-agent";
 import { b64url } from "../src/push/encoding";
@@ -94,6 +95,29 @@ describe("push delivery", () => {
     const res = await c.json("/api/push/test", { method: "POST" });
     expect(res.result).toEqual({ sent: 1, gone: 0, failed: 0 });
     expect(await decryptAsBrowser(stub.sent[0]!.body, browser)).toMatchObject({ body: "Test notification: push works on this device." });
+  });
+
+  it("drops devices subscribed on an address the app no longer answers on (DOM-02)", async () => {
+    await inAgent(async (agent) => {
+      const s = agent.services;
+      const browser = await fakeBrowser();
+      const repo = s.push.subscriptions;
+      repo.save({ endpoint: browser.endpoint, p256dh: b64url(browser.p256dh), auth: b64url(browser.auth), label: "Old", origin: "https://me.pages.dev" });
+      const moved = await fakeBrowser("https://fcm.googleapis.com/fcm/send/new");
+      repo.save({ endpoint: moved.endpoint, p256dh: b64url(moved.p256dh), auth: b64url(moved.auth), label: "New", origin: "https://talorys.example.com" });
+      const keys = workerEnv as unknown as { VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string };
+      const env = { VAPID_PUBLIC_KEY: keys.VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY: keys.VAPID_PRIVATE_KEY, TALORYS_ALLOWED_HOSTS: "talorys.example.com" };
+      const push = new PushService(repo, env, () => {});
+      const stub = pushServiceStub(201);
+      push.fetcher = stub.fetcher;
+      expect(push.status().devices.map((d) => d.label)).toEqual(["New"]);
+      push.notify({ id: "n", title: "t", body: "b", automation_id: null, read_at: null, created_at: new Date().toISOString() });
+      await push.idle();
+      expect(stub.sent.map((r) => r.url)).toEqual([moved.endpoint]);
+      // Without the setting, nothing is dropped.
+      const open = new PushService(repo, { ...env, TALORYS_ALLOWED_HOSTS: "" }, () => {});
+      expect(open.status().devices).toHaveLength(1);
+    });
   });
 
   it("shortens long or Markdown bodies for the system notification", () => {

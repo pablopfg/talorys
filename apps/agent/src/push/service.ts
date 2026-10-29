@@ -4,11 +4,13 @@ import { encryptPayload } from "./ece";
 import { fromB64url } from "./encoding";
 import type { PushSubscriptionRepository, PushSubscriptionRow } from "./repository";
 import { importVapidKeys, type VapidKeys, vapidAuthorization } from "./vapid";
+import { allowedHosts } from "../hosts";
 
 export interface PushEnv {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  TALORYS_ALLOWED_HOSTS?: string;
 }
 
 export interface PushMessage {
@@ -55,7 +57,27 @@ export class PushService {
     return !!this.env.VAPID_PUBLIC_KEY && !!this.env.VAPID_PRIVATE_KEY;
   }
 
+  /**
+   * After a move to a new domain (DOM-02), devices subscribed on the old address would get
+   * notifications whose click opens an address that no longer answers. They are dropped, so the
+   * app on the new address shows push as off and the owner turns it on again there.
+   */
+  private dropMovedDevices(): void {
+    const hosts = allowedHosts(this.env);
+    if (!hosts) return;
+    for (const sub of this.subscriptions.all()) {
+      let host = "";
+      try {
+        host = new URL(sub.origin).hostname.toLowerCase();
+      } catch {
+        // An unreadable origin can't be one of ours.
+      }
+      if (!hosts.has(host)) this.subscriptions.remove(sub.id);
+    }
+  }
+
   status(): PushStatus {
+    this.dropMovedDevices();
     const available = this.configured();
     return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES };
   }
@@ -67,7 +89,9 @@ export class PushService {
 
   /** Called for every new notification. Returns at once; delivery continues in the background. */
   notify(n: Notification): void {
-    if (!this.configured() || this.subscriptions.all().length === 0) return;
+    if (!this.configured()) return;
+    this.dropMovedDevices();
+    if (this.subscriptions.all().length === 0) return;
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
     const work: Promise<void> = this.sendToAll(toPushMessage(localized))

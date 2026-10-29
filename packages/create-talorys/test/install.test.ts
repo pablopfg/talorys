@@ -47,6 +47,36 @@ describe("installer: fresh installation", () => {
     expect(ui.log.some((l) => l.includes("Talorys is ready"))).toBe(true);
   });
 
+  it("serves on the owner's domain and closes pages.dev when --domain is given (DOM-01)", async () => {
+    const sb = makeSandbox();
+    const site = fakeSite();
+    const ui = new ScriptedUi(freshAnswers());
+    const manifest = await install({ dir: sb.dir, domain: "Talorys.Example.com.", ...FAST }, { ui, wrangler: sb.wrangler(), fetch: site, templates: sb.templates });
+    expect(manifest.public_url).toBe("https://talorys.example.com");
+    expect(manifest.custom_domain).toBe("talorys.example.com");
+    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBe("talorys.example.com");
+    expect(site.calls.every((u) => u.startsWith("https://talorys.example.com/"))).toBe(true);
+    expect(ui.log.some((l) => l.includes("Custom domains"))).toBe(true);
+
+    // An update keeps the domain; "none" goes back to pages.dev and reopens it.
+    const kept = await install({ dir: sb.dir, mode: "update", yes: true, ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    expect(kept.public_url).toBe("https://talorys.example.com");
+    const back = await install({ dir: sb.dir, mode: "update", yes: true, domain: "none", ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
+    expect(back.public_url).toMatch(/\.pages\.dev$/);
+    expect(back.custom_domain).toBeNull();
+    expect(sb.state().workers.acc1![manifest.worker_name]!.vars.TALORYS_ALLOWED_HOSTS).toBeUndefined();
+  });
+
+  it("refuses a domain with a scheme, path or port before touching Cloudflare", async () => {
+    for (const domain of ["https://a.example.com", "a.example.com/x", "a.example.com:8443", "*.example.com", "localhost"]) {
+      const sb = makeSandbox();
+      await expect(
+        install({ dir: sb.dir, yes: true, password: STRONG_PASSWORD, domain, ...FAST }, { ui: new ScriptedUi([], false), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates }),
+      ).rejects.toThrow(/not a valid domain/);
+      expect(sb.state().calls.some((c) => c.key === "deploy")).toBe(false);
+    }
+  });
+
   it("never writes secrets or the password to disk", async () => {
     const sb = makeSandbox();
     await install({ dir: sb.dir, ...FAST }, { ui: new ScriptedUi(freshAnswers()), wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });

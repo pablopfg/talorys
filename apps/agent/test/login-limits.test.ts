@@ -43,10 +43,27 @@ describe("login limits per client", () => {
   });
 });
 
-describe("global limit and the owner's own networks", () => {
-  it("still blocks a network the owner has never signed in from", async () => {
+describe("global limit and the owner's own networks (AUTH-02)", () => {
+  it("gives a new network one attempt per window instead of locking it out", async () => {
     await tripGlobalLimit();
-    expect((await login(freshIp())).status).toBe(429);
+    // The owner on a network they never used can still type the right password.
+    expect((await login(freshIp())).status).toBe(200);
+    // A guesser gets one try per address.
+    const bot = freshIp();
+    expect((await login(bot, "wrong")).status).toBe(401);
+    const res = await login(bot);
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(800);
+  });
+
+  it("tells the owner once, not on every attempt", async () => {
+    const count = () => inAgent((a) => a.services.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE title = 'Many failed sign-ins'`)!.n);
+    await inAgent((a) => a.services.settings.delete("auth.attack_alerted_at"));
+    const before = await count();
+    await tripGlobalLimit();
+    await login(freshIp(), "wrong");
+    await login(freshIp(), "wrong");
+    expect(await count()).toBe(before + 1);
   });
 
   it("lets the owner sign in from a network that signed in within the last 30 days", async () => {
@@ -61,7 +78,16 @@ describe("global limit and the owner's own networks", () => {
     const stale = freshIp();
     await recordAttempt(stale, 1, Date.now() - 31 * DAY);
     await tripGlobalLimit();
+    expect((await login(stale, "wrong")).status).toBe(401);
     expect((await login(stale)).status).toBe(429);
+  });
+
+  it("keeps a trusted network's full allowance during an attack", async () => {
+    const home = freshIp();
+    await recordAttempt(home, 1, Date.now() - DAY);
+    await tripGlobalLimit();
+    for (let i = 0; i < 4; i++) expect((await login(home, `wrong-${i}`)).status).toBe(401);
+    expect((await login(home)).status).toBe(200);
   });
 
   it("keeps the per-client limit for trusted networks", async () => {

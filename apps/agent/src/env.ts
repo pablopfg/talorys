@@ -32,6 +32,11 @@ export interface Env {
   TALORYS_MOCK_AI?: string;
   /** Development only: extra allowed origins (comma separated), e.g. the Vite dev server. */
   TALORYS_DEV_ORIGINS?: string;
+  /** Comma-separated hostnames the API answers on; any other host gets 404. Unset: every host. */
+  TALORYS_ALLOWED_HOSTS?: string;
+  /** Cloudflare Access in front of the app: the team domain (team.cloudflareaccess.com) and the application's AUD tag. Both or neither. */
+  TALORYS_ACCESS_TEAM_DOMAIN?: string;
+  TALORYS_ACCESS_AUD?: string;
   /** Installer defaults: the owner's timezone and chosen agent name. */
   TALORYS_DEFAULT_TIMEZONE?: string;
   TALORYS_AGENT_NAME?: string;
