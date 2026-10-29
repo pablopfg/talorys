@@ -124,6 +124,41 @@ O repositório é público, então os workflows seguem estas regras:
    de funcionalidade: o título em Conventional Commits vira o commit. Para
    `develop → main`, use **Create a merge commit**, que preserva o histórico.
 
+## Sincronizar com o original
+
+Este repositório nasceu do [Talorys original](https://github.com/rociiu/talorys)
+e mantém o histórico dele. O workflow **Upstream sync**
+([`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml))
+roda toda segunda-feira às 09:00 UTC (ou à mão, em **Actions → Upstream sync →
+Run workflow**) e mantém uma única issue com o rótulo `upstream-sync`:
+
+- quantos commits do original ainda não estão na `develop`, com a lista, os
+  arquivos alterados e a última tag;
+- se a mesclagem é limpa ou quais arquivos têm conflito;
+- quando a `develop` alcança o original, a issue é fechada sozinha.
+
+Ele não usa segredos (só o `GITHUB_TOKEN`, com leitura do código e escrita em
+issues), não instala nem executa nada do original e nunca envia commits. O
+texto vindo do original (mensagens de commit, nomes de arquivos e tags) fica em
+blocos de código, sem crases nem menções. A mesclagem em si é um PR normal,
+para a CI rodar nele e os conflitos terem uma decisão humana. Um push feito
+com o `GITHUB_TOKEN` não poderia levar mudanças de workflows do original, e um
+PR aberto por ele não dispararia a CI.
+
+Para sincronizar:
+
+```bash
+git fetch https://github.com/rociiu/talorys.git main:refs/remotes/upstream/main
+git switch -c chore/upstream-sync origin/develop
+git merge upstream/main   # resolva os conflitos mantendo as personalizações
+```
+
+Depois, rode lint, typecheck e testes, e abra o PR para a `develop` com o
+título `chore(upstream): sincronizar com o Talorys original` e uma linha em
+`## Não lançado` dizendo "Sincronizado com o Talorys vX.Y.Z" e as mudanças
+relevantes. Use **Create a merge commit** nesse PR (não *Squash*), para o
+histórico do original continuar ligado e a próxima comparação partir dele.
+
 ## Por que não release-please ou changesets
 
 As duas ferramentas geram o changelog sozinhas, a partir dos commits ou de
