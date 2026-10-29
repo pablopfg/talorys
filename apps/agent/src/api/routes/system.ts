@@ -60,7 +60,10 @@ systemRoutes.patch("/settings", async (c) => {
   const newName = patch.agentName !== undefined && patch.agentName !== before.agentName;
   if (longer || newInstructions || newName) requireRecentAuth(c);
   const settings = s.settings.update(patch);
-  if (settings.timezone !== before.timezone) await s.automations.rearmAll();
+  if (settings.timezone !== before.timezone) {
+    await s.automations.rearmAll();
+    await s.workflows.rearmAll();
+  }
   if (settings.demoMode !== before.demoMode) {
     s.activity.record("settings.demo_mode", settings.demoMode ? "Demo mode enabled (mock AI)" : "Demo mode disabled");
   }

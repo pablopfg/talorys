@@ -33,6 +33,7 @@ describe("configuration generation", () => {
     expect(cfg.preview_urls).toBe(false);
     expect(cfg.ai).toEqual({ binding: "AI" });
     expect(cfg.durable_objects.bindings).toEqual([{ name: "TalorysAgent", class_name: "TalorysAgent" }]);
+    expect(cfg.workflows).toEqual([{ name: `${cfg.name}-workflow`, binding: "TALORYS_WORKFLOW", class_name: "TalorysWorkflow" }]);
     expect(cfg.migrations).toEqual([{ tag: "v1", new_sqlite_classes: ["TalorysAgent"] }]);
     expect(cfg.compatibility_flags).toContain("nodejs_compat");
     expect(cfg.vars.TALORYS_DEFAULT_TIMEZONE).toBe("Europe/Paris");

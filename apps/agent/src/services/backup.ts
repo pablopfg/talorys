@@ -307,6 +307,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
   raiseSecurityAlert(s.alerts, "data_imported");
   // Disarm automations the backup paused; a new timezone also moves the owner's existing schedules.
   if (paused > 0 || s.settings.get().timezone !== previousTimezone) await s.automations.rearmAll();
+  if (s.settings.get().timezone !== previousTimezone) await s.workflows.rearmAll();
   s.activity.record("data.imported", `Imported backup from ${backup.exported_at}`);
   return summary;
 }

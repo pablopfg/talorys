@@ -16,6 +16,7 @@ import { remoteRoutes } from "../remote/routes";
 import { mcpRoutes } from "../mcp/routes";
 import { calendarRoutes } from "../calendar/routes";
 import { telegramRoutes, telegramWebhook } from "../telegram/routes";
+import { workflowRoutes } from "../workflows/routes";
 
 export interface AppEnv {
   Bindings: { agent: TalorysAgent; env: Env };
@@ -57,6 +58,7 @@ export function createApi() {
   app.route("/", mcpRoutes);
   app.route("/", calendarRoutes);
   app.route("/", telegramRoutes);
+  app.route("/", workflowRoutes);
 
   return app;
 }

@@ -6,6 +6,11 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Adicionado
 
+- **Workflows: rotinas do n8n rodando na Cloudflare.** Um menu novo, **Workflows**, roda rotinas com os Workflows da Cloudflare (plano gratuito): cada execução tem etapas que tentam de novo sozinhas e continuam depois de um reinício. Cada workflow tem chave liga/desliga, agendamento, **Executar agora** e histórico. Os dois primeiros:
+  - **Monitor de sites**: confere até 10 endereços (padrão a cada 15 minutos) e avisa com prioridade alta quando um site cai (depois de duas execuções seguidas com falha) e quando volta.
+  - **Novidades de feeds**: lê até 10 feeds RSS ou Atom (padrão todo dia às 08:00) e manda uma notificação com os itens novos; a primeira leitura só aprende o que já existe.
+  - Só a sessão do dono gerencia os workflows (tokens de acesso recebem 403); ligar ou trocar endereços pede a senha recente; só endereços `https://` públicos, conferidos no DNS antes de cada requisição. O deploy cria o Workflow `<nome do Worker>-workflow` sozinho, sem segredo novo. Veja [docs/workflows.md](docs/workflows.md) e a etapa 26 do [guia de instalação](docs/instalacao-cloudflare.md#26-workflows-rotinas-que-estavam-no-n8n).
+
 - **Instalador privado no GitHub Packages.** A cada versão nova, o workflow **Release** publica o instalador da tag como `@pablopfg/create-talorys`, privado no GitHub Packages, depois de montar e testar o pacote renomeado num job sem token de escrita; outro job, no ambiente protegido `packages` e sem rodar código do projeto, o publica com o token da própria execução. Os comandos que o instalador, o app e o Worker sugerem passam a apontar para o pacote do fork. O repositório mantém o nome do original; a troca de nome acontece só na publicação. Instalação com um token `read:packages` só na sua máquina. Veja [docs/releases.md](docs/releases.md#instalador-no-github-packages).
 
 - **Aviso semanal de mudanças no Talorys original.** O workflow **Upstream sync** compara a `develop` com o original toda segunda-feira e mantém uma issue (`upstream-sync`) com os commits novos, os arquivos alterados, a última tag e se a mesclagem tem conflitos. Sem segredos e sem enviar commits; a sincronização em si é um PR normal. Veja [docs/releases.md](docs/releases.md#sincronizar-com-o-original).
@@ -81,6 +86,8 @@ Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais 
 - Reforços: a checagem de origem dos PRs para a `main` recusa branches de forks com o nome `develop` ou `hotfix/*`, a interface codifica os ids que vêm da URL antes de chamar a API, e o desarme de links corta o texto antes, para não ficar lento com textos enormes.
 
 ### Atualização
+
+- **Workflows.** A migração 28 roda sozinha depois do deploy e cria as tabelas `tal_workflows` e `tal_workflow_runs`. O deploy passa a criar um Workflow da Cloudflare, `<nome do Worker>-workflow` (binding `TALORYS_WORKFLOW`, classe `TalorysWorkflow`), com o mesmo token de antes; não há segredo nem variável nova, e todos os workflows começam desligados. Incluído no plano gratuito do Workers. Quem instalou pelo `create-talorys` ganha o mesmo binding no próximo `update`.
 
 - A recuperação de senha por e-mail não pede migração nem segredo novo: aparece sozinha na tela de login quando os avisos por e-mail estão configurados e o deploy tem `TALORYS_CUSTOM_DOMAIN` ou `TALORYS_PUBLIC_URL` (o link usa só esse endereço).
 
