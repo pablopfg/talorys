@@ -5,7 +5,7 @@ import { Send, Trash2 } from "lucide-react";
 import { Badge, Button, Card, ErrorNotice, Switch } from "./ui";
 import { useApiMutation } from "../hooks/queries";
 import { api } from "../lib/api";
-import { currentSubscription, disablePush, enablePush, pushBlocker, thisDeviceId } from "../lib/push";
+import { currentSubscription, disablePush, enablePush, pushBlocker, reportPushSeen, thisDeviceId } from "../lib/push";
 import { relativeTime } from "../lib/utils";
 import { type PlainMessageKey, useI18n } from "../lib/i18n";
 
@@ -60,7 +60,9 @@ function usePushMutations() {
   const setStatus = (s: PushStatus) => qc.setQueryData(KEY, s);
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   useEffect(() => {
-    void currentSubscription().then((s) => setSubscribed(!!s), () => setSubscribed(false));
+    // A browser whose device the server removed (inactive, or removed elsewhere) shows as off.
+    void currentSubscription()
+      .then(async (sub) => setSubscribed(!!sub && (await reportPushSeen(true)) !== false), () => setSubscribed(false));
   }, []);
   const toggle = useApiMutation(
     async (v: { on: boolean; publicKey: string }) => (v.on ? (await enablePush(v.publicKey)).status : disablePush()),
@@ -97,7 +99,7 @@ function PushControls({ status: s }: { status: PushStatus }) {
         />
       </Row>
       {s.devices.map((d) => (
-        <Row key={d.id} label={d.label} hint={`${d.service} · ${t("push.added", { when: relativeTime(d.created_at, i18n) })}${d.failures ? ` · ${t("push.failedSends", { count: d.failures })}` : ""}`}>
+        <Row key={d.id} label={d.label} hint={`${d.service} · ${t("push.added", { when: relativeTime(d.created_at, i18n) })} · ${t("push.lastSeen", { when: relativeTime(d.last_seen_at, i18n) })}${d.failures ? ` · ${t("push.failedSends", { count: d.failures })}` : ""}`}>
           <div className="flex items-center gap-2">
             {d.id === current && <Badge tone="accent">{t("settings.thisDevice")}</Badge>}
             <Button variant="ghost" aria-label={t("push.remove", { label: d.label })} onClick={() => remove.mutate(d.id)} disabled={remove.isPending}>
@@ -106,7 +108,7 @@ function PushControls({ status: s }: { status: PushStatus }) {
           </div>
         </Row>
       ))}
-      <Row label={t("push.sendTest")} hint={t("push.devicesRegistered", { count: s.devices.length, max: s.max_devices })}>
+      <Row label={t("push.sendTest")} hint={`${t("push.devicesRegistered", { count: s.devices.length, max: s.max_devices })} ${t("push.inactiveHint", { days: s.inactive_days })}`}>
         <Button variant="outline" onClick={() => test.mutate(undefined)} disabled={s.devices.length === 0 || test.isPending}>
           <Send className="h-4 w-4" /> {t("push.sendTestButton")}
         </Button>

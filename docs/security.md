@@ -331,7 +331,7 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   `*.push.apple.com`, `*.notify.windows.com`; the list is in
   `apps/agent/src/push/endpoint.ts`), over `https` on the default port with no
   credentials in the URL. Redirects are not followed, each send has a 10-second
-  timeout, and there are at most 10 devices.
+  timeout, and there are at most 3 devices.
 - Payloads are encrypted for each device (RFC 8291, `aes128gcm`). The push
   service (Google, Mozilla, Apple or Microsoft) sees the endpoint, the time and
   the ciphertext size, not the text. The payload is the notification title and
@@ -339,6 +339,15 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
 - Subscriptions are device-specific secrets: they are never included in
   backups. Endpoints the push service reports as gone (404/410) are deleted at
   once, and one that fails 10 times in a row is dropped.
+- A device that has not opened Talorys signed in for 3 days is removed (checked
+  every 15 minutes, even with the watchers off), so a lost or forgotten phone
+  stops receiving the owner's alerts on its own. A signed-in browser reports its
+  own endpoint to `POST /api/push/seen` at most once an hour; the removal is
+  logged in the activity and the owner is told on the remaining channels.
+- When the browser rotates a subscription, the service worker sends the new one
+  with the old endpoint in `replaces`; the server moves that device without a
+  recent password and keeps its last-access time. Endpoints are never returned
+  by the API, so only the browser that held one can name it.
 - Sending runs in the background and never fails the automation, reminder or
   chat turn that created the notification.
 - The routes (`/api/push/*`) need a session and the CSRF checks like every other

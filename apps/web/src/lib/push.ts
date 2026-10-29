@@ -6,6 +6,9 @@ import { currentI18n } from "./i18n";
 export type PushBlocker = "unsupported" | "ios-not-installed" | "denied" | null;
 
 const DEVICE_KEY = "talorys.pushDevice";
+/** When this browser last told the server it still uses its push subscription. */
+const SEEN_KEY = "talorys.pushSeen";
+const SEEN_EVERY_MS = 60 * 60_000;
 
 export function isIos(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -58,6 +61,38 @@ export async function disablePush(): Promise<PushStatus> {
   const status = await api<PushStatus>("/push/unsubscribe", { method: "POST", body: { endpoint: sub.endpoint } });
   await sub.unsubscribe();
   return status;
+}
+
+/**
+ * Tells the server this browser still opens Talorys, so its push subscription is kept: devices
+ * silent for PUSH_INACTIVE_DAYS are removed. At most once an hour unless `force`. Resolves to
+ * whether the server still has this browser's subscription, or null when there is none to report
+ * (or the check could not be made).
+ */
+export async function reportPushSeen(force = false): Promise<boolean | null> {
+  try {
+    if (!force && Date.now() - Number(localStorage.getItem(SEEN_KEY) ?? 0) < SEEN_EVERY_MS) return null;
+  } catch {
+    /* storage unavailable: report every time it is asked */
+  }
+  const sub = await currentSubscription().catch(() => null);
+  if (!sub) return null;
+  try {
+    const { known } = await api<{ known: boolean }>("/push/seen", { method: "POST", body: { endpoint: sub.endpoint } });
+    try {
+      localStorage.setItem(SEEN_KEY, String(Date.now()));
+    } catch {
+      /* storage unavailable */
+    }
+    if (!known) {
+      // Removed on the server (inactive, or from another device): drop the local subscription too.
+      remember(null);
+      await sub.unsubscribe().catch(() => {});
+    }
+    return known;
+  } catch {
+    return null;
+  }
 }
 
 function sameKey(a: ArrayBuffer, b: Uint8Array): boolean {

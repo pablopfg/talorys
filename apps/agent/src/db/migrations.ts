@@ -567,6 +567,16 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 22,
+    name: "push device last seen",
+    statements: [
+      // When each push device last opened Talorys signed in; devices away PUSH_INACTIVE_DAYS are removed.
+      `ALTER TABLE tal_push_subscriptions ADD COLUMN last_seen_at TEXT`,
+      // Devices from before count from the update, so none is removed the moment it lands.
+      `UPDATE tal_push_subscriptions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE last_seen_at IS NULL`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

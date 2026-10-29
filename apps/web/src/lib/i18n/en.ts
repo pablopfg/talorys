@@ -485,6 +485,8 @@ export const en = {
   "push.sendTest": "Send a test",
   "push.devicesRegistered": { other: "{count} of {max} devices registered." },
   "push.sendTestButton": "Send test",
+  "push.lastSeen": "last opened {when}",
+  "push.inactiveHint": "A device that does not open Talorys for {days} days is removed for security; turn notifications on again on it to get them back.",
 
   "remote.title": "Remote access",
   "remote.turnedOn": "Remote access turned on",
