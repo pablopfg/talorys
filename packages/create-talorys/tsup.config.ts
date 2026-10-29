@@ -4,7 +4,7 @@ export default defineConfig({
   entry: { cli: "src/cli.ts" },
   format: ["esm"],
   platform: "node",
-  target: "node20",
+  target: "node24",
   clean: true,
   // Shared code (password policy and hashing) is bundled; runtime deps stay external.
   noExternal: ["@talorys/shared"],
