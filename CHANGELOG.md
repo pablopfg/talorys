@@ -6,7 +6,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Adicionado
 
-- **Instalador privado no GitHub Packages.** A cada versão nova, o workflow **Release** publica o instalador da tag como `@pablopfg/create-talorys`, privado no GitHub Packages, com o token da própria execução, no ambiente protegido `packages` e só depois de testar o pacote instalado. O repositório mantém o nome do original; a troca de nome acontece só na publicação. Instalação com um token `read:packages` só na sua máquina. Veja [docs/releases.md](docs/releases.md#instalador-no-github-packages).
+- **Instalador privado no GitHub Packages.** A cada versão nova, o workflow **Release** publica o instalador da tag como `@pablopfg/create-talorys`, privado no GitHub Packages, depois de montar e testar o pacote renomeado num job sem token de escrita; outro job, no ambiente protegido `packages` e sem rodar código do projeto, o publica com o token da própria execução. Os comandos que o instalador, o app e o Worker sugerem passam a apontar para o pacote do fork. O repositório mantém o nome do original; a troca de nome acontece só na publicação. Instalação com um token `read:packages` só na sua máquina. Veja [docs/releases.md](docs/releases.md#instalador-no-github-packages).
 
 - **Aviso semanal de mudanças no Talorys original.** O workflow **Upstream sync** compara a `develop` com o original toda segunda-feira e mantém uma issue (`upstream-sync`) com os commits novos, os arquivos alterados, a última tag e se a mesclagem tem conflitos. Sem segredos e sem enviar commits; a sincronização em si é um PR normal. Veja [docs/releases.md](docs/releases.md#sincronizar-com-o-original).
 

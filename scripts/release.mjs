@@ -199,7 +199,8 @@ export function prepareRelease(root, target, date) {
  * Turns the installer into @<owner>/create-talorys, private on GitHub Packages. Run only on the
  * release runner, never committed: the repository keeps upstream's name so syncing stays clean.
  * The command stays `create-talorys`; its dependencies still come from the public npm registry.
- * The built CLI's hints (`npx create-talorys@latest update`...) are pointed at the new name.
+ * The commands shown by the built CLI, app and Worker (`npx create-talorys@latest update`...) are
+ * pointed at the new name.
  */
 export function githubPackage(root, repository) {
   const m = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})$/.exec(repository ?? "");
@@ -219,11 +220,14 @@ export function githubPackage(root, repository) {
   shrinkwrap.packages[""].name = name;
   writeFileSync(path("shrinkwrap"), `${JSON.stringify(shrinkwrap, null, 2)}\n`);
 
-  const dist = join(dirname(path("installer")), "dist");
-  if (existsSync(dist)) {
-    for (const file of readdirSync(dist, { recursive: true }).filter((f) => f.endsWith(".js"))) {
-      const text = readFileSync(join(dist, file), "utf8");
-      writeFileSync(join(dist, file), text.replaceAll("npx create-talorys@", `npx ${name}@`));
+  // Every command the installer, the app and the Worker tell the owner to run.
+  const pkgDir = dirname(path("installer"));
+  for (const dir of ["dist", "templates"]) {
+    if (!existsSync(join(pkgDir, dir))) continue;
+    for (const file of readdirSync(join(pkgDir, dir), { recursive: true }).filter((f) => f.endsWith(".js"))) {
+      const text = readFileSync(join(pkgDir, dir, file), "utf8");
+      const next = text.replace(/npx create-talorys(?=[@ ])/g, `npx ${name}`);
+      if (next !== text) writeFileSync(join(pkgDir, dir, file), next);
     }
   }
   return name;

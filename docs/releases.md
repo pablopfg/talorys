@@ -88,8 +88,9 @@ O repositório é público, então os workflows seguem estas regras:
 
 - **Permissões mínimas:** `permissions: {}` no topo e, em cada job, só o que
   ele usa. Só *Prepare release* (`contents`, `pull-requests` e `actions` de
-  escrita) e *Release* (`contents: write`; e `packages: write` no job que
-  publica o instalador, no ambiente protegido `packages`) escrevem algo, e os
+  escrita) e *Release* (`contents: write`; e `packages: write` só no job que
+  publica o instalador, no ambiente protegido `packages`, que não roda código
+  do projeto) escrevem algo, e os
   dois só rodam na `develop` e na `main`, respectivamente, nunca em código de
   um PR.
 - **Nenhum segredo:** apenas o `GITHUB_TOKEN` temporário de cada execução.
@@ -138,21 +139,26 @@ pacote **privado** no GitHub Packages (gratuito para pacotes privados até
 1,3 MB). Ele serve para a primeira instalação pela linha de comando; depois
 disso, o sistema é atualizado pelo merge na `main` e pelo deploy do GitHub.
 
-**Como é publicado.** O job `package` do workflow **Release** roda só quando
-uma versão nova é lançada (ou quando você o roda à mão em **Actions →
-Release → Run workflow**, na `main`, para publicar a versão atual se ela
-ainda não estiver lá). Ele:
+**Como é publicado.** Depois do job `release`, rodam dois jobs, só quando
+sai uma versão nova (ou à mão em **Actions → Release → Run workflow**, na
+`main`, para publicar a versão atual se ela ainda não estiver lá):
 
-- faz checkout da **tag** `vX.Y.Z`, nunca da ponta da `main`;
-- roda `npm ci` e `npm run test:pack` (monta o instalador e testa o pacote
-  instalado fora do repositório);
-- troca só no runner, sem commit, o nome para `@<dono>/create-talorys`, o
-  registro para `npm.pkg.github.com` e os comandos que o instalador sugere
-  (`npx @pablopfg/create-talorys@latest update`...). O repositório mantém o
-  nome do original, para a sincronização continuar limpa;
-- publica com o `GITHUB_TOKEN` da própria execução (`packages: write`), sem
-  token pessoal, sem rodar scripts do pacote. Versões com sufixo saem com a
-  tag `next`, as outras com `latest`.
+- `package-build`, **sem nenhum token de escrita**:
+  - faz checkout da **tag** `vX.Y.Z` e confere que ela está na `main`;
+  - roda `npm ci` e `npm run test:pack`, que monta o instalador e testa o
+    pacote instalado fora do repositório;
+  - troca, só no runner e sem commit, o nome para `@<dono>/create-talorys`,
+    o registro para `npm.pkg.github.com` e os comandos que o instalador, o
+    app e o Worker sugerem (`npx @pablopfg/create-talorys@latest update`...).
+    O repositório mantém o nome do original, para a sincronização continuar
+    limpa;
+  - empacota, instala e roda o pacote renomeado. A etapa falha se sobrar
+    algum `npx create-talorys` do original.
+- `package`, no ambiente protegido `packages`, com `packages: write`:
+  - não faz checkout nem roda código do projeto;
+  - baixa o pacote já testado e o publica com o `GITHUB_TOKEN` da execução,
+    lido do ambiente e nunca gravado em disco, sem rodar scripts;
+  - versões com sufixo saem com a tag `next`, as outras com `latest`.
 
 **Configuração única:**
 
@@ -169,20 +175,41 @@ ainda não estiver lá). Ele:
 1. Crie um token **clássico** em **Settings → Developer settings → Personal
    access tokens → Tokens (classic)** com **só** o escopo `read:packages` e
    validade curta. Não o salve no repositório nem em arquivos do projeto.
-2. No terminal (Linux, macOS ou Git Bash no Windows):
+2. Uma vez, crie o arquivo de configuração. Ele guarda só a referência
+   `${GH_PACKAGES_TOKEN}`, nunca o token:
 
    ```bash
    printf '%s\n' '@pablopfg:registry=https://npm.pkg.github.com' \
      '//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}' > ~/.npmrc-talorys
-   read -rs GH_PACKAGES_TOKEN && export GH_PACKAGES_TOKEN   # cole o token e tecle Enter
-   NPM_CONFIG_USERCONFIG=~/.npmrc-talorys npx @pablopfg/create-talorys@latest
-   unset GH_PACKAGES_TOKEN
    ```
 
-   O arquivo `~/.npmrc-talorys` guarda só a referência
-   `${GH_PACKAGES_TOKEN}`, nunca o token, e o `read -s` não deixa o token no
-   histórico do terminal. Seu `~/.npmrc` normal não é alterado. Apague o
-   token no GitHub quando não for mais usá-lo.
+3. Baixe o pacote com o token. Rode esta linha sozinha, cole o token (ele
+   não aparece) e tecle Enter:
+
+   ```bash
+   read -rs t
+   ```
+
+   Depois:
+
+   ```bash
+   GH_PACKAGES_TOKEN="$t" NPM_CONFIG_USERCONFIG=~/.npmrc-talorys npm pack @pablopfg/create-talorys@latest
+   unset t
+   ```
+
+4. Rode o instalador a partir do arquivo baixado, já sem o token:
+
+   ```bash
+   npx ./pablopfg-create-talorys-*.tgz
+   ```
+
+   O token só serve para o download: o instalador, o Wrangler e o resto não
+   o recebem. Seu `~/.npmrc` normal não é alterado, e o token não fica no
+   histórico do terminal. Quando o instalador sugerir
+   `npx @pablopfg/create-talorys@latest update` (ou `status`, `doctor`,
+   `reset-password`), repita os passos 3 e 4 com o comando no fim (por
+   exemplo, `npx ./pablopfg-create-talorys-*.tgz update`), apagando antes o
+   `.tgz` antigo. Apague o token no GitHub quando não for mais usá-lo.
 
 O pacote só depende de pacotes públicos do npm (Wrangler e `@clack/prompts`),
 travados pelo `npm-shrinkwrap.json`. O aviso de atualização dentro do app

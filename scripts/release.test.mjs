@@ -206,6 +206,9 @@ describe("GitHub Packages", () => {
       const cli = join(dir, "packages/create-talorys/dist/cli.js");
       mkdirSync(dirname(cli), { recursive: true });
       writeFileSync(cli, "Run `npx create-talorys@latest update`. Run `npx create-talorys@latest doctor`.");
+      const worker = join(dir, "packages/create-talorys/templates/web/dist/assets/app.js");
+      mkdirSync(dirname(worker), { recursive: true });
+      writeFileSync(worker, "Run `npx create-talorys update`; see create-talorys-docs.");
       assert.equal(githubPackage(dir, "PabloX/talorys"), "@pablox/create-talorys");
 
       const pkg = JSON.parse(readFileSync(join(dir, VERSION_FILES.installer), "utf8"));
@@ -219,6 +222,7 @@ describe("GitHub Packages", () => {
       assert.equal(shrinkwrap.packages[""].name, "@pablox/create-talorys");
       assert.equal(shrinkwrap.packages[""].version, before.version);
       assert.equal(readFileSync(cli, "utf8"), "Run `npx @pablox/create-talorys@latest update`. Run `npx @pablox/create-talorys@latest doctor`.");
+      assert.equal(readFileSync(worker, "utf8"), "Run `npx @pablox/create-talorys update`; see create-talorys-docs.");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
