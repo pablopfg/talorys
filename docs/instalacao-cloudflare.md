@@ -897,5 +897,7 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.
 
-Instalação pelo instalador de linha de comando (`npx create-talorys@latest`,
-com Pages) em vez do deploy pelo GitHub: [deployment.md](deployment.md).
+Instalação pelo instalador de linha de comando (`npx @pablopfg/create-talorys@latest`,
+com Pages, pacote privado no GitHub Packages) em vez do deploy pelo GitHub:
+[deployment.md](deployment.md) e
+[releases.md](releases.md#instalador-no-github-packages).
