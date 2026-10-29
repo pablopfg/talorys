@@ -6,7 +6,7 @@ import { Button } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 
-export function LoginPage({ configured }: { configured: boolean }) {
+export function LoginPage({ configured, ended }: { configured: boolean; ended?: "idle" | "ended" }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
   const [password, setPassword] = useState("");
@@ -16,6 +16,8 @@ export function LoginPage({ configured }: { configured: boolean }) {
   const [now, setNow] = useState(Date.now());
   const [pending, setPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Kept from the moment the lock screen appeared, so a later session refresh doesn't erase it.
+  const [endedReason] = useState(ended);
 
   useEffect(() => {
     if (!retryAt) return;
@@ -63,6 +65,11 @@ export function LoginPage({ configured }: { configured: boolean }) {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3" noValidate>
+            {endedReason && !error && (
+              <p role="status" className="rounded-lg border border-border bg-surface p-3 text-center text-sm leading-6 text-fg-muted">
+                {endedReason === "idle" ? t("login.endedIdle") : t("login.ended")}
+              </p>
+            )}
             <label htmlFor="password" className="sr-only">
               {t("login.password")}
             </label>

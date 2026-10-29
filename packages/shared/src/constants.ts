@@ -56,6 +56,26 @@ export const DEFAULT_MEMORY_HISTORY = {
   aiConflictCheck: false,
 } as const;
 
+/**
+ * How long a browser session lasts (D9): ended after this much time without the owner using it,
+ * without any open tab answering, or after this long in total, whichever comes first.
+ */
+export const DEFAULT_SESSION_TIMEOUTS = {
+  idleMinutes: 15,
+  presenceMinutes: 5,
+  maxHours: 12,
+} as const;
+
+/** The range the server enforces for each session timeout. */
+export const SESSION_TIMEOUT_RANGES = {
+  idleMinutes: [5, 60],
+  presenceMinutes: [3, 15],
+  maxHours: [1, 24],
+} as const;
+
+/** Header the app sends only on requests the owner's own input started; only those count as use. */
+export const ACTIVITY_HEADER = "x-talorys-activity";
+
 /** Hard ceilings the owner cannot exceed through settings. */
 export const LIMIT_CEILINGS = {
   maxOutputTokens: 4096,

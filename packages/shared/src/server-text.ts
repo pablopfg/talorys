@@ -39,6 +39,9 @@ const PT_BR: Catalog = {
   "Current password is incorrect.": "A senha atual está incorreta.",
   "Too many failed attempts. Please wait before trying again.": "Muitas tentativas sem sucesso. Aguarde antes de tentar novamente.",
   "Many failed sign-ins": "Muitas tentativas de login falharam",
+  "Signed out: no use": "Sessão encerrada: sem uso",
+  "Signed out: no open tab": "Sessão encerrada: nenhuma aba aberta",
+  "Signed out: maximum session length": "Sessão encerrada: duração máxima atingida",
   "Many sign-in attempts with a wrong password came from different networks in the last 15 minutes. Until they stop, each unknown network gets one attempt every 15 minutes; your recent networks are not affected. If this wasn't you, consider putting Cloudflare Access in front of Talorys.":
     "Muitas tentativas de login com senha errada vieram de redes diferentes nos últimos 15 minutos. Enquanto elas continuarem, cada rede desconhecida tem uma tentativa a cada 15 minutos; as suas redes recentes não são afetadas. Se não foi você, considere colocar o Cloudflare Access na frente do Talorys.",
   "Sign in through Cloudflare Access to continue.": "Entre pelo Cloudflare Access para continuar.",

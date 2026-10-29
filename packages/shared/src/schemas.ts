@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
+import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
 
@@ -331,6 +331,14 @@ export const memoryHistorySettingsSchema = z.object({
 });
 export type MemoryHistorySettings = z.infer<typeof memoryHistorySettingsSchema>;
 
+const timeoutIn = ([min, max]: readonly [number, number]) => z.number().int().min(min).max(max);
+export const sessionTimeoutsSchema = z.object({
+  idleMinutes: timeoutIn(SESSION_TIMEOUT_RANGES.idleMinutes),
+  presenceMinutes: timeoutIn(SESSION_TIMEOUT_RANGES.presenceMinutes),
+  maxHours: timeoutIn(SESSION_TIMEOUT_RANGES.maxHours),
+});
+export type SessionTimeouts = z.infer<typeof sessionTimeoutsSchema>;
+
 /** UI language. "system" follows the browser and falls back to DEFAULT_LANGUAGE. */
 export const languagePreferenceSchema = z.enum(["system", ...LANGUAGES]);
 
@@ -352,19 +360,22 @@ export const settingsSchema = z.object({
   memoryHistory: memoryHistorySettingsSchema,
   /** Check the npm registry once a day for a newer Talorys release. */
   updateCheck: z.boolean(),
+  session: sessionTimeoutsSchema,
 });
 export type Settings = z.infer<typeof settingsSchema>;
 export const settingsUpdateSchema = settingsSchema
-  .omit({ limits: true, memoryHistory: true })
+  .omit({ limits: true, memoryHistory: true, session: true })
   .partial()
   .extend({
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
+    session: sessionTimeoutsSchema.partial().optional(),
   });
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
+export const heartbeatSchema = z.object({ active: z.boolean() });
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1).max(256),
   new_password: z.string().min(1).max(256),

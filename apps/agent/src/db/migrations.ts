@@ -418,6 +418,14 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     version: 15,
+    name: "session presence",
+    statements: [
+      // When an open tab last answered (heartbeat or any request); last_seen_at stays the owner's last use.
+      `ALTER TABLE tal_sessions ADD COLUMN last_presence_at TEXT`,
+    ],
+  },
+  {
+    version: 16,
     name: "chat voice input",
     statements: [
       // Audio seconds transcribed per day, capped by TRANSCRIPTION_LIMITS.maxSecondsPerDay.

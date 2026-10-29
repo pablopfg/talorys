@@ -42,7 +42,7 @@ export function App() {
       </FullScreen>
     );
   }
-  if (!session.authenticated) return <LoginPage configured={session.configured} />;
+  if (!session.authenticated) return <LoginPage configured={session.configured} ended={session.ended} />;
 
   return (
     <>

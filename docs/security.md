@@ -19,8 +19,22 @@ Talorys is single-user. The threat model assumes the internet can reach your
   Worker refuses plain HTTP and always issues this cookie, never the
   unprefixed one used by local development. The database stores only
   `HMAC(SESSION_SECRET, token)`; a storage leak cannot be replayed.
-- Sessions expire after 30 days, or 14 days of inactivity. Logout and
-  "sign out other sessions" revoke server-side. At most 20 sessions are kept.
+- A session ends on the server, whichever comes first, after:
+  - **15 minutes without use** (a click, a key, the mouse wheel: only requests the
+    owner started count, marked with the `x-talorys-activity` header, never
+    background polling);
+  - **5 minutes with no open tab** (one tab per browser sends a presence
+    signal to `POST /api/auth/heartbeat` once a minute);
+  - **12 hours** in total, used or not.
+  The owner can change these in Settings → Security (5–60 minutes, 3–15
+  minutes, 1–24 hours); making any of them longer asks for the password
+  again. The browser warns 2 minutes before the end, signs every tab out at
+  once, and the session cookie has no expiry date, so it goes when the
+  browser closes. Logout and "sign out other sessions" revoke server-side,
+  logout also sends `Clear-Site-Data: "cache"` (not `"cookies"`, which would
+  also clear the cookies of every other site on your domain, Cloudflare
+  Access's included), and each end is
+  recorded in the activity log. At most 20 sessions are kept.
 - Signing in ends the session the browser already had, so a cookie planted
   before sign-in cannot ride along.
 - Changing the password in the UI ends every session and access token,

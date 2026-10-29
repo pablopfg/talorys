@@ -426,6 +426,7 @@ describe("migration from the previous schema", () => {
       for (const col of ["target_version", "payload", "preview", "result"]) db.run(`ALTER TABLE tal_pending_actions DROP COLUMN ${col}`);
       for (const table of ["tal_remote_tokens", "tal_remote_auth_failures", "tal_remote_auth_failure_days", "tal_remote_write_days", "tal_task_plan_drafts", "tal_mcp_tools", "tal_mcp_servers"]) db.run(`DROP TABLE ${table}`);
       db.run(`ALTER TABLE tal_sessions DROP COLUMN confirmed_at`);
+      db.run(`ALTER TABLE tal_sessions DROP COLUMN last_presence_at`);
       db.run(`ALTER TABLE tal_usage_daily DROP COLUMN transcription_seconds`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
