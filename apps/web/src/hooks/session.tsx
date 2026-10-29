@@ -30,6 +30,8 @@ interface SessionState {
   password_change_required?: boolean;
   /** Turnstile is on: its site key, and whether this network must solve it to sign in now. */
   human_check?: HumanCheck;
+  /** "Forgot password" can e-mail a link (e-mail and the app's address are set up). */
+  recovery?: boolean;
 }
 
 /** idle: no use (or the owner chose to leave from the warning); ended: the server ended it; manual: Sign out. */

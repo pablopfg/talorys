@@ -6,8 +6,9 @@
  * with siteverify before anything else. A token works once, for about five minutes.
  */
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-/** The widget's action: a token made for another form (or another site's widget) is refused. */
+/** The widget's action on each form: a token made for another form (or another site's widget) is refused. */
 export const TURNSTILE_ACTION = "login";
+export const TURNSTILE_RECOVERY_ACTION = "recovery";
 /** Longest token Cloudflare issues. */
 export const TURNSTILE_TOKEN_MAX = 2048;
 const VERIFY_TIMEOUT_MS = 5000;
@@ -18,7 +19,7 @@ export type HumanCheckResult = "ok" | "failed" | "unavailable";
 export interface HumanCheck {
   /** Public key the widget is drawn with. */
   siteKey: string;
-  verify(token: string | undefined, remoteIp: string | undefined): Promise<HumanCheckResult>;
+  verify(token: string | undefined, remoteIp: string | undefined, action?: string): Promise<HumanCheckResult>;
 }
 
 /** Site keys and secrets are short base64url-like strings; anything else is a configuration slip. */
@@ -44,7 +45,7 @@ export function turnstile(
   const hosts = allowedHosts.map((h) => h.toLowerCase());
   return {
     siteKey: site,
-    async verify(token, remoteIp) {
+    async verify(token, remoteIp, action = TURNSTILE_ACTION) {
       if (!token || token.length > TURNSTILE_TOKEN_MAX) return "failed";
       const form = new FormData();
       form.set("secret", key);
@@ -64,7 +65,7 @@ export function turnstile(
         const codes = Array.isArray(outcome["error-codes"]) ? outcome["error-codes"] : [];
         return codes.includes("internal-error") ? "unavailable" : "failed";
       }
-      if (outcome.action !== TURNSTILE_ACTION) return "failed";
+      if (outcome.action !== action) return "failed";
       if (hosts.length > 0 && !(typeof outcome.hostname === "string" && hosts.includes(outcome.hostname.toLowerCase()))) return "failed";
       return "ok";
     },

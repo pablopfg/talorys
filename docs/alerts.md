@@ -499,6 +499,9 @@ sem chave de API.
 - O assunto é `Talorys: <título>`, no idioma do app, sem quebras de linha.
 - Só texto simples, sem HTML, sem links rastreados e sem anexos. O link no fim é o
   endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe.
+- O e-mail também traz o link de **Esqueceu a senha?** da tela de login (no máximo 3 por
+  dia, contados como alertas de segurança no limite acima). Veja
+  [security.md](security.md#password-recovery-by-e-mail).
 - Em **Configurações → Avisos → E-mail** aparece o destino mascarado (`d•••@exemplo.com.br`),
   quantos e-mails saíram hoje e o botão **Enviar e-mail de teste**.
 
