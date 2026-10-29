@@ -4,6 +4,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ## Não lançado
 
+## 1.1.0 — 2026-10-29
+
 ### Adicionado
 
 - **Modelos da Anthropic e da OpenAI, com modelo principal e fallback.** ⚠️ **Gera cobrança** na sua conta da Anthropic ou da OpenAI. Em **Configurações → IA → Modelo**, escolha o modelo principal do chat (Workers AI, Anthropic ou OpenAI) e um fallback, que responde quando o principal falha antes de responder: fora do ar, ocupado, sem crédito, chave recusada ou teto do dia atingido. Depois que o principal começa a responder, não há troca, para nunca responder nem rodar uma ferramenta duas vezes. Só modelos com preço conhecido podem ser escolhidos (Claude Opus, Sonnet e Haiku 5.5; GPT-6.1 Sol, GPT-6 Sol, Luna e Astra), e um teto novo, **IA paga por dia (US$)** (padrão US$ 2, máximo US$ 50), é conferido antes de cada chamada e de cada passo. As chaves ficam só como segredos do Worker (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), nunca no app, nos backups ou nos logs; chamadas pagas não são repetidas automaticamente. Ligar um modelo pago, trocá-lo ou aumentar o teto pede a senha recente, e essas escolhas não vêm na importação de backup. O padrão continua sendo o Workers AI, sem custo extra. Veja [docs/modelos-de-ia.md](docs/modelos-de-ia.md).
