@@ -5,6 +5,13 @@ import { broadcast, type LocalDeadlines, onSessionMessage, type SessionDeadlines
 import { applyTheme } from "../lib/theme";
 import { applyLanguage, type LanguagePreference } from "../lib/i18n";
 
+/** Cloudflare Turnstile on the sign-in form. */
+export interface HumanCheck {
+  site_key: string;
+  /** This network must solve it before its password is tried. */
+  required: boolean;
+}
+
 interface SessionState {
   authenticated: boolean;
   configured: boolean;
@@ -21,6 +28,8 @@ interface SessionState {
   email_required?: boolean;
   /** The password fails the current rules: the app shows only the change-password screen. */
   password_change_required?: boolean;
+  /** Turnstile is on: its site key, and whether this network must solve it to sign in now. */
+  human_check?: HumanCheck;
 }
 
 /** idle: no use (or the owner chose to leave from the warning); ended: the server ended it; manual: Sign out. */

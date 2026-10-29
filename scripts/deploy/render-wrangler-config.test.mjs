@@ -90,6 +90,15 @@ describe("renderConfig", () => {
     }
   });
 
+  it("passes the Turnstile site key on as a plain variable, and refuses a malformed one", () => {
+    const ok = { TALORYS_WORKER_NAME: "talorys" };
+    assert.equal(renderConfig(base(), { ...ok, TALORYS_TURNSTILE_SITE_KEY: " 0x4AAAAAAAexemplo_123 " }).vars.TURNSTILE_SITE_KEY, "0x4AAAAAAAexemplo_123");
+    assert.equal(renderConfig(base(), ok).vars?.TURNSTILE_SITE_KEY, undefined);
+    for (const bad of ["short", "0x4AAA AAAA exemplo", "0x4AAAAAAA<script>"]) {
+      assert.throws(() => renderConfig(base(), { ...ok, TALORYS_TURNSTILE_SITE_KEY: bad }), ConfigError, bad);
+    }
+  });
+
   it("adds the e-mail binding, limited to the sender, only when a sender is set", () => {
     const ok = { TALORYS_WORKER_NAME: "talorys" };
     const config = renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: " Talorys@Exemplo.com.br " });

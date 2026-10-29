@@ -82,7 +82,9 @@ to add the keys. To connect MCP servers that need a token, also set
 alerts on Telegram, set `TELEGRAM_BOT_TOKEN` (see [Alerts](alerts.md#configurar-o-telegram)).
 For alerts by e-mail through Cloudflare Email Routing (free to your verified address),
 add the `send_email` binding, the `ALERT_EMAIL_FROM` variable and the `ALERT_EMAIL_TO`
-secret (see [Alerts](alerts.md#configurar-o-e-mail)).
+secret (see [Alerts](alerts.md#configurar-o-e-mail)). To ask risky sign-ins for
+Cloudflare Turnstile (free), set the `TURNSTILE_SITE_KEY` variable and the
+`TURNSTILE_SECRET_KEY` secret (see [Security](security.md#robot-check-turnstile)).
 
 `OWNER_PASSWORD` is the plain password, for deploys that cannot hash it
 beforehand. It must pass the installer's strength check (10+ characters, mixed

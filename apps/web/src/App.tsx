@@ -43,7 +43,7 @@ export function App() {
       </FullScreen>
     );
   }
-  if (!session.authenticated) return <LoginPage configured={session.configured} ended={session.ended} emailRequired={session.email_required} />;
+  if (!session.authenticated) return <LoginPage configured={session.configured} ended={session.ended} emailRequired={session.email_required} humanCheck={session.human_check} />;
   if (session.password_change_required) {
     // The server refuses everything else until the password meets the current rules.
     return (

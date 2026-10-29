@@ -129,6 +129,7 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
 | `TALORYS_VAPID_SUBJECT` | não | `mailto:voce@exemplo.com.br` | Contato que os serviços de push (Google, Apple, Mozilla) podem usar. Sem ela, vai o endereço do app. Não crie também um segredo `VAPID_SUBJECT` no Worker. |
 | `TALORYS_ALERT_EMAIL_FROM` | não | `talorys@exemplo.com.br` | Remetente dos avisos por e-mail, num domínio com o Cloudflare Email Routing ligado. Com ela, o deploy acrescenta o binding `send_email` (só esse remetente) e a variável `ALERT_EMAIL_FROM`. Veja [alerts.md](alerts.md#configurar-o-e-mail). |
+| `TALORYS_TURNSTILE_SITE_KEY` | não | `0x4AAAAAAA...` | *Site Key* do widget do Turnstile (passo 7). O Talorys só pede a verificação contra robôs quando um login parece arriscado, e só depois que o segredo `TURNSTILE_SECRET_KEY` também existir. |
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
@@ -189,6 +190,7 @@ de novo.
 | `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
 | `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
 | `TELEGRAM_BOT_TOKEN` | não | Token do bot do Telegram (criado no @BotFather) para receber avisos no Telegram. Veja [alerts.md](alerts.md#configurar-o-telegram). |
+| `TURNSTILE_SECRET_KEY` | não | *Secret Key* do widget do Turnstile, para a verificação contra robôs nos logins arriscados (passo 7). |
 | `ALERT_EMAIL_TO` | não | O seu e-mail, verificado no Email Routing, para receber os avisos por e-mail (sem ele, vale o `OWNER_EMAIL`). Veja [alerts.md](alerts.md#configurar-o-e-mail). |
 
 5. Volte ao GitHub → **Actions** → a execução que falhou → **Re-run failed
@@ -215,6 +217,7 @@ npx wrangler secret put VAPID_PUBLIC_KEY --name talorys   # opcional (push)
 npx wrangler secret put VAPID_PRIVATE_KEY --name talorys  # opcional (push)
 npx wrangler secret put TELEGRAM_BOT_TOKEN --name talorys # opcional (Telegram)
 npx wrangler secret put ALERT_EMAIL_TO --name talorys     # opcional (e-mail)
+npx wrangler secret put TURNSTILE_SECRET_KEY --name talorys # opcional (Turnstile)
 ```
 
 Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores
@@ -262,6 +265,33 @@ acrescente à primeira aplicação uma política *Service Auth* que inclua esse
 token, e mande os cabeçalhos `CF-Access-Client-Id` e `CF-Access-Client-Secret`
 junto com o Bearer.
 
+### 7. (Recomendado) Verificação contra robôs (Turnstile)
+
+O Turnstile é a verificação "não sou um robô" da Cloudflare, gratuita e sem
+quebra-cabeça na maior parte das vezes. O Talorys só a mostra quando um login
+parece arriscado: a rede errou a senha nos últimos 15 minutos, ou há muitas
+falhas vindas de várias redes ao mesmo tempo e a rede não é uma das suas. No
+uso normal, o login continua só com a senha. Detalhes em
+[security.md](security.md#robot-check-turnstile).
+
+1. Painel da Cloudflare → **Turnstile** → **Add widget**:
+   - **Widget name:** `Talorys`.
+   - **Hostname:** o seu `TALORYS_CUSTOM_DOMAIN` (ou o endereço
+     `*.workers.dev`, sem `https://`).
+   - **Widget Mode:** *Managed*.
+2. Ao criar, a Cloudflare mostra a **Site Key** e a **Secret Key**.
+3. No ambiente `production` do GitHub, crie a variável
+   `TALORYS_TURNSTILE_SITE_KEY` com a **Site Key** (ela é pública).
+4. No Worker (passo 5), crie o segredo `TURNSTILE_SECRET_KEY` com a
+   **Secret Key**. Ela nunca entra no GitHub.
+5. Rode o Deploy (Actions → **Deploy** → *Run workflow*).
+6. Para conferir: numa janela anônima, erre a senha uma vez. Na tentativa
+   seguinte, a verificação aparece acima do botão de entrar.
+
+Para desligar, apague a variável e o segredo e rode o Deploy. Se a Cloudflare
+não responder à verificação, o login arriscado é recusado com "tente de novo em
+instantes" (os logins sem risco não dependem dela).
+
 ### Conferência final
 
 - [ ] O endereço abre só em `https://` (digitar `http://` redireciona).
@@ -270,6 +300,7 @@ junto com o Bearer.
 - [ ] A aba **Deployments** do repositório mostra o ambiente `production` verde.
 - [ ] Nenhum segredo aparece em Settings → Secrets → Actions → *Repository secrets*.
 - [ ] Com o Access: uma janela anônima pede o e-mail antes de mostrar o Talorys.
+- [ ] Com o Turnstile: depois de uma senha errada, o login pede a verificação.
 
 ## Rotina
 

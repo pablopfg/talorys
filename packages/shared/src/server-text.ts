@@ -38,6 +38,9 @@ const PT_BR: Catalog = {
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
   "Incorrect code.": "Código incorreto.",
+  "Confirm that you are not a robot, then sign in.": "Confirme que você não é um robô e entre de novo.",
+  "The robot check failed. Please do it again.": "A verificação contra robôs falhou. Faça-a de novo.",
+  "The robot check could not be confirmed right now. Please try again shortly.": "Não foi possível confirmar a verificação contra robôs agora. Tente de novo em instantes.",
   "This sign-in has expired. Enter your password again.": "Este login expirou. Digite sua senha de novo.",
   "Too many wrong codes. Enter your password again.": "Códigos errados demais. Digite sua senha de novo.",
   "Send the password or a code.": "Envie a senha ou um código.",
