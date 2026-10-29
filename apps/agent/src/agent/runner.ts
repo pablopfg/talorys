@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatStreamEvent, PendingAction, TaskPlanDraft, ToolActivity } from "@talorys/shared";
+import { type ChatMessage, type ChatStreamEvent, MCP_TOOL_PREFIX, type PendingAction, type TaskPlanDraft, type ToolActivity } from "@talorys/shared";
 import type { Services } from "../services/container";
 import { type AIProvider, classifyAiError, estimateTokens, type ProviderTool, usageOfFailure } from "../ai/provider";
 import { AppError, NotFoundError } from "../api/errors";
@@ -219,6 +219,7 @@ export class AgentRunner {
         [...(this.ext?.tools ?? ALL_TOOLS), ...this.mcpTools],
         { services: s, timezone: settings.timezone, mode: "chat", conversationId: conversation.id, signal: input.signal },
         { maxToolCalls: limits.maxToolCalls },
+        { externalSources: this.earlierExternalSources(history) },
       );
       const providerTools = toProviderTools(executor);
       const turnTools = executor;
@@ -290,6 +291,22 @@ export class AgentRunner {
       yield { type: "error", code: appError.code, message: appError.message };
       yield { type: "done", message: finish("error", appError.message) };
     }
+  }
+
+  /**
+   * MCP servers whose results this conversation already holds: an approved call's result or an
+   * unattended call's output the reply may have quoted. A later turn treats them as already read,
+   * so a hidden instruction can't wait a turn to send data to another server. A tool that is gone
+   * now (renamed, disabled, server removed) counts as an unknown server.
+   */
+  private earlierExternalSources(history: ChatMessage[]): string[] {
+    const sources = new Set<string>();
+    for (const t of history.flatMap((m) => m.tools)) {
+      const ran = t.approval ? t.approval.result !== null && t.approval.result !== undefined : t.status === "success";
+      if (!ran || !t.name.startsWith(MCP_TOOL_PREFIX)) continue;
+      sources.add(this.mcpTools.find((tool) => tool.name === t.name)?.external?.serverId ?? "unknown-earlier-server");
+    }
+    return [...sources];
   }
 
   /** Runs an AI automation prompt with read-only tools (and MCP tools allowed there). Returns the reply text. */

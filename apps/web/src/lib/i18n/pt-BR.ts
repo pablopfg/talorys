@@ -611,7 +611,7 @@ export const ptBR = {
   "mcp.statusDisconnected": "Desconectado",
   "mcp.statusOff": "Desligado",
   "mcp.statusError": "Erro",
-  "mcp.autoWarning": "Executa sem perguntar. Escolha isto só para ferramentas que apenas leem dados: o Talorys não consegue verificar o que uma ferramenta realmente faz, então isto confia no servidor.",
+  "mcp.autoWarning": "Executa sem perguntar. Escolha isto só para ferramentas que apenas leem dados: o Talorys não consegue verificar o que uma ferramenta realmente faz, então isto confia no servidor. Ligar pede a sua senha. Mesmo assim, a chamada pede aprovação quando já entrou na conversa conteúdo de outro servidor ou quando os argumentos são longos demais.",
   "mcp.authNone": "Sem autenticação",
   "mcp.authBearer": "Token Bearer",
   "mcp.authOauth": "Entra com OAuth",

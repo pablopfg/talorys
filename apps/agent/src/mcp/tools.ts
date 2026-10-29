@@ -1,6 +1,6 @@
 import type { CallToolResult, Tool } from "@modelcontextprotocol/client";
 import { z } from "zod";
-import type { ToolDefinition } from "../tools/registry";
+import type { DestructiveTool, ToolDefinition } from "../tools/registry";
 import { clip } from "../services/text";
 import type { CatalogEntry, StoredServer, StoredTool } from "./repository";
 
@@ -136,13 +136,17 @@ export function modelResult(server: StoredServer, tool: StoredTool, result: Call
 const host = (server: StoredServer) => new URL(server.url).host;
 const displayName = (tool: StoredTool) => tool.title || tool.name;
 
-/** What the approval card shows, and what decides whether an approval still applies. */
-export function permissionSnapshot(server: StoredServer | null, tool: StoredTool | null) {
+/**
+ * What the approval card shows, and what decides whether an approval still applies. `policy` is the
+ * tool's setting when the call was proposed: "auto" for a call that normally runs without asking
+ * but needed the owner this time. Changing the setting in between voids the approval.
+ */
+export function permissionSnapshot(server: StoredServer | null, tool: StoredTool | null, policy: "approve" | "auto" = "approve") {
   if (!server || !tool || server.enabled !== 1 || server.status !== "connected" || tool.enabled !== 1 || tool.status !== "available") return null;
-  if (tool.reviewed_hash !== tool.schema_hash || tool.policy !== "approve") return null;
+  if (tool.reviewed_hash !== tool.schema_hash || tool.policy !== policy) return null;
   // OAuth tokens refresh on their own, so only a static bearer token's change voids an approval.
   const credential = server.auth_type === "bearer" ? server.credential : null;
-  return { server: server.id, url: server.url, auth: server.auth_type, credential, tool: tool.name, schema: tool.schema_hash };
+  return { server: server.id, url: server.url, auth: server.auth_type, credential, tool: tool.name, schema: tool.schema_hash, policy };
 }
 
 export interface McpCallOptions {
@@ -155,7 +159,7 @@ export interface McpCallOptions {
 export interface McpToolRuntime {
   /** Runs a call after re-checking that the tool is still enabled. */
   call(serverId: string, toolName: string, args: Record<string, unknown>, opts: McpCallOptions): Promise<{ server: StoredServer; tool: StoredTool; result: CallToolResult }>;
-  snapshot(targetId: string): unknown;
+  snapshot(targetId: string, policy?: "approve" | "auto"): unknown;
 }
 
 /**
@@ -173,6 +177,24 @@ export function toToolDefinition(server: StoredServer, tool: StoredTool, input: 
     external: { serverId: server.id, scheduled: tool.policy === "auto" && tool.scheduled === 1 },
     label: () => `${displayName(tool)} · ${server.name}`,
   };
+  const approval = (policy: "approve" | "auto"): DestructiveTool => ({
+    ...base,
+    permission: "destructive",
+    prepare: (args: unknown) => ({
+      targetId: `${server.id}/${tool.name}`,
+      summary: `Run “${displayName(tool)}” on ${where}`,
+      payload: args,
+      preview: JSON.stringify(args, null, 2),
+    }),
+    snapshot: (targetId) => runtime.snapshot(targetId, policy),
+    commit: async (targetId, _ctx, payload) => {
+      const [serverId, ...rest] = targetId.split("/");
+      // Never retried: an external write may have happened even when the reply was lost.
+      const call = await runtime.call(serverId!, rest.join("/"), payload as Record<string, unknown>, { retry: false });
+      const { text } = resultText(call.result, TOOL_LIMITS.maxStoredResultChars);
+      return { external_result: `${call.result.isError ? "[The server reported an error] " : ""}${text || "(empty result)"}` };
+    },
+  });
   if (tool.policy === "auto") {
     return {
       ...base,
@@ -182,24 +204,9 @@ export function toToolDefinition(server: StoredServer, tool: StoredTool, input: 
         const call = await runtime.call(server.id, tool.name, args as Record<string, unknown>, { retry: true, unattended, ...(ctx.signal ? { signal: ctx.signal } : {}) });
         return modelResult(call.server, call.tool, call.result);
       },
+      // When the turn makes an unattended call risky, the executor proposes it instead.
+      escalate: approval("auto"),
     };
   }
-  return {
-    ...base,
-    permission: "destructive",
-    prepare: (args: unknown) => ({
-      targetId: `${server.id}/${tool.name}`,
-      summary: `Run “${displayName(tool)}” on ${where}`,
-      payload: args,
-      preview: JSON.stringify(args, null, 2),
-    }),
-    snapshot: (targetId) => runtime.snapshot(targetId),
-    commit: async (targetId, _ctx, payload) => {
-      const [serverId, ...rest] = targetId.split("/");
-      // Never retried: an external write may have happened even when the reply was lost.
-      const call = await runtime.call(serverId!, rest.join("/"), payload as Record<string, unknown>, { retry: false });
-      const { text } = resultText(call.result, TOOL_LIMITS.maxStoredResultChars);
-      return { external_result: `${call.result.isError ? "[The server reported an error] " : ""}${text || "(empty result)"}` };
-    },
-  };
+  return approval("approve");
 }

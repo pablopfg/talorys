@@ -52,6 +52,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Segurança
 
+- **MCP mais fechado.** Com `TALORYS_MCP_ALLOWED_ORIGINS`, o Talorys só se conecta aos servidores da lista, como o seu n8n. Os que já estavam adicionados também param se saírem da lista. Ligar o "Executar sem perguntar" agora pede a senha. Mesmo ligado, a chamada vira um cartão de aprovação quando a conversa já trouxe o resultado de outro servidor MCP (neste turno ou em um anterior), quando os argumentos passam de 1.000 caracteres ou quando as chamadas do turno já enviaram 4.000 caracteres juntas. Religar uma ferramenta assim depois que o servidor mudou a definição também pede a senha. Com a lista, o servidor de login (OAuth) também precisa estar nela. Nas automações agendadas, onde ninguém pode aprovar, essa chamada é recusada. Veja [docs/mcp.md](docs/mcp.md).
+
 Auditoria de segurança completa de 29/10 (skill de auditoria e skills oficiais da Cloudflare). Nenhum achado crítico, alto ou médio; os sete de severidade baixa foram corrigidos:
 
 - **Links de golpe nos avisos fora do app.** O Telegram e os clientes de e-mail transformam em link qualquer endereço, mesmo entre crases. Agora todo título e texto de aviso enviado por Telegram ou e-mail chega com `hxxps://`, `tg[:]`, `www[.]` e `sub[.]exemplo[.]com` (todos os pontos do endereço); só o botão **Abrir o Talorys** e o link do rodapé do e-mail continuam clicáveis. Antes, lembretes, resumos de tarefas e respostas de rotinas de IA podiam levar um link clicável (a mensagem de um resumo de tarefas nem passava pelo filtro).

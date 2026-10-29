@@ -44,9 +44,22 @@ interface BaseTool<S extends z.ZodType> {
   external?: { serverId: string; scheduled?: boolean };
 }
 
+/**
+ * Most arguments a call that runs without asking may send (as JSON). Longer ones need the owner:
+ * a search query is short, and a hidden instruction trying to send your data out is not.
+ */
+export const MAX_UNATTENDED_ARGS_CHARS = 1_000;
+/** The most argument text all of a turn's unattended MCP calls may send together. */
+export const MAX_UNATTENDED_TURN_CHARS = 4_000;
+
 export interface ImmediateTool<S extends z.ZodType = z.ZodType, R = unknown> extends BaseTool<S> {
   permission: "read" | "write";
   execute: (input: z.infer<S>, ctx: ToolContext) => R | Promise<R>;
+  /**
+   * External tools that run without asking: the same call as an approval, used when this turn
+   * makes it risky (see ToolExecutor.approvalReason). Approving runs it exactly as proposed.
+   */
+  escalate?: DestructiveTool<S>;
 }
 
 /**
@@ -97,12 +110,20 @@ export class ToolExecutor {
   private readonly approvals = new Map<string, PendingAction>();
   /** Task plan drafts proposed this turn, by provider tool-call id. */
   private readonly plans = new Map<string, string>();
+  /** MCP servers whose results entered this turn: third-party text the model has now read. */
+  private readonly externalSources: Set<string>;
+  /** Characters MCP calls sent without asking this turn: many short calls can carry data out too. */
+  private unattendedChars = 0;
 
   constructor(
     private readonly tools: ToolDefinition[],
     private readonly ctx: ToolContext,
     private readonly limits: ExecutorLimits,
-  ) {}
+    /** MCP servers whose results earlier turns of the conversation already brought in. */
+    options: { externalSources?: Iterable<string> } = {},
+  ) {
+    this.externalSources = new Set(options.externalSources ?? []);
+  }
 
   get callCount(): number {
     return this.calls;
@@ -165,6 +186,13 @@ export class ToolExecutor {
     this.perTool.set(name, used + 1);
     this.signatures.set(signature, repeats + 1);
     if (tool.permission !== "destructive") {
+      const reason = tool.external && tool.escalate ? this.approvalReason(tool.external.serverId, parsed.data) : null;
+      if (reason) {
+        if (this.ctx.mode !== "chat" || !this.ctx.conversationId) {
+          throw new ToolError(`This call needs the owner's approval (${reason}), and scheduled automations can't ask for it. Don't call it again in this run.`);
+        }
+        return this.propose(tool.escalate!, parsed.data, callId, reason);
+      }
       let result: unknown;
       try {
         result = await tool.execute(parsed.data, this.ctx);
@@ -173,14 +201,37 @@ export class ToolExecutor {
         if (error instanceof ToolError) this.perTool.set(name, used);
         throw error;
       }
+      if (tool.external) {
+        this.externalSources.add(tool.external.serverId);
+        this.unattendedChars += stableStringify(parsed.data).length;
+      }
       if (callId && result && typeof result === "object" && "plan_id" in result && typeof result.plan_id === "string") {
         this.plans.set(callId, result.plan_id);
       }
       return result;
     }
+    return this.propose(tool, parsed.data, callId);
+  }
 
+  /**
+   * Why a call to an MCP tool that normally runs without asking needs the owner this time (MCP
+   * hardening, section 20.3 of the plan), or null. Once one server's result is in the turn, a
+   * hidden instruction in it could have the model send your data to another server; and an
+   * unusually long argument is how data would leave.
+   */
+  private approvalReason(serverId: string, args: unknown): string | null {
+    if ([...this.externalSources].some((source) => source !== serverId)) return "another server's content entered this conversation turn";
+    const size = stableStringify(args).length;
+    if (size > MAX_UNATTENDED_ARGS_CHARS) return "its arguments are longer than calls that run without asking may send";
+    if (this.unattendedChars + size > MAX_UNATTENDED_TURN_CHARS) return "calls that ran without asking already sent a lot of text this turn";
+    return null;
+  }
+
+  /** Records a proposal the owner approves or cancels in the app. Nothing runs now. */
+  private async propose(tool: DestructiveTool, input: unknown, callId: string | undefined, reason?: string) {
+    const name = tool.name;
     if (!this.ctx.conversationId) throw new ToolError(`"${name}" needs the owner's approval and can only be used in chat.`);
-    const prepared = await tool.prepare(parsed.data, this.ctx);
+    const prepared = await tool.prepare(input, this.ctx);
     const action = this.ctx.services.pendingActions.create({
       conversation_id: this.ctx.conversationId,
       tool: tool.name,
@@ -194,6 +245,7 @@ export class ToolExecutor {
     return {
       status: "awaiting_owner_approval",
       action: prepared.summary,
+      ...(reason ? { why_approval: `This tool usually runs without asking, but this call needs the owner: ${reason}.` } : {}),
       note: "Nothing has changed yet. The owner now sees an Approve button for exactly this action. Briefly tell them what you proposed. Do not call this tool again for the same item and do not claim it is done.",
     };
   }
@@ -223,8 +275,10 @@ export async function runApprovedAction(tools: ToolDefinition[], ctx: ToolContex
   const pending = ctx.services.pendingActions;
   const stored = pending.get(actionId);
   if (!stored) throw new NotFoundError("This action no longer exists.");
-  const tool = tools.find((t) => t.name === stored.tool);
-  if (tool?.permission !== "destructive") throw new NotFoundError("This action no longer exists.");
+  const found = tools.find((t) => t.name === stored.tool);
+  // A call that normally runs without asking was proposed through its approval version.
+  const tool = found?.permission === "destructive" ? found : found?.escalate;
+  if (!tool) throw new NotFoundError("This action no longer exists.");
   if (!pending.resolve(actionId, "approved")) {
     const status = pending.view(actionId)?.status;
     throw new AppError("CONFLICT", status === "expired" ? "This request expired. Ask again to get a new one." : "This action was already handled.");

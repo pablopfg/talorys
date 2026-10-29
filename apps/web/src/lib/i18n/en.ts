@@ -615,7 +615,7 @@ export const en = {
   "mcp.statusDisconnected": "Disconnected",
   "mcp.statusOff": "Off",
   "mcp.statusError": "Error",
-  "mcp.autoWarning": "Runs without asking. Choose this only for tools that just read data: Talorys can't check what a tool really does, so this trusts the server.",
+  "mcp.autoWarning": "Runs without asking. Choose this only for tools that just read data: Talorys can't check what a tool really does, so this trusts the server. Turning it on asks for your password. A call still asks first when another server's content is already in the conversation or its arguments are unusually long.",
   "mcp.authNone": "No authentication",
   "mcp.authBearer": "Bearer token",
   "mcp.authOauth": "Signs in with OAuth",

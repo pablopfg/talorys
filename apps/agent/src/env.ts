@@ -51,6 +51,8 @@ export interface Env {
   ALERT_EMAIL_TO?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
+  /** Comma-separated origins MCP servers may use (https://n8n.example.com, https://*.example.com). Unset: any public host. */
+  TALORYS_MCP_ALLOWED_ORIGINS?: string;
   /** Most MCP tools enabled at once (default 20, at most 64). */
   TALORYS_MCP_MAX_TOOLS?: string;
   /** "development" enables local-only conveniences (mock AI, http cookies). Never set in production. */
