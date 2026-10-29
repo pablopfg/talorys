@@ -7,6 +7,7 @@ import {
   LANGUAGES,
   LIMIT_CEILINGS,
   type Limits,
+  MAX_CUSTOM_INSTRUCTIONS,
   type MemoryHistorySettings,
   SESSION_TIMEOUT_RANGES,
   type SessionTimeouts,
@@ -14,7 +15,7 @@ import {
   TALORYS_VERSION,
 } from "@talorys/shared";
 import { Download, ExternalLink, LogOut, Monitor, Moon, Sun, Upload } from "lucide-react";
-import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch } from "../components/ui";
+import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
 import { SemanticRecallCard } from "../components/SemanticRecallCard";
 import { PushNotificationsCard } from "../components/PushNotificationsCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
@@ -235,6 +236,8 @@ function AiTab({ settings }: { settings: Settings }) {
   const [model, setModel] = useState(settings.model);
   const [limits, setLimits] = useState<Limits>(settings.limits);
   const [temperature, setTemperature] = useState(settings.temperature);
+  const [instructions, setInstructions] = useState(settings.customInstructions);
+  const dirtyInstructions = instructions.trim() !== settings.customInstructions;
   const dirtyLimits = JSON.stringify(limits) !== JSON.stringify(settings.limits) || temperature !== settings.temperature;
   return (
     <>
@@ -263,6 +266,39 @@ function AiTab({ settings }: { settings: Settings }) {
             <Switch checked={settings.demoMode} onChange={(v) => save.mutate({ demoMode: v })} label={t("settings.demoMode")} />
           </div>
         </Row>
+      </Section>
+
+      <Section title={t("settings.customInstructions")}>
+        <form
+          className="space-y-3 px-5 py-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (dirtyInstructions) save.mutate({ customInstructions: instructions.trim() });
+          }}
+        >
+          <p className="text-xs leading-5 text-fg-subtle">{t("settings.customInstructionsHint")}</p>
+          <Textarea
+            rows={6}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            maxLength={MAX_CUSTOM_INSTRUCTIONS}
+            placeholder={t("settings.customInstructionsPlaceholder")}
+            aria-label={t("settings.customInstructions")}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs tabular-nums text-fg-subtle">
+              {t("settings.customInstructionsCount", { count: instructions.length, max: MAX_CUSTOM_INSTRUCTIONS })}
+            </span>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" disabled={instructions === settings.customInstructions} onClick={() => setInstructions(settings.customInstructions)}>
+                {t("settings.reset")}
+              </Button>
+              <Button type="submit" disabled={!dirtyInstructions} loading={save.isPending}>
+                {t("common.save")}
+              </Button>
+            </div>
+          </div>
+        </form>
       </Section>
 
       <Section title={t("settings.limits")}>

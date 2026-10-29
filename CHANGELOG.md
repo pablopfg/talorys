@@ -18,6 +18,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Ferramentas MCP nas rotinas agendadas.** Uma ferramenta configurada para executar sem perguntar também pode ser liberada para as rotinas de IA agendadas (Configurações → Integrações → *Usar também em automações agendadas*). Vem desligado, e ferramentas que pedem aprovação nunca são usadas pelas rotinas.
 
+- **Instruções personalizadas do agente.** Em Configurações → IA, um campo de até 2.000 caracteres diz ao assistente como falar com você (tom, formato, contexto). As instruções valem no chat e nas rotinas agendadas e entram no prompt logo abaixo das regras de segurança, que sempre prevalecem: não dão novas permissões nem dispensam aprovações. Definir ou trocar o texto pede a senha digitada há pouco (limpar não pede), e um backup importado nunca altera esse campo.
+
 ### Alterado
 
 - **README redesenhado e em português.** Cabeçalho com selos e links rápidos, sumário, funcionalidades em tabelas, diagrama da arquitetura, avisos destacados e seções longas recolhíveis. Os caminhos de menu usam os nomes da interface em pt-BR, como Configurações → IA (#4, #9).

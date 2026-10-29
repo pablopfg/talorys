@@ -332,6 +332,11 @@ export const sessionTimeoutsSchema = z.object({
 });
 export type SessionTimeouts = z.infer<typeof sessionTimeoutsSchema>;
 
+/** Longest owner-written instructions added to the agent's prompt (characters). */
+export const MAX_CUSTOM_INSTRUCTIONS = 2000;
+/** Owner-written instructions for tone and style; they sit below the agent's safety rules and can't override them. */
+export const customInstructionsSchema = z.string().trim().max(MAX_CUSTOM_INSTRUCTIONS);
+
 /** UI language. "system" follows the browser and falls back to DEFAULT_LANGUAGE. */
 export const languagePreferenceSchema = z.enum(["system", ...LANGUAGES]);
 
@@ -348,6 +353,8 @@ export const settingsSchema = z.object({
   temperature: z.number().min(0).max(1.5),
   limits: limitsSchema,
   autoMemory: z.boolean(),
+  /** Reads a value the current limit rejects (saved before a rollback) as empty, so it can't reset every other setting. */
+  customInstructions: customInstructionsSchema.catch(""),
   /** Documented demo mode: uses the deterministic mock provider instead of Workers AI. */
   demoMode: z.boolean(),
   memoryHistory: memoryHistorySettingsSchema,
@@ -362,6 +369,7 @@ export const settingsUpdateSchema = settingsSchema
   .extend({
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
+    customInstructions: customInstructionsSchema.optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
     session: sessionTimeoutsSchema.partial().optional(),
