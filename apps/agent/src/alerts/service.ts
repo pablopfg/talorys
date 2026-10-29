@@ -63,7 +63,8 @@ export class AlertService {
     private readonly notifications: NotificationRepository,
     private readonly deliveries: AlertDeliveryRepository,
     private readonly settings: SettingsService,
-    private readonly channels: Record<AlertChannel, AlertChannelAdapter>,
+    /** A channel left out (in tests, or one this deployment lacks) is simply not used. */
+    private readonly channels: Partial<Record<AlertChannel, AlertChannelAdapter>>,
   ) {}
 
   /** Returns the stored notification, or null when the same alert was raised within its cooldown. */
@@ -91,9 +92,11 @@ export class AlertService {
     // not be able to switch off the warnings about what they do next.
     const channels = isAlwaysSent(n) ? ALERT_CHANNELS : prefs.routes[n.category];
     for (const channel of channels) {
+      const adapter = this.channels[channel];
+      if (!adapter) continue;
       // A broken channel must never stop the others or the work that raised the alert.
       try {
-        this.deliver(n, this.channels[channel], prefs);
+        this.deliver(n, adapter, prefs);
       } catch (error) {
         console.warn("Alert delivery failed", channel, error instanceof Error ? error.message : String(error));
       }
@@ -132,11 +135,18 @@ export class AlertService {
   /** The owner's preferences; categories added in later versions get their defaults. */
   preferences(): AlertPreferences {
     const stored = this.settings.getJson<Partial<AlertPreferences>>(PREFERENCES_KEY) ?? {};
+    // Saved before the Telegram channel existed (no fullText yet): Telegram joins every category that
+    // was going out of the app, as on a new install; a category the owner kept in the app stays there.
+    const beforeTelegram = stored.routes !== undefined && stored.fullText === undefined;
+    const route = (c: AlertCategory): AlertChannel[] => {
+      const saved = stored.routes?.[c];
+      if (!saved) return DEFAULT_ALERT_PREFERENCES.routes[c];
+      return beforeTelegram && saved.length > 0 && !saved.includes("telegram") ? [...saved, "telegram"] : saved;
+    };
     const merged = {
-      routes: Object.fromEntries(
-        ALERT_CATEGORIES.map((c) => [c, stored.routes?.[c] ?? DEFAULT_ALERT_PREFERENCES.routes[c]]),
-      ),
+      routes: Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, route(c)])),
       limits: { ...DEFAULT_ALERT_PREFERENCES.limits, ...(stored.limits ?? {}) },
+      fullText: stored.fullText ?? DEFAULT_ALERT_PREFERENCES.fullText,
     };
     const parsed = alertPreferencesSchema.safeParse(merged);
     return parsed.success ? parsed.data : structuredClone(DEFAULT_ALERT_PREFERENCES);
@@ -147,7 +157,7 @@ export class AlertService {
     if (!parsed.success) throw ValidationError.fromZod(parsed.error);
     // A channel listed twice would send twice.
     const routes = Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, [...new Set(parsed.data.routes[c])]]));
-    const next = { routes, limits: parsed.data.limits } as AlertPreferences;
+    const next = { routes, limits: parsed.data.limits, fullText: [...new Set(parsed.data.fullText)] } as AlertPreferences;
     this.settings.setJson(PREFERENCES_KEY, next);
     return next;
   }
@@ -161,7 +171,10 @@ export class AlertService {
       preferences: this.preferences(),
       deliveries: this.deliveries.list(100),
       channels: Object.fromEntries(
-        Object.values(this.channels).map((c) => [c.id, { available: c.unavailable() !== "not_configured" }]),
+        ALERT_CHANNELS.map((id) => {
+          const c = this.channels[id];
+          return [id, { available: !!c && c.unavailable() !== "not_configured" }];
+        }),
       ) as AlertsOverview["channels"],
     };
   }

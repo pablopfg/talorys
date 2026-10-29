@@ -238,6 +238,7 @@ describe("alert preferences", () => {
       expect(s.alerts.preferences()).toEqual({
         routes: { ...DEFAULT_ALERT_PREFERENCES.routes, reminder: [] },
         limits: { perHour: 3, perDay: 30 },
+        fullText: [],
       });
       s.settings.setJson("alerts.preferences", { routes: { reminder: ["fax"] }, limits: { perHour: -1 } });
       expect(s.alerts.preferences()).toEqual(DEFAULT_ALERT_PREFERENCES);
@@ -261,14 +262,16 @@ describe("alert API", () => {
     await inAgent((agent) => agent.services.alerts.raise({ title: "Stretch", body: "b", category: "reminder" }));
     const res = await c.json("/api/alerts");
     expect(res.preferences).toEqual(DEFAULT_ALERT_PREFERENCES);
-    expect(res.channels).toEqual({ push: { available: true } });
-    // No device subscribed in this test.
-    expect(res.deliveries[0]).toMatchObject({ title: "Stretch", channel: "push", status: "skipped", reason: "no_device" });
+    expect(res.channels).toEqual({ push: { available: true }, telegram: { available: true } });
+    // No device subscribed and no Telegram chat linked in this test.
+    for (const channel of ["push", "telegram"]) {
+      expect(res.deliveries.find((d: { channel: string }) => d.channel === channel)).toMatchObject({ title: "Stretch", status: "skipped", reason: "no_device" });
+    }
   });
 
   it("saves valid preferences and refuses invalid ones", async () => {
     const c = await loggedIn();
-    const next = { routes: { ...DEFAULT_ALERT_PREFERENCES.routes, system: [] }, limits: { perHour: 10, perDay: 100 } };
+    const next = { routes: { ...DEFAULT_ALERT_PREFERENCES.routes, system: [] }, limits: { perHour: 10, perDay: 100 }, fullText: ["reminder"] };
     const saved = await c.json("/api/alerts/preferences", { method: "PUT", body: next });
     expect(saved.preferences).toEqual(next);
     expect((await c.json("/api/alerts")).preferences).toEqual(next);
@@ -276,6 +279,7 @@ describe("alert API", () => {
       { ...next, limits: { perHour: 0, perDay: 100 } },
       { ...next, limits: { perHour: 10, perDay: 501 } },
       { ...next, routes: { ...next.routes, system: ["sms"] } },
+      { ...next, fullText: ["fax"] },
       { limits: next.limits },
     ]) {
       const res = await c.call("/api/alerts/preferences", { method: "PUT", body: bad });
@@ -316,7 +320,7 @@ describe("alerts raised by the app", () => {
       await s.push.idle();
       expect(s.notifications.list({ limit: 1 })[0]).toMatchObject({ body: "Time to stretch", category: "reminder", priority: "normal", automation_id: a.id });
       expect(stub.sent).toHaveLength(1);
-      expect(s.alerts.overview().deliveries[0]).toMatchObject({ status: "sent", reached: 1, category: "reminder" });
+      expect(s.alerts.overview().deliveries.find((d) => d.channel === "push")).toMatchObject({ status: "sent", reached: 1, category: "reminder" });
       await s.automations.delete(a.id);
     });
   });

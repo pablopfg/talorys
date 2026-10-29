@@ -41,6 +41,7 @@ const CATEGORY_HINTS: Record<AlertCategory, PlainMessageKey> = {
 
 const CHANNEL_LABELS: Record<AlertChannel, PlainMessageKey> = {
   push: "alerts.channel.push",
+  telegram: "alerts.channel.telegram",
 };
 
 const STATUS_TEXT: Record<AlertDelivery["status"], PlainMessageKey> = {
@@ -116,12 +117,17 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
     const current = prefs.routes[category];
     const routes = { ...prefs.routes, [category]: on ? [...current, channel] : current.filter((c) => c !== channel) };
     setPrefs({ ...prefs, routes });
-    save.mutate({ routes, limits: overview.preferences.limits });
+    save.mutate({ routes, limits: overview.preferences.limits, fullText: prefs.fullText });
+  };
+  const toggleFullText = (category: AlertCategory, on: boolean) => {
+    const fullText = on ? [...prefs.fullText, category] : prefs.fullText.filter((c) => c !== category);
+    setPrefs({ ...prefs, fullText });
+    save.mutate({ routes: prefs.routes, limits: overview.preferences.limits, fullText });
   };
   // A refused save puts the switches back to what the server has.
   useEffect(() => {
-    if (save.isError) setPrefs((p) => ({ ...p, routes: overview.preferences.routes }));
-  }, [save.isError, overview.preferences.routes]);
+    if (save.isError) setPrefs((p) => ({ ...p, routes: overview.preferences.routes, fullText: overview.preferences.fullText }));
+  }, [save.isError, overview.preferences.routes, overview.preferences.fullText]);
   const limitsChanged = prefs.limits.perHour !== overview.preferences.limits.perHour || prefs.limits.perDay !== overview.preferences.limits.perDay;
   const limitsValid =
     Number.isInteger(prefs.limits.perHour) && prefs.limits.perHour >= ALERT_LIMIT_BOUNDS.perHour.min && prefs.limits.perHour <= ALERT_LIMIT_BOUNDS.perHour.max &&
@@ -142,8 +148,18 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
               />
             </span>
           ))}
+          <span className="flex items-center gap-2 text-xs text-fg-muted">
+            {t("alerts.fullText")}
+            <Switch
+              checked={prefs.fullText.includes(category)}
+              onChange={(on) => toggleFullText(category, on)}
+              label={t("alerts.fullTextAria", { category: t(CATEGORY_LABELS[category]) })}
+              disabled={save.isPending}
+            />
+          </span>
         </Row>
       ))}
+      <p className="px-5 py-4 text-xs leading-5 text-fg-subtle">{t("alerts.fullTextHint")}</p>
       <Row label={t("alerts.limitsTitle")} hint={t("alerts.limitsHint")}>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           {t("alerts.perHour")}
@@ -177,6 +193,9 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
       </Row>
       {!overview.channels.push.available && (
         <p className="px-5 py-4 text-xs leading-5 text-warning">{t("alerts.pushUnavailable")}</p>
+      )}
+      {!overview.channels.telegram.available && (
+        <p className="px-5 py-4 text-xs leading-5 text-warning">{t("alerts.telegramUnavailable")}</p>
       )}
     </>
   );

@@ -1,4 +1,4 @@
-import { isBreachedPassword, languagePreferenceSchema, type Settings } from "@talorys/shared";
+import { type AlertCategory, isBreachedPassword, languagePreferenceSchema, type Settings } from "@talorys/shared";
 import type { Env } from "../env";
 import { Database } from "../db/database";
 import { AuthLog } from "../auth/auth-log";
@@ -20,7 +20,8 @@ import { TaskPlanService } from "./task-plans";
 import { McpService } from "../mcp/service";
 import { AlertService } from "../alerts/service";
 import { AlertDeliveryRepository } from "../alerts/repository";
-import { pushChannel } from "../alerts/channels";
+import { pushChannel, telegramChannel } from "../alerts/channels";
+import { TelegramService } from "../telegram/service";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
 export interface Services {
@@ -33,6 +34,7 @@ export interface Services {
   automationsRepo: AutomationRepository;
   notifications: NotificationRepository;
   alerts: AlertService;
+  telegram: TelegramService;
   pendingActions: PendingActionRepository;
   settings: SettingsService;
   usage: UsageService;
@@ -64,8 +66,15 @@ export function createServices(
   const automationsRepo = new AutomationRepository(db);
   const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
   const notifications = new NotificationRepository(db);
-  const alerts = new AlertService(notifications, new AlertDeliveryRepository(db), settings, { push: pushChannel(push) });
   const activity = new ActivityLog(db);
+  const automations = new AutomationService(automationsRepo, settings, activity, scheduler);
+  const fullText = (category: AlertCategory) => alerts.preferences().fullText.includes(category);
+  const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, notifications, automations, activity, background, fullText);
+  const channels = {
+    push: pushChannel(push),
+    telegram: telegramChannel(telegram, (n) => fullText(n.category)),
+  };
+  const alerts: AlertService = new AlertService(notifications, new AlertDeliveryRepository(db), settings, channels);
   const memories = new MemoryRepository(db);
   const usage = new UsageService(db, () => settings.get().timezone);
   const tasks = new TaskRepository(db);
@@ -81,6 +90,7 @@ export function createServices(
     automationsRepo,
     notifications,
     alerts,
+    telegram,
     pendingActions: new PendingActionRepository(db),
     settings,
     usage,
@@ -99,7 +109,7 @@ export function createServices(
     { breached: env.TALORYS_HIBP === "off" && env.TALORYS_ENV === "development" ? undefined : (password) => isBreachedPassword(password) },
     ),
     authLog,
-    automations: new AutomationService(automationsRepo, settings, activity, scheduler),
+    automations,
     memoryHistory: new MemoryHistoryService(db, memories, settings, usage, activity, memoryHooks),
     push,
     remote: new RemoteTokenService(db, settings, env.SESSION_SECRET),

@@ -187,6 +187,9 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   cover therefore cannot skip it. Only the anonymous `GET /api/health`, without
   a cookie or token, is exempt, so a deploy can check itself through an Access
   bypass rule. Half a configuration answers 503 instead of turning the check off.
+  The Telegram webhook (`POST /api/telegram/webhook`) is exempt too, but only
+  without a cookie or token and with Telegram's secret header, an HMAC of
+  `SESSION_SECRET` compared in constant time (see [alerts.md](alerts.md#segurança-do-telegram)).
 
 ## XSS and browser hardening
 

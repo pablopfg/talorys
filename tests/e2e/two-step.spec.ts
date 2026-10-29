@@ -25,6 +25,9 @@ test("two-step sign-in: turn on with the QR code, sign in with a recovery code, 
   await page.getByLabel("Code from the app").fill(await totpCode(secret, totpStep()));
   await page.getByRole("button", { name: "Turn on", exact: true }).click();
 
+  // allInnerTexts() doesn't wait: let the recovery codes render first.
+  await expect(page.getByRole("button", { name: "I saved the codes" })).toBeVisible();
+  await expect(page.locator("ul li").filter({ hasText: /^[A-Z2-7]{4}(-[A-Z2-7]{4}){3}$/ })).toHaveCount(10);
   const codes = (await page.locator("ul li").filter({ hasText: /^[A-Z2-7]{4}(-[A-Z2-7]{4}){3}$/ }).allInnerTexts()).map((c) => c.trim());
   expect(codes).toHaveLength(10);
   await page.getByRole("button", { name: "I saved the codes" }).click();
