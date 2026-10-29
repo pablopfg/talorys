@@ -339,7 +339,7 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
 - Subscriptions are device-specific secrets: they are never included in
   backups. Endpoints the push service reports as gone (404/410) are deleted at
   once, and one that fails 10 times in a row is dropped.
-- A device that has not opened Talorys signed in for 3 days is removed (checked
+- A device that has not opened Talorys signed in for 7 days is removed (checked
   every 15 minutes, even with the watchers off), so a lost or forgotten phone
   stops receiving the owner's alerts on its own. A signed-in browser reports its
   own endpoint to `POST /api/push/seen` at most once an hour; the removal is
