@@ -19,6 +19,10 @@ const routineInput = z.object({
   name: z.string().min(1).max(200),
   prompt: z.string().min(1).max(2000).describe("What the routine asks the AI to do on each run"),
   schedule: scheduleSpecSchema,
+  sentinel: z
+    .boolean()
+    .optional()
+    .describe("true when the owner wants to hear from the routine only when something needs them (\"only tell me if…\"): runs with nothing to report stay silent"),
 });
 
 /**
@@ -120,7 +124,7 @@ export const reminderTools = [
       checkAgentSchedule(i.schedule);
       return {
         targetId: NEW_ROUTINE_TARGET,
-        summary: `Schedule AI routine ${quoteTitle(i.name)}`,
+        summary: i.sentinel ? `Schedule quiet AI routine ${quoteTitle(i.name)}` : `Schedule AI routine ${quoteTitle(i.name)}`,
         payload: i,
         // The whole prompt and schedule are on the card: this is exactly what will run unattended.
         preview: `Schedule: ${JSON.stringify(i.schedule)}\n\n${i.prompt}`,
@@ -131,7 +135,7 @@ export const reminderTools = [
     commit: async (_id, ctx, payload) => {
       const i = routineInput.parse(payload);
       checkAgentSchedule(i.schedule);
-      const a = await ctx.services.automations.create({ name: i.name, kind: "agent_prompt", message: i.prompt, schedule: i.schedule, enabled: true });
+      const a = await ctx.services.automations.create({ name: i.name, kind: "agent_prompt", message: i.prompt, schedule: i.schedule, enabled: true, sentinel: i.sentinel === true });
       ctx.services.activity.record("automation.approved", `Scheduled AI routine “${a.name}” (approved agent action)`);
     },
   }),
@@ -150,6 +154,7 @@ export const reminderTools = [
         schedule: a.schedule_description,
         enabled: a.enabled,
         insistent: a.priority === "high",
+        sentinel: a.sentinel,
         next_run: formatLocal(a.next_run, ctx.timezone),
       })),
     }),

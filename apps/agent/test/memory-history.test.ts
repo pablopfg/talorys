@@ -441,6 +441,8 @@ describe("migration from the previous schema", () => {
       for (const col of ["profile", "priority_reason", "signal"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
       db.run(`DROP TABLE tal_alert_profiles`);
       db.run(`DROP TABLE tal_alert_corrections`);
+      // Migration 24 (sentinel routines).
+      db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
       // Migration 23 (events access tokens) moved the old table aside.
       db.run(`DROP TABLE IF EXISTS tal_remote_tokens_v8`);
       // Migration 22 (push device last seen).

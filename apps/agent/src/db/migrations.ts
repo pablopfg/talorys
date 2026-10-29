@@ -600,6 +600,14 @@ export const MIGRATIONS: Migration[] = [
       `DELETE FROM tal_remote_tokens_v8`,
     ],
   },
+  {
+    version: 24,
+    name: "sentinel routines",
+    statements: [
+      // An AI routine that only notifies when something needs the owner; existing ones keep notifying.
+      `ALTER TABLE tal_automations ADD COLUMN sentinel INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

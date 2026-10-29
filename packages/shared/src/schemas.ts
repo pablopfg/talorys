@@ -180,6 +180,11 @@ export interface Automation {
   enabled: boolean;
   /** Priority of the alerts this automation raises; a high reminder insists until confirmed. */
   priority: AutomationPriority;
+  /**
+   * An AI routine that only speaks when something needs the owner (a sentinel): when the model
+   * answers SENTINEL_NOTHING, the run ends quietly with no notification.
+   */
+  sentinel: boolean;
   status: AutomationStatus;
   schedule_id: string | null;
   next_run: string | null;
@@ -321,6 +326,7 @@ export const automationCreateSchema = z.object({
   schedule: scheduleSpecSchema,
   enabled: z.boolean().optional().default(true),
   priority: z.enum(AUTOMATION_PRIORITIES).optional().default("normal"),
+  sentinel: z.boolean().optional().default(false),
 });
 export const automationUpdateSchema = z
   .object({
@@ -329,6 +335,7 @@ export const automationUpdateSchema = z
     schedule: scheduleSpecSchema,
     enabled: z.boolean(),
     priority: z.enum(AUTOMATION_PRIORITIES),
+    sentinel: z.boolean(),
   })
   .partial();
 

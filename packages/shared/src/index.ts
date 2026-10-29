@@ -11,3 +11,4 @@ export * from "./server-text";
 export * from "./auth-events";
 export * from "./totp";
 export * from "./alerts";
+export * from "./sentinels";
