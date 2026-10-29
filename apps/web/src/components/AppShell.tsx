@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
-import { Bell, Brain, CalendarClock, CheckSquare, LogOut, type LucideIcon, MessageSquare, NotebookPen, Settings, ShieldAlert } from "lucide-react";
+import { Bell, Brain, CalendarClock, CheckSquare, LogOut, type LucideIcon, MessageSquare, NotebookPen, Settings, ShieldAlert, Workflow } from "lucide-react";
 import { Logo } from "./Logo";
 import { NotificationCenter } from "./NotificationCenter";
 import { SessionGuard } from "./SessionGuard";
@@ -64,6 +64,7 @@ const NAV: readonly { to: string; label: NavKey; mobileLabel?: NavKey; icon: Luc
   { to: "/tasks", label: "nav.tasks", icon: CheckSquare },
   { to: "/notes", label: "nav.notes", icon: NotebookPen },
   { to: "/automations", label: "nav.automations", mobileLabel: "nav.automationsShort", icon: CalendarClock },
+  { to: "/workflows", label: "nav.workflows", mobileLabel: "nav.workflowsShort", icon: Workflow },
 ];
 
 export function AppShell() {
@@ -168,7 +169,7 @@ export function AppShell() {
         {/* Mobile bottom navigation */}
         <nav
           aria-label={t("nav.main")}
-          className="mobile-nav fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="mobile-nav fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
         >
           {NAV.map(({ to, label, mobileLabel, icon: Icon }) => (
             <NavLink

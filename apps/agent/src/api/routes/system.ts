@@ -72,7 +72,10 @@ systemRoutes.patch("/settings", async (c) => {
   if (settings.aiProvider !== before.aiProvider || settings.aiFallback !== before.aiFallback) {
     s.activity.record("settings.ai_provider", `Chat model: ${settings.aiProvider}, fallback: ${settings.aiFallback}`);
   }
-  if (settings.timezone !== before.timezone) await s.automations.rearmAll();
+  if (settings.timezone !== before.timezone) {
+    await s.automations.rearmAll();
+    await s.workflows.rearmAll();
+  }
   if (settings.demoMode !== before.demoMode) {
     s.activity.record("settings.demo_mode", settings.demoMode ? "Demo mode enabled (mock AI)" : "Demo mode disabled");
   }

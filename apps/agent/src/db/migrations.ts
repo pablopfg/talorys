@@ -668,6 +668,35 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_automations ADD COLUMN calendar_gate TEXT`,
     ],
   },
+  {
+    version: 28,
+    name: "workflows",
+    statements: [
+      // Routines run by Cloudflare Workflows, one row per catalog entry once the owner touches it.
+      // `memory` is what a workflow keeps between runs (sites down).
+      `CREATE TABLE IF NOT EXISTS tal_workflows (
+        key TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        schedule TEXT NOT NULL,
+        config TEXT NOT NULL,
+        memory TEXT NOT NULL DEFAULT '{}',
+        schedule_id TEXT,
+        next_run TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS tal_workflow_runs (
+        id TEXT PRIMARY KEY,
+        workflow_key TEXT NOT NULL,
+        trigger TEXT NOT NULL CHECK (trigger IN ('schedule','manual')),
+        status TEXT NOT NULL CHECK (status IN ('running','success','error','skipped')),
+        result TEXT,
+        error TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_tal_workflow_runs_key ON tal_workflow_runs (workflow_key, started_at)`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

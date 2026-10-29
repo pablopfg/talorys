@@ -15,6 +15,7 @@ const MemoryPage = lazy(() => import("./pages/MemoryPage"));
 const TasksPage = lazy(() => import("./pages/TasksPage"));
 const NotesPage = lazy(() => import("./pages/NotesPage"));
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
+const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const McpOAuthCallback = lazy(() => import("./components/McpServersCard").then((m) => ({ default: m.McpOAuthCallback })));
 const GoogleCalendarCallback = lazy(() => import("./components/GoogleCalendarCard").then((m) => ({ default: m.GoogleCalendarCallback })));
@@ -88,6 +89,7 @@ export function App() {
           <Route path="tasks" element={<Lazy><TasksPage /></Lazy>} />
           <Route path="notes/:noteId?" element={<Lazy><NotesPage /></Lazy>} />
           <Route path="automations" element={<Lazy><AutomationsPage /></Lazy>} />
+          <Route path="workflows" element={<Lazy><WorkflowsPage /></Lazy>} />
           <Route path="settings" element={<Lazy><SettingsPage /></Lazy>} />
           <Route path="settings/mcp-oauth" element={<Lazy><McpOAuthCallback /></Lazy>} />
           <Route path="settings/google-calendar" element={<Lazy><GoogleCalendarCallback /></Lazy>} />

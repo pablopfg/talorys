@@ -125,6 +125,13 @@ export function renderConfig(base, env) {
     config.workers_dev = true;
   }
 
+  // Workflow names are unique per Cloudflare account, so each one is named after the Worker
+  // (at most 64 characters). The binding and class stay as the base config has them.
+  if (Array.isArray(config.workflows)) {
+    const prefix = name.slice(0, 54).replace(/-+$/, "");
+    config.workflows = config.workflows.map((w) => ({ ...w, name: `${prefix}-workflow` }));
+  }
+
   // A deploy replaces every plain variable with what the config lists, so the installer
   // defaults are written here each time. Secrets are not touched by a deploy.
   const vars = { ...(config.vars ?? {}) };

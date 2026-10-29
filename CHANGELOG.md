@@ -4,6 +4,16 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ## Não lançado
 
+### Adicionado
+
+- **Workflows: rotinas do n8n rodando na Cloudflare.** Um menu novo, **Workflows**, roda rotinas com os Workflows da Cloudflare (plano gratuito): cada execução tem etapas que tentam de novo sozinhas e continuam depois de um reinício. Cada workflow tem chave liga/desliga, agendamento, **Executar agora** e histórico. O primeiro:
+  - **Monitor de sites**: confere até 10 endereços (padrão a cada 15 minutos) e avisa com prioridade alta quando um site cai (depois de duas execuções seguidas com falha) e quando volta.
+  - Só a sessão do dono gerencia os workflows (tokens de acesso recebem 403); ligar ou trocar endereços pede a senha recente; só endereços `https://` públicos, conferidos no DNS antes de cada requisição. O deploy cria o Workflow `<nome do Worker>-workflow` sozinho, sem segredo novo. Veja [docs/workflows.md](docs/workflows.md) e a etapa 26 do [guia de instalação](docs/instalacao-cloudflare.md#26-workflows-rotinas-que-estavam-no-n8n).
+
+### Atualização
+
+- **Workflows.** A migração 28 roda sozinha depois do deploy e cria as tabelas `tal_workflows` e `tal_workflow_runs`. O deploy passa a criar um Workflow da Cloudflare, `<nome do Worker>-workflow` (binding `TALORYS_WORKFLOW`, classe `TalorysWorkflow`), com o mesmo token de antes; não há segredo nem variável nova, e todos os workflows começam desligados. Incluído no plano gratuito do Workers. Quem instalou pelo `create-talorys` ganha o mesmo binding no próximo `update`.
+
 ## 1.1.0 — 2026-10-29
 
 ### Adicionado

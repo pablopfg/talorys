@@ -145,6 +145,14 @@ describe("renderConfig", () => {
     }
   });
 
+  it("names the Workflow after the Worker and keeps its binding and class", () => {
+    const config = renderConfig(base(), { TALORYS_WORKER_NAME: "assistente" });
+    assert.deepEqual(config.workflows, [{ name: "assistente-workflow", binding: "TALORYS_WORKFLOW", class_name: "TalorysWorkflow" }]);
+    const long = renderConfig(base(), { TALORYS_WORKER_NAME: `${"a".repeat(53)}-bbbbbbbbb` });
+    assert.ok(long.workflows[0].name.length <= 64);
+    assert.match(long.workflows[0].name, /^a+-workflow$/);
+  });
+
   it("keeps the Durable Object binding and migrations untouched", () => {
     const before = base();
     const config = renderConfig(before, { TALORYS_WORKER_NAME: "talorys" });

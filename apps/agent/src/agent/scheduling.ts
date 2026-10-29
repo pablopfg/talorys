@@ -3,6 +3,7 @@ import type { AutomationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
 import type { ActivityLog } from "../services/usage";
 import { ValidationError } from "../api/errors";
+import type { WorkflowLauncher, WorkflowTimer } from "../workflows/service";
 
 /**
  * Bridge to the Agents SDK scheduler (Durable Object alarms). Each enabled
@@ -19,6 +20,8 @@ export interface Scheduler {
   exists(scheduleId: string): Promise<boolean>;
   /** Wakes the alert center at `at` for an insistent alert's next try (AlertService.escalate). */
   scheduleAlert?(at: Date, notificationId: string, step: number): Promise<void>;
+  /** Alarms and Cloudflare Workflows for the Workflows menu; without them workflows can't run. */
+  workflows?: { timer: WorkflowTimer; launcher: WorkflowLauncher };
 }
 
 export type AutomationExecutor = (automation: Automation) => Promise<{ status: "success" | "skipped"; result: string }>;

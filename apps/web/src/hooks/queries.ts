@@ -21,6 +21,8 @@ import type {
   Settings,
   Task,
   UsageReport,
+  Workflow,
+  WorkflowRun,
   PaidAiProviderId,
 } from "@talorys/shared";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +54,7 @@ export const keys = {
   mcpServers: ["mcp", "servers"] as const,
   mcpTools: (id: string) => ["mcp", "tools", id] as const,
   googleCalendar: ["calendar", "google"] as const,
+  workflows: ["workflows"] as const,
 };
 
 export function useSettings() {
@@ -140,6 +143,15 @@ export function useAutomations() {
     queryKey: keys.automations,
     queryFn: () => api<{ automations: Automation[]; runs: AutomationRun[]; failed_runs: AutomationRun[]; timezone: string }>("/automations"),
     refetchInterval: 60_000,
+  });
+}
+
+export function useWorkflows() {
+  return useQuery({
+    queryKey: keys.workflows,
+    queryFn: () => api<{ available: boolean; workflows: Workflow[]; runs: WorkflowRun[]; timezone: string }>("/workflows"),
+    // A run takes seconds to a few minutes on Cloudflare: refresh sooner while one is going.
+    refetchInterval: (query) => (query.state.data?.runs.some((r) => r.status === "running") ? 5_000 : 60_000),
   });
 }
 

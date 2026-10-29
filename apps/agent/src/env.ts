@@ -5,6 +5,8 @@ export interface Env {
   /** The built web UI, in the one-Worker deploy only (wrangler.standalone.jsonc). */
   ASSETS?: Fetcher;
   TalorysAgent: DurableObjectNamespace<TalorysAgent>;
+  /** Cloudflare Workflows behind the Workflows menu (free plan). Without it the menu shows workflows as unavailable. */
+  TALORYS_WORKFLOW?: Workflow;
   /** PBKDF2 hash of the owner password, set by the installer as a Worker secret. */
   OWNER_PASSWORD_HASH?: string;
   /** Plain owner password, for deploys that cannot set the hash (a one-Worker deploy). Ignored when the hash is set; a weak one counts as not configured. */

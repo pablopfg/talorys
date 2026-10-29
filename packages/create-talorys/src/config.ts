@@ -77,6 +77,8 @@ export function generateAgentConfig(input: AgentConfigInput): Record<string, unk
     ai: { binding: "AI" },
     durable_objects: { bindings: [{ name: DO_BINDING, class_name: "TalorysAgent" }] },
     migrations: DO_MIGRATIONS,
+    // Cloudflare Workflows behind the Workflows menu (Workers Free plan). Names are unique per account.
+    workflows: [{ name: `${input.workerName.slice(0, 54).replace(/-+$/, "")}-workflow`, binding: "TALORYS_WORKFLOW", class_name: "TalorysWorkflow" }],
     vars: {
       TALORYS_INSTALLATION_ID: input.installationId,
       TALORYS_DEPLOYED_VERSION: input.version,
