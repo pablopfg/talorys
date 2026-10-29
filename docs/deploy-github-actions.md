@@ -88,12 +88,22 @@ O **Account ID** fica na página inicial da conta (Workers & Pages → lateral d
 
 ### 2. Forçar HTTPS no domínio próprio
 
-A API recusa HTTP, mas a interface (HTML e JavaScript) é servida pela camada de
-arquivos estáticos da Cloudflare antes do Worker. Se o domínio aceitar HTTP, a
-primeira visita digitada sem `https://` chega sem criptografia, e quem estiver
-na mesma rede (um Wi-Fi público, por exemplo) pode alterar a página de login.
-Na zona do domínio, ative **SSL/TLS → Edge Certificates → Always Use HTTPS**.
-O HSTS do Talorys protege as visitas seguintes.
+O próprio Worker já garante HTTPS: ele roda antes de qualquer arquivo da
+interface, responde `301` para `https://` a toda página ou leitura pedida por
+HTTP, recusa (sem redirecionar) qualquer envio por HTTP, como um login, e manda
+HSTS em todas as respostas. Mesmo assim, ligue as proteções da zona, que
+agem antes de a requisição chegar ao Worker. Na zona do domínio, em
+**SSL/TLS**:
+
+- **Overview → Encryption mode:** *Full (strict)*.
+- **Edge Certificates → Always Use HTTPS:** ligado.
+- **Edge Certificates → Minimum TLS Version:** TLS 1.2.
+- **Edge Certificates → TLS 1.3:** ligado.
+- **Edge Certificates → Automatic HTTPS Rewrites:** ligado.
+
+Não ligue o **HSTS** da zona com *includeSubDomains* nem *Preload* se outros
+subdomínios do domínio ainda usam HTTP: o HSTS do Talorys vale só para o
+endereço dele (e os subdomínios dele).
 
 ### 3. Criar o ambiente `production` no GitHub
 
@@ -119,8 +129,22 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
-Com o domínio próprio (ou o `TALORYS_PUBLIC_URL`), a API responde **só** nesse
-endereço. Qualquer outro host recebe 404.
+Com o domínio próprio (ou o `TALORYS_PUBLIC_URL`), o Talorys (interface e API)
+responde **só** nesse endereço. Qualquer outro host recebe 404.
+
+#### E o endereço `*.workers.dev`?
+
+Com `TALORYS_CUSTOM_DOMAIN` definida, ele não fica exposto. São três camadas:
+
+1. O deploy publica com `workers_dev: false` e `preview_urls: false`, então a
+   Cloudflare desliga o endereço `<worker>.<conta>.workers.dev` e as URLs de
+   preview de cada versão.
+2. Mesmo que alguém religue o `workers.dev` pelo painel, o Worker só atende o
+   host de `TALORYS_ALLOWED_HOSTS` (o seu domínio) e devolve 404 a qualquer
+   outro, na interface e na API.
+3. Depois de cada deploy, o workflow confere que `http://` redireciona para
+   `https://` e que o endereço `workers.dev` não responde. Se responder, o
+   deploy fica vermelho. O subdomínio da conta sai mascarado no log.
 
 > **Não crie esses segredos no nível do repositório** (Settings → Secrets →
 > Actions → *Repository secrets*). No nível do repositório, qualquer workflow,
@@ -255,7 +279,14 @@ junto com o Bearer.
 
 - **GitHub Actions:** repositório público não consome minutos da franquia.
 - **Cloudflare:** um deploy não conta como requisição. O health check faz uma
-  requisição ao Worker e uma leitura no Durable Object por deploy.
+  requisição ao Worker e uma leitura no Durable Object por deploy, e a
+  conferência de HTTPS faz mais quatro (duas no domínio e duas no
+  `workers.dev` desligado).
+- **Interface pelo Worker:** como o Worker roda antes dos arquivos da
+  interface, cada arquivo baixado conta como uma requisição ao Worker. Os
+  arquivos de `/assets/` ficam em cache no navegador por um ano, então uma
+  visita comum custa poucas requisições, muito abaixo das 100 mil por dia do
+  plano gratuito.
 
 ## Checklist de segurança ao mexer no workflow
 

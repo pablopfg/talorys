@@ -29,6 +29,8 @@ describe("stripJsonc", () => {
     const config = base();
     assert.equal(config.main, "src/index.ts");
     assert.equal(config.assets.directory, "../web/dist");
+    assert.equal(config.assets.binding, "ASSETS");
+    assert.equal(config.assets.run_worker_first, true);
   });
 });
 
@@ -49,6 +51,16 @@ describe("renderConfig", () => {
     assert.equal(config.workers_dev, false);
     assert.equal(config.preview_urls, false);
     assert.equal(config.vars.TALORYS_ALLOWED_HOSTS, "assistente.example.com");
+  });
+
+  it("always runs the Worker before the UI assets", () => {
+    const loose = { ...base(), assets: { ...base().assets, binding: "STATIC", run_worker_first: ["/api/*"] } };
+    const config = renderConfig(loose, { TALORYS_WORKER_NAME: "talorys" });
+    assert.equal(config.assets.run_worker_first, true);
+    assert.equal(config.assets.binding, "ASSETS");
+    assert.equal(config.assets.directory, "../web/dist");
+    const { assets: _, ...noAssets } = base();
+    assert.throws(() => renderConfig(noAssets, { TALORYS_WORKER_NAME: "talorys" }), ConfigError);
   });
 
   it("limits the API to the workers.dev host given for the health check", () => {

@@ -105,6 +105,10 @@ export function renderConfig(base, env) {
   config.name = name;
   // Preview URLs would expose every uploaded version on a public *.workers.dev host.
   config.preview_urls = false;
+  // The Worker runs before every asset, so the HTTPS redirect, the allowed hosts, Access and
+  // the security headers cover the UI as well as the API. A base config can't turn that off.
+  if (!config.assets) throw new ConfigError("The base config must serve the web UI (assets).");
+  config.assets = { ...config.assets, binding: "ASSETS", run_worker_first: true };
   if (domain) {
     // With a custom domain the only way in is that domain (no *.workers.dev).
     config.routes = [{ pattern: domain, custom_domain: true }];

@@ -4,6 +4,7 @@ import type { Env } from "./env";
 import { AppError, errorResponse } from "./api/errors";
 import { AccessMisconfigured, accessConfig, verifyAccessToken } from "./auth/access";
 import { allowedHosts } from "./hosts";
+import { withWebHeaders } from "./web-headers";
 
 export { allowedHosts };
 
@@ -12,29 +13,30 @@ export { TalorysAgent } from "./agent/talorys-agent";
 /**
  * Backend entry point. The installer deploys it with workers_dev and preview
  * URLs disabled, so it is reachable only through the Pages Function service
- * binding. A one-Worker deploy (wrangler.standalone.jsonc) serves the UI as
- * static assets and routes /api here; it is then public, behind the same auth.
+ * binding. A one-Worker deploy (wrangler.standalone.jsonc) also serves the UI from its
+ * ASSETS binding and runs first on every request; it is then public, behind the same auth.
  *
  * Every /api request is forwarded to the single owner agent ("personal-agent").
  * The instance name is fixed server-side; clients cannot choose agent identities.
  *
- * Before that, two optional gates (AUTH-03): TALORYS_ALLOWED_HOSTS answers 404 on any other
- * host, and with Cloudflare Access configured every request must carry a valid Access token.
+ * Gates, in order, for the UI and the API alike: TALORYS_ALLOWED_HOSTS answers 404 on any other
+ * host (AUTH-03); plain HTTP is sent to HTTPS, or refused when it carries a body; with
+ * Cloudflare Access configured every request must carry a valid Access token.
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const hosts = allowedHosts(env);
+    if (hosts && !hosts.has(url.hostname.toLowerCase())) return notFound();
+    if (url.protocol !== "https:" && env.TALORYS_ENV !== "development") return toHttps(request, url);
     // A "sub" path segment is the Agents SDK's sub-agent routing marker; Talorys has no sub-agents.
     const isSubAgentPath = url.pathname.split("/").includes("sub");
-    if ((!url.pathname.startsWith("/api/") && url.pathname !== "/api") || isSubAgentPath) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
-    }
-    const hosts = allowedHosts(env);
-    if (hosts && !hosts.has(url.hostname.toLowerCase())) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
-    }
+    const isApi = url.pathname.startsWith("/api/") || url.pathname === "/api";
+    if (!isApi && !env.ASSETS) return notFound();
+    if (isSubAgentPath && isApi) return notFound();
     const denied = await accessDenied(request, url, env);
     if (denied) return denied;
+    if (!isApi) return withWebHeaders(await env.ASSETS!.fetch(request), url.pathname);
     // WebSocket upgrades are not part of the API surface.
     if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
       return Response.json({ error: { code: "FORBIDDEN", message: "WebSockets are not supported" } }, { status: 400 });
@@ -43,6 +45,27 @@ export default {
     return withoutRawErrors(await agent.fetch(withoutInternalHeaders(request)));
   },
 } satisfies ExportedHandler<Env>;
+
+function notFound(): Response {
+  return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
+}
+
+/**
+ * "Always Use HTTPS" inside the app, whatever the zone settings say: a page or a read is moved
+ * to the same address over HTTPS for good (301), and HSTS keeps the browser there from then on.
+ * Anything else is refused instead of redirected: its body (a password, a message) already
+ * crossed the network in clear text, and a 307/308 would only make the client send it again.
+ */
+function toHttps(request: Request, url: URL): Response {
+  if (request.method === "GET" || request.method === "HEAD") {
+    const target = new URL(url);
+    target.protocol = "https:";
+    target.port = "";
+    target.hash = "";
+    return new Response(null, { status: 301, headers: { location: target.href, "cache-control": "no-store" } });
+  }
+  return errorResponse(new AppError("FORBIDDEN", "HTTPS is required."));
+}
 
 /**
  * With Cloudflare Access configured, a request without a valid Access token is refused here,
