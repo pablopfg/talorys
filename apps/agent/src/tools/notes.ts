@@ -104,7 +104,7 @@ export const noteTools = [
   }),
   defineTool({
     name: "delete_note",
-    description: "Propose permanently deleting a note. The owner must approve it in the app before anything is deleted.",
+    description: "Propose deleting a note (it goes to the trash for 30 days). The owner must approve it in the app before anything is deleted.",
     permission: "destructive",
     maxCallsPerTurn: 2,
     input: z.object({ id: z.string().min(1) }),

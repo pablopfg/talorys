@@ -1,10 +1,15 @@
 import type { Note, Project } from "@talorys/shared";
 import { type Database, ftsQuery, likePattern, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
+import type { StorageService } from "../../services/storage";
 import { stripUndefined } from "./tasks";
 
 export class NoteRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    /** Limits and the trash; without it, creates are unlimited and deletes are permanent (tests). */
+    private readonly storage?: StorageService,
+  ) {}
 
   list(opts: { q?: string; project_id?: string; limit?: number } = {}): Note[] {
     if (opts.q) return this.search(opts.q, opts.limit ?? 50, opts.project_id);
@@ -46,6 +51,7 @@ export class NoteRepository {
   }
 
   create(input: { title: string; content?: string; project_id?: string | null }): Note {
+    this.storage?.assertRoom("notes");
     const ts = now();
     const note: Note = {
       id: newId(),
@@ -72,14 +78,21 @@ export class NoteRepository {
     return next;
   }
 
-  delete(id: string): void {
-    this.require(id);
-    this.db.run(`DELETE FROM tal_notes WHERE id = ?`, id);
+  /** Moves the note to the trash. `actor` is who asked. */
+  delete(id: string, opts: { actor?: "owner" | "remote" } = {}): void {
+    const note = this.require(id);
+    this.db.transaction(() => {
+      this.storage?.keep("note", note, note.title, opts);
+      this.db.run(`DELETE FROM tal_notes WHERE id = ?`, id);
+    });
   }
 }
 
 export class ProjectRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly storage?: StorageService,
+  ) {}
 
   list(opts: { status?: string } = {}): Project[] {
     if (opts.status) {
@@ -107,6 +120,7 @@ export class ProjectRepository {
   }
 
   create(input: { name: string; description?: string; status?: Project["status"] }): Project {
+    this.storage?.assertRoom("projects");
     const ts = now();
     const project: Project = {
       id: newId(),

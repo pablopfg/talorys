@@ -171,7 +171,7 @@ export const taskTools = [
   }),
   defineTool({
     name: "delete_task",
-    description: "Propose permanently deleting a task. The owner must approve it in the app before anything is deleted.",
+    description: "Propose deleting a task (it goes to the trash for 30 days). The owner must approve it in the app before anything is deleted.",
     permission: "destructive",
     maxCallsPerTurn: 3,
     input: z.object({ task: z.string().min(1).describe("Task id or exact/partial title") }),

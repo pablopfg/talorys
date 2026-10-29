@@ -697,6 +697,61 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_tal_workflow_runs_key ON tal_workflow_runs (workflow_key, started_at)`,
     ],
   },
+  {
+    version: 29,
+    name: "trash",
+    statements: [
+      // Deleted, archived and compacted tasks, notes and memories: the row as it was, until it expires.
+      `CREATE TABLE IF NOT EXISTS tal_trash (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('memory','task','note')),
+        item_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        reason TEXT NOT NULL CHECK (reason IN ('deleted','archived','compacted')),
+        actor TEXT NOT NULL CHECK (actor IN ('owner','remote','system')),
+        bytes INTEGER NOT NULL,
+        deleted_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_tal_trash_expires ON tal_trash (expires_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_tal_trash_deleted ON tal_trash (deleted_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_tal_trash_actor ON tal_trash (actor, deleted_at)`,
+      // Row counts kept by triggers, so a storage check reads one row instead of counting the
+      // table (Durable Object SQLite bills every row a query reads).
+      `CREATE TABLE IF NOT EXISTS tal_counts (kind TEXT PRIMARY KEY, n INTEGER NOT NULL)`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'memories', count(*) FROM tal_memories WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_memories_ins AFTER INSERT ON tal_memories BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'memories'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_memories_del AFTER DELETE ON tal_memories BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'memories'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'tasks', count(*) FROM tal_tasks WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_tasks_ins AFTER INSERT ON tal_tasks BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'tasks'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_tasks_del AFTER DELETE ON tal_tasks BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'tasks'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'notes', count(*) FROM tal_notes WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_notes_ins AFTER INSERT ON tal_notes BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'notes'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_notes_del AFTER DELETE ON tal_notes BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'notes'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'projects', count(*) FROM tal_projects WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_projects_ins AFTER INSERT ON tal_projects BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'projects'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_projects_del AFTER DELETE ON tal_projects BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'projects'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'conversations', count(*) FROM tal_conversations WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_conversations_ins AFTER INSERT ON tal_conversations BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'conversations'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_conversations_del AFTER DELETE ON tal_conversations BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'conversations'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'messages', count(*) FROM tal_messages WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_messages_ins AFTER INSERT ON tal_messages BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'messages'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_messages_del AFTER DELETE ON tal_messages BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'messages'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'trash', count(*) FROM tal_trash WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_trash_ins AFTER INSERT ON tal_trash BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'trash'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_trash_del AFTER DELETE ON tal_trash BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'trash'; END`,
+      `INSERT INTO tal_counts (kind, n) SELECT 'automations', count(*) FROM tal_automations WHERE 1 ON CONFLICT(kind) DO UPDATE SET n = excluded.n`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_automations_ins AFTER INSERT ON tal_automations BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'automations'; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_automations_del AFTER DELETE ON tal_automations BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'automations'; END`,
+      // Entries and bytes per actor (the trash is new, so these start at zero).
+      `INSERT INTO tal_counts (kind, n) VALUES ('trash_owner', 0), ('trash_bytes_owner', 0) ON CONFLICT(kind) DO NOTHING`,
+      `INSERT INTO tal_counts (kind, n) VALUES ('trash_remote', 0), ('trash_bytes_remote', 0) ON CONFLICT(kind) DO NOTHING`,
+      `INSERT INTO tal_counts (kind, n) VALUES ('trash_system', 0), ('trash_bytes_system', 0) ON CONFLICT(kind) DO NOTHING`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_trash_actor_ins AFTER INSERT ON tal_trash BEGIN UPDATE tal_counts SET n = n + 1 WHERE kind = 'trash_' || new.actor; UPDATE tal_counts SET n = n + new.bytes WHERE kind = 'trash_bytes_' || new.actor; END`,
+      `CREATE TRIGGER IF NOT EXISTS tal_counts_trash_actor_del AFTER DELETE ON tal_trash BEGIN UPDATE tal_counts SET n = n - 1 WHERE kind = 'trash_' || old.actor; UPDATE tal_counts SET n = n - old.bytes WHERE kind = 'trash_bytes_' || old.actor; END`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

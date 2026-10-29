@@ -142,6 +142,7 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
   const newer = (v: unknown) => (trustedStamp(v, now) ? 1 : 0);
 
   let paused = 0; // existing automations this backup paused
+  const before = s.storage.counts();
   const summary = db.transaction((): ImportSummary => {
     for (const p of d.projects) {
       db.run(
@@ -280,6 +281,8 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
       });
       mcpServers++;
     }
+    // Inside the transaction: a backup that would go over a storage limit imports nothing.
+    s.storage.assertGrewWithinLimits(before);
     const settings: Record<string, unknown> = { ...d.settings };
     const ignored = IMPORT_IGNORED_SETTINGS.filter((key) => key in settings);
     for (const key of ignored) delete settings[key];

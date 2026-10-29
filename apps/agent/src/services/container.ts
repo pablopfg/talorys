@@ -31,6 +31,7 @@ import { raiseSecurityAlert } from "../alerts/security";
 import { TelegramService } from "../telegram/service";
 import { WorkflowRepository } from "../workflows/repository";
 import { WorkflowService } from "../workflows/service";
+import { StorageService } from "./storage";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
 export interface Services {
@@ -62,6 +63,8 @@ export interface Services {
   calendar: CalendarService;
   /** Routines run by Cloudflare Workflows (the Workflows menu). */
   workflows: WorkflowService;
+  /** Storage limits and the trash. */
+  storage: StorageService;
 }
 
 /** `background` keeps work alive after the request or alarm that started it (the Durable Object's waitUntil). */
@@ -73,12 +76,13 @@ export function createServices(
   background: (work: Promise<unknown>) => void = () => {},
 ): Services {
   const db = new Database(storage);
+  const store = new StorageService(db);
   const settings = new SettingsService(db, {
     ...(env.TALORYS_DEFAULT_TIMEZONE ? { timezone: env.TALORYS_DEFAULT_TIMEZONE } : {}),
     ...(env.TALORYS_AGENT_NAME ? { agentName: env.TALORYS_AGENT_NAME } : {}),
     ...(languagePreferenceSchema.safeParse(env.TALORYS_DEFAULT_LANGUAGE).success ? { language: env.TALORYS_DEFAULT_LANGUAGE as Settings["language"] } : {}),
   });
-  const automationsRepo = new AutomationRepository(db);
+  const automationsRepo = new AutomationRepository(db, store);
   const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
   const notifications = new NotificationRepository(db);
   const activity = new ActivityLog(db);
@@ -120,18 +124,18 @@ export function createServices(
     learning: new AlertLearning(db, notifications, activity),
     email,
   });
-  const memories = new MemoryRepository(db);
+  const memories = new MemoryRepository(db, store);
   const usage = new UsageService(db, () => settings.get().timezone);
-  const tasks = new TaskRepository(db, (id) => alerts.taskCompleted(id));
-  const projects = new ProjectRepository(db);
+  const tasks = new TaskRepository(db, (id) => alerts.taskCompleted(id), store);
+  const projects = new ProjectRepository(db, store);
   const authLog = new AuthLog(db, settings, () => env.SESSION_SECRET);
   return {
     db,
     tasks,
     memories,
-    notes: new NoteRepository(db),
+    notes: new NoteRepository(db, store),
     projects,
-    conversations: new ConversationRepository(db),
+    conversations: new ConversationRepository(db, store),
     automationsRepo,
     notifications,
     alerts,
@@ -184,5 +188,6 @@ export function createServices(
       scheduler.workflows?.launcher ?? { available: () => false, start: async () => {}, forget: () => {} },
       env.TALORYS_ENV === "development",
     ),
+    storage: store,
   };
 }

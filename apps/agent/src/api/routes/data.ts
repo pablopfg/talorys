@@ -52,7 +52,7 @@ dataRoutes.patch("/tasks/:id", async (c) => {
 });
 
 dataRoutes.delete("/tasks/:id", (c) => {
-  c.env.agent.services.tasks.delete(c.req.param("id"));
+  c.env.agent.services.tasks.delete(c.req.param("id"), { actor: c.get("remote") ? "remote" : "owner" });
   return c.json({ deleted: true });
 });
 
@@ -71,18 +71,18 @@ dataRoutes.get("/memories", (c) => {
 
 dataRoutes.post("/memories", async (c) => {
   const input = await body(c, memoryCreateSchema);
-  const result = await c.env.agent.services.memoryHistory.create({ ...input, source: c.get("remote") ? "remote" : "manual" }, { signal: c.req.raw.signal });
+  const result = await c.env.agent.services.memoryHistory.create({ ...input, source: c.get("remote") ? "remote" : "manual" }, { signal: c.req.raw.signal, remote: !!c.get("remote") });
   return c.json({ memory: result.memory, superseded: result.superseded, reviews: result.reviews.length }, 201);
 });
 
 dataRoutes.patch("/memories/:id", async (c) => {
   const patch = await body(c, memoryUpdateSchema);
-  const result = await c.env.agent.services.memoryHistory.update(c.req.param("id"), patch, { signal: c.req.raw.signal });
+  const result = await c.env.agent.services.memoryHistory.update(c.req.param("id"), patch, { signal: c.req.raw.signal, remote: !!c.get("remote") });
   return c.json({ memory: result.memory, superseded: result.superseded, reviews: result.reviews.length });
 });
 
 dataRoutes.delete("/memories/:id", (c) => {
-  c.env.agent.services.memoryHistory.delete(c.req.param("id"));
+  c.env.agent.services.memoryHistory.delete(c.req.param("id"), { actor: c.get("remote") ? "remote" : "owner" });
   return c.json({ deleted: true });
 });
 
@@ -154,7 +154,7 @@ dataRoutes.patch("/notes/:id", async (c) => {
 });
 
 dataRoutes.delete("/notes/:id", (c) => {
-  c.env.agent.services.notes.delete(c.req.param("id"));
+  c.env.agent.services.notes.delete(c.req.param("id"), { actor: c.get("remote") ? "remote" : "owner" });
   return c.json({ deleted: true });
 });
 
@@ -175,4 +175,39 @@ dataRoutes.patch("/projects/:id", async (c) => {
 dataRoutes.delete("/projects/:id", (c) => {
   c.env.agent.services.projects.delete(c.req.param("id"));
   return c.json({ deleted: true });
+});
+
+// ---------- Storage and trash ----------
+// Owner only: none of these paths is on the access-token allowlist.
+
+dataRoutes.get("/storage", (c) => c.json({ storage: c.env.agent.services.storage.usage() }));
+
+const trashKindSchema = z.enum(["memory", "task", "note"]);
+
+dataRoutes.get("/trash", (c) => {
+  const q = query(c, z.object({ kind: trashKindSchema.optional() }));
+  return c.json({ items: c.env.agent.services.storage.listTrash({ kind: q.kind }) });
+});
+
+dataRoutes.post("/trash/:id/restore", (c) => {
+  const s = c.env.agent.services;
+  const restored = s.storage.restore(c.req.param("id"));
+  s.activity.record(
+    "trash.restored",
+    restored.kind === "task" ? "Restored a task from the trash" : restored.kind === "note" ? "Restored a note from the trash" : "Restored a memory from the trash",
+  );
+  return c.json({ restored });
+});
+
+dataRoutes.delete("/trash/:id", (c) => {
+  c.env.agent.services.storage.purge(c.req.param("id"));
+  return c.json({ deleted: true });
+});
+
+dataRoutes.delete("/trash", async (c) => {
+  const { include_archive } = await body(c, z.object({ confirm: z.literal("DELETE"), include_archive: z.boolean().optional() }), 1024);
+  const s = c.env.agent.services;
+  const deleted = s.storage.empty({ includeArchive: include_archive });
+  s.activity.record("trash.emptied", `Emptied the trash. Items removed: ${deleted}`);
+  return c.json({ deleted });
 });

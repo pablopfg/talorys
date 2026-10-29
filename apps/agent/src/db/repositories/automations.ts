@@ -13,6 +13,7 @@ import {
 } from "@talorys/shared";
 import { type Database, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
+import type { StorageService } from "../../services/storage";
 
 interface AutomationRow extends Omit<Automation, "schedule" | "enabled" | "schedule_description" | "sentinel"> {
   schedule: string;
@@ -26,7 +27,11 @@ function toAutomation(row: AutomationRow): Automation {
 }
 
 export class AutomationRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    /** Limits; without it, creates are unlimited (tests). */
+    private readonly storage?: StorageService,
+  ) {}
 
   list(): Automation[] {
     return this.db
@@ -55,6 +60,7 @@ export class AutomationRepository {
     sentinel?: boolean;
     calendar_gate?: string | null;
   }): Automation {
+    this.storage?.assertRoom("automations");
     const ts = now();
     const id = newId();
     this.db.run(

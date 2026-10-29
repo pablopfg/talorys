@@ -24,6 +24,8 @@ import type {
   Workflow,
   WorkflowRun,
   PaidAiProviderId,
+  StorageUsage,
+  TrashItem,
 } from "@talorys/shared";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -55,7 +57,17 @@ export const keys = {
   mcpTools: (id: string) => ["mcp", "tools", id] as const,
   googleCalendar: ["calendar", "google"] as const,
   workflows: ["workflows"] as const,
+  storage: ["storage"] as const,
+  trash: ["storage", "trash"] as const,
 };
+
+export function useStorage() {
+  return useQuery({ queryKey: keys.storage, queryFn: () => api<{ storage: StorageUsage }>("/storage").then((r) => r.storage) });
+}
+
+export function useTrash() {
+  return useQuery({ queryKey: keys.trash, queryFn: () => api<{ items: TrashItem[] }>("/trash").then((r) => r.items) });
+}
 
 export function useSettings() {
   return useQuery({ queryKey: keys.settings, queryFn: () => api<{ settings: Settings }>("/settings").then((r) => r.settings), staleTime: 60_000 });

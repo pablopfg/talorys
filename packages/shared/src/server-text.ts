@@ -35,6 +35,26 @@ const PT_BR: Catalog = {
   "The backend service binding is missing. Re-run the Talorys installer.": "O service binding do backend está ausente. Execute o instalador do Talorys novamente.",
   "The Talorys backend is unreachable. Please try again shortly.": "O backend do Talorys está inacessível. Tente novamente em instantes.",
 
+  // Storage limits and the trash
+  "You reached the limit of {limit} memories. Delete the ones you no longer need to save new ones.": "Você chegou ao limite de {limit} memórias. Exclua as que não usa mais para salvar novas.",
+  "You reached the limit of {limit} tasks. Delete finished tasks you no longer need to add new ones.": "Você chegou ao limite de {limit} tarefas. Exclua as tarefas concluídas que não usa mais para criar novas.",
+  "You reached the limit of {limit} notes. Delete notes you no longer need to add new ones.": "Você chegou ao limite de {limit} notas. Exclua as notas que não usa mais para criar novas.",
+  "You reached the limit of {limit} projects. Delete projects you no longer need to add new ones.": "Você chegou ao limite de {limit} projetos. Exclua os projetos que não usa mais para criar novos.",
+  "You reached the limit of {limit} conversations. Delete old conversations to start new ones.": "Você chegou ao limite de {limit} conversas. Exclua conversas antigas para começar novas.",
+  "You reached the limit of {limit} chat messages. Delete old conversations to keep chatting.": "Você chegou ao limite de {limit} mensagens no chat. Exclua conversas antigas para continuar conversando.",
+  "Talorys storage is full. Empty the trash or delete old conversations, notes or memories to add more.": "O armazenamento do Talorys está cheio. Esvazie a lixeira ou exclua conversas, notas ou memórias antigas para adicionar mais.",
+  "This item is no longer in the trash.": "Este item não está mais na lixeira.",
+  "This item can't be restored.": "Não é possível restaurar este item.",
+  "An item with the same id already exists.": "Já existe um item com o mesmo id.",
+  "Restored a task from the trash": "Tarefa restaurada da lixeira",
+  "Restored a note from the trash": "Nota restaurada da lixeira",
+  "Restored a memory from the trash": "Memória restaurada da lixeira",
+  "Emptied the trash. Items removed: {count}": "Lixeira esvaziada. Itens removidos: {count}",
+  "You reached the limit of {limit} automations. Delete automations you no longer need to add new ones.": "Você chegou ao limite de {limit} automações. Exclua as automações que não usa mais para criar novas.",
+  "The trash has no more room for items deleted with access tokens. Restore or delete them in Settings → Privacy first.": "A lixeira não tem mais espaço para itens excluídos com tokens de acesso. Restaure ou exclua esses itens em Configurações → Privacidade antes.",
+  "The archive is full. Delete archived items in Settings → Privacy first.": "O arquivo está cheio. Exclua itens arquivados em Configurações → Privacidade antes.",
+  "Talorys already has a current memory with the same text.": "O Talorys já tem uma memória atual com o mesmo texto.",
+
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
   "Incorrect code.": "Código incorreto.",

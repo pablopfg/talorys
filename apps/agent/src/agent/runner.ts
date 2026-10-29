@@ -113,6 +113,8 @@ export class AgentRunner {
       userMessage = prev;
     } else {
       if (!conversation) {
+        // Checked first, so a full chat never leaves an empty conversation behind.
+        s.storage.assertRoom("messages", 2);
         conversation = s.conversations.create(titleFromMessage(input.message));
         yield { type: "title", conversation_id: conversation.id, title: conversation.title };
       }

@@ -159,6 +159,12 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   async watch(): Promise<void> {
     await runWatchers(this.services);
     try {
+      // Trash entries go for good when they expire, even if the owner never opens the trash.
+      this.services.storage.purgeExpired();
+    } catch (error) {
+      console.warn("Trash purge failed", error instanceof Error ? error.message : String(error));
+    }
+    try {
       // Notices before a calendar's first event, timed to the minute rather than to this round.
       await planNotices(this.services, async (at, payload) => {
         await this.schedule<NoticePayload>(at, "calendarNotice", payload, { idempotent: true });

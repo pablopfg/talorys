@@ -549,6 +549,52 @@ mudar o que o Talorys faz por conta própria:
 - Um arquivo tem no máximo 10 MB, com um limite de registros de cada tipo (por
   exemplo, 50.000 mensagens e 500 automações); passado qualquer um dos dois,
   nada é importado.
+- Uma importação que passaria de algum limite de armazenamento (veja abaixo)
+  é desfeita inteira, sem gravar nada.
+
+## Limites de armazenamento e lixeira
+
+O banco de cada instalação tem limites por tipo de dado, que mantêm o Talorys
+bem dentro do plano gratuito da Cloudflare (5 GB de Durable Objects por conta),
+mesmo com um token de escrita vazado ou importações repetidas:
+
+| Tipo | Limite |
+|---|---|
+| Memórias | 10.000 |
+| Tarefas | 20.000 |
+| Notas | 5.000 |
+| Projetos | 1.000 |
+| Conversas | 5.000 |
+| Mensagens do chat | 200.000 |
+| Automações | 500 |
+| Tamanho total do banco | 4 GiB |
+
+- No limite, o item novo é recusado com o erro `STORAGE_LIMIT_REACHED` (HTTP
+  409) e uma mensagem clara. Nada é apagado para abrir espaço. No chat, só um
+  turno novo é recusado: a resposta de um turno já em andamento é sempre salva.
+- Em **Configurações → Privacidade → Armazenamento**, cada tipo mostra o uso, e
+  um aviso aparece a partir de 80% de qualquer limite.
+- Tarefas, notas e memórias excluídas (pelo dono, por uma ação aprovada do
+  agente ou por um token de escrita) vão para a **lixeira** por 30 dias; as
+  arquivadas ficam um ano no **arquivo**. Depois disso, são apagadas de vez,
+  mesmo que você nunca abra a lixeira (a limpeza roda a cada 15 minutos).
+- A lixeira tem um espaço separado para cada origem, contado em itens e em
+  bytes: o dono (10.000 itens, 256 MB), os tokens de acesso (2.000 itens,
+  64 MB) e o próprio Talorys, que arquiva e combina itens (20.000 itens,
+  256 MB). Quando o espaço do dono acaba, os itens mais antigos dele saem
+  primeiro. Quando o espaço dos tokens acaba, a exclusão por token é recusada
+  (e não acontece). Assim, um token vazado nunca empurra para fora da lixeira o
+  que ele mesmo apagou, nem o que você apagou, e não consegue encher o banco
+  por ela.
+- Só a sessão do dono lista, restaura, exclui de vez ou esvazia a lixeira;
+  tokens de acesso recebem 403. Restaurar respeita os limites, e um projeto ou
+  uma memória ligada que não existe mais fica de fora.
+- **Apagar todas as memórias** e excluir conversas continuam definitivos: essas
+  ações de privacidade não passam pela lixeira. Apagar todas as memórias também
+  apaga as memórias que estavam na lixeira. O backup exportado não inclui a
+  lixeira.
+- Resolver um conflito de memória com "substituir" ou "cancelar" continua
+  excluindo de vez a versão descartada, porque é uma escolha explícita sua.
 
 ## Instalador
 

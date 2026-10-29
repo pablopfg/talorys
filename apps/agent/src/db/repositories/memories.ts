@@ -2,6 +2,7 @@ import type { Memory, MemoryCategory, MemoryStatus } from "@talorys/shared";
 import { type Database, ftsQuery, likePattern, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
 import { stripUndefined } from "./tasks";
+import type { StorageService } from "../../services/storage";
 
 /** "current" = active or uncertain (everything except history). */
 export type MemoryStatusFilter = "all" | "active" | "current" | "historical" | "review";
@@ -34,7 +35,11 @@ function statusWhere(status: MemoryStatusFilter | undefined, alias = ""): string
 }
 
 export class MemoryRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    /** Limits and the trash; without it, creates are unlimited and nothing is kept on delete (tests). */
+    private readonly storage?: StorageService,
+  ) {}
 
   list(opts: { category?: string; q?: string; limit?: number; status?: MemoryStatusFilter } = {}): Memory[] {
     if (opts.q) return this.search(opts.q, opts.limit ?? 100, opts.category, opts.status);
@@ -100,6 +105,7 @@ export class MemoryRepository {
       this.db.run(`UPDATE tal_memories SET updated_at = ? WHERE id = ?`, ts, dup.id);
       return { ...dup, updated_at: ts, duplicate: true };
     }
+    this.storage?.assertRoom("memories");
     const ts = now();
     const memory: Memory = {
       id: newId(),
@@ -153,12 +159,13 @@ export class MemoryRepository {
   }
 
   /**
-   * Permanently deletes a memory, its conflict reviews, and links from other memories
-   * (which keep their status). Semantic vectors are removed by MemoryHistoryService.
+   * Deletes a memory, its conflict reviews, and links from other memories (which keep their
+   * status). With `keep`, a copy waits in the trash. Semantic vectors are removed by MemoryHistoryService.
    */
-  delete(id: string): void {
-    this.require(id);
+  delete(id: string, opts: { keep?: "deleted" | "compacted"; actor?: "owner" | "remote" } = {}): void {
+    const memory = this.require(id);
     this.db.transaction(() => {
+      if (opts.keep) this.storage?.keep("memory", memory, memory.content, { reason: opts.keep, actor: opts.actor });
       this.db.run(`DELETE FROM tal_memory_reviews WHERE memory_id = ? OR other_id = ?`, id, id);
       this.db.run(`UPDATE tal_memories SET superseded_by = NULL WHERE superseded_by = ?`, id);
       this.db.run(`DELETE FROM tal_memories WHERE id = ?`, id);
@@ -168,6 +175,8 @@ export class MemoryRepository {
   clear(): number {
     return this.db.transaction(() => {
       this.db.run(`DELETE FROM tal_memory_reviews`);
+      // Forgetting everything leaves no copy in the trash either.
+      this.storage?.forgetMemories();
       // rowsWritten would also count full-text index writes; report memories only.
       const n = this.count();
       this.db.run(`DELETE FROM tal_memories`);
