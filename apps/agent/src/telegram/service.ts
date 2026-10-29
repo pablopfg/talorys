@@ -18,7 +18,7 @@ import type { AutomationService } from "../agent/scheduling";
 import { AppError } from "../api/errors";
 import { clip } from "../services/text";
 import { toLocalMinute } from "../services/time";
-import { escapeHtml, TELEGRAM_WEBHOOK_PATH, TelegramClient, TelegramError, telegramWebhookSecret } from "./client";
+import { bytesToBase64, escapeHtml, TELEGRAM_WEBHOOK_PATH, TelegramClient, TelegramError, telegramWebhookSecret } from "./client";
 import { markdownToTelegramHtml, splitMessage } from "./format";
 
 /** One agent turn, as the app's chat runs it (AgentRunner.chat). */
@@ -33,6 +33,8 @@ export interface TelegramChat {
   exists: (conversationId: string) => boolean;
   /** Keeps the Durable Object alive while a turn runs: work after the webhook's response is not enough. */
   keepAliveWhile: <T>(work: () => Promise<T>) => Promise<T>;
+  /** Transcribes a voice message within the app's voice-input limits (TalorysAgent.transcribeClip). */
+  transcribe: (audio: string, opts: { seconds?: number; signal?: AbortSignal }) => Promise<{ text: string; seconds: number }>;
 }
 
 /** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
@@ -85,6 +87,16 @@ const MAX_TYPING = 12;
 /** A turn that ignores the abort (a stuck tool) is given up this long after it, so the chat is never locked. */
 const ABORT_GRACE_MS = 10_000;
 const COMMAND = /^\/(new|help|start)(?:@\w+)?\s*$/i;
+/** Longest voice message transcribed, in seconds. */
+export const MAX_VOICE_SECONDS = 5 * 60;
+/** Largest voice or audio file downloaded: five minutes of a typical recording, with room to spare. */
+export const MAX_VOICE_BYTES = 5 * 1024 * 1024;
+/** Size-based length estimate for a clip Telegram gave no length for: 32 kbit/s, as for app clips. */
+const VOICE_BYTES_PER_SECOND = 4000;
+/** Transcription errors whose message is shown to the owner as is (they are catalog texts). */
+const VOICE_ERRORS = new Set<string>(["AI_LIMIT_REACHED", "AI_QUOTA_EXHAUSTED", "AI_UNAVAILABLE", "CONFLICT"]);
+/** Longest transcript echoed back, so the echo is always a single message. */
+const MAX_ECHO = 3500;
 
 /** English labels, translated with the server-text catalog like every other server text. */
 const CATEGORY_TEXT: Record<AlertCategory, string> = {
@@ -96,7 +108,17 @@ const ICON: Record<AlertPriority, string> = { low: "🔕", normal: "🔔", high:
 /** Minimal shapes of the Bot API objects Talorys reads. */
 interface TgUser { id: number; is_bot?: boolean }
 interface TgChat { id: number; type: string; title?: string; is_forum?: boolean }
-interface TgMessage { message_id: number; from?: TgUser; chat: TgChat; text?: string; migrate_to_chat_id?: number }
+interface TgAudio { file_id: string; duration?: number; file_size?: number }
+interface TgMessage {
+  message_id: number;
+  from?: TgUser;
+  chat: TgChat;
+  text?: string;
+  migrate_to_chat_id?: number;
+  /** A voice message recorded in Telegram, or an audio file sent to the chat. */
+  voice?: TgAudio;
+  audio?: TgAudio;
+}
 interface TgCallback { id: string; from: TgUser; data?: string; message?: TgMessage }
 export interface TgUpdate { update_id: number; message?: TgMessage; callback_query?: TgCallback }
 
@@ -112,6 +134,8 @@ export class TelegramService {
   private chat: TelegramChat | null = null;
   /** A turn from the private chat is running (also before its conversation exists). */
   private chatting = false;
+  /** A voice message from the private chat is being downloaded or transcribed. */
+  private listening = false;
 
   constructor(
     token: string | undefined,
@@ -351,18 +375,90 @@ export class TelegramService {
       return;
     }
     if (command === "help" || command === "start") {
-      await this.reply(m.chat.id, this.text(link.conversation ? "Write to talk to Talorys, as in the app's chat. /new starts a new conversation. Alerts arrive in the group, or here while no group is linked." : "Alerts arrive in the group, or here while no group is linked. The conversation through Telegram is off; turn it on in Settings → Alerts → Telegram."));
+      await this.reply(m.chat.id, this.text(link.conversation ? "Write or send a voice message to talk to Talorys, as in the app's chat. /new starts a new conversation. Alerts arrive in the group, or here while no group is linked." : "Alerts arrive in the group, or here while no group is linked. The conversation through Telegram is off; turn it on in Settings → Alerts → Telegram."));
       return;
     }
     if (!link.conversation || !this.chat) {
       await this.reply(m.chat.id, this.text("The conversation through Telegram is off. Turn it on in Settings → Alerts → Telegram."));
       return;
     }
+    const clipFile = m.voice ?? m.audio;
+    if (!text && clipFile) {
+      await this.onVoice(m.chat.id, clipFile);
+      return;
+    }
     if (!text) {
-      await this.reply(m.chat.id, this.text("Talorys reads text messages here for now."));
+      await this.reply(m.chat.id, this.text("Talorys reads text and voice messages here."));
       return;
     }
     await this.converse(m.chat.id, clip(text, MAX_CHAT_MESSAGE));
+  }
+
+  /** Whether the private chat is waiting on Talorys: a turn or a voice message in progress. */
+  private busy(conversationId: string | null): boolean {
+    return this.chatting || this.listening || (!!conversationId && !!this.chat?.active.has(conversationId));
+  }
+
+  /**
+   * A voice message (or audio file): transcribed with the app's voice-input model and limits, shown
+   * back to the owner, then answered like a written message. The audio is never stored.
+   */
+  private async onVoice(chatId: number, file: TgAudio): Promise<void> {
+    const chat = this.chat!;
+    const client = this.client;
+    if (!client) return;
+    const duration = Number.isFinite(file.duration) && file.duration! > 0 ? file.duration! : undefined;
+    if ((duration ?? 0) > MAX_VOICE_SECONDS || (file.file_size ?? 0) > MAX_VOICE_BYTES) {
+      await this.reply(chatId, `⚠️ ${this.text("This voice message is too long. Send up to 5 minutes, or write it.")}`);
+      return;
+    }
+    if (this.busy(this.link().conversationId)) {
+      await this.reply(chatId, this.text("Talorys is still answering your last message. Wait for it, then write again."));
+      return;
+    }
+    // Held until the reply's turn starts, so no other message slips in between.
+    this.listening = true;
+    let handedOver = false;
+    try {
+      let text = "";
+      let failure: string | null = null;
+      try {
+        void client.call("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+        text = await chat.keepAliveWhile(async () => {
+          const info = await client.call<{ file_path?: string; file_size?: number }>("getFile", { file_id: file.file_id });
+          if (!info.file_path || (info.file_size ?? 0) > MAX_VOICE_BYTES) throw new TelegramError(413, "file too large");
+          const bytes = await client.download(info.file_path, MAX_VOICE_BYTES);
+          // Without a length from Telegram, estimate one from the size (no 60 s clip cap here),
+          // so the daily cap is checked before the model runs and never undercounted.
+          const seconds = duration ?? Math.min(MAX_VOICE_SECONDS, Math.max(1, Math.ceil(bytes.byteLength / VOICE_BYTES_PER_SECOND)));
+          const result = await chat.transcribe(bytesToBase64(bytes), { seconds, signal: AbortSignal.timeout(CHAT_TURN_TIMEOUT_MS) });
+          return result.text.trim();
+        });
+      } catch (error) {
+        if (error instanceof TelegramError && error.code === 413) failure = "This voice message is too long. Send up to 5 minutes, or write it.";
+        else if (error instanceof AppError && VOICE_ERRORS.has(error.code)) failure = error.message;
+        else {
+          console.warn("Telegram voice message failed", error instanceof TelegramError ? error.code : error instanceof AppError ? error.code : "error");
+          failure = "Talorys couldn't transcribe this voice message. Try again, or write it.";
+        }
+      }
+      if (failure) {
+        await this.reply(chatId, `⚠️ ${this.text(failure)}`);
+        return;
+      }
+      if (!text) {
+        await this.reply(chatId, this.text("Talorys couldn't make out any words in this voice message. Try again, or write it."));
+        return;
+      }
+      await this.reply(chatId, `🎙️ ${clip(text, MAX_ECHO)}`);
+      // converse() claims the chat before its first await, so the hand-over leaves no gap.
+      this.listening = false;
+      handedOver = true;
+      await this.converse(chatId, clip(text, MAX_CHAT_MESSAGE));
+    } finally {
+      // After the hand-over the flag may belong to a later voice message.
+      if (!handedOver) this.listening = false;
+    }
   }
 
   /**
@@ -376,7 +472,7 @@ export class TelegramService {
       conversationId = undefined;
       this.save({ conversationId: null });
     }
-    if (this.chatting || (conversationId && chat.active.has(conversationId))) {
+    if (this.busy(conversationId ?? null)) {
       await this.reply(chatId, this.text("Talorys is still answering your last message. Wait for it, then write again."));
       return;
     }

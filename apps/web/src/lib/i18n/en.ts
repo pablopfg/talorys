@@ -925,7 +925,7 @@ export const en = {
   "telegram.chat": "Private chat",
   "telegram.chatHint": "Your conversation with the bot. Only your Telegram account is heard.",
   "telegram.conversation": "Talk to Talorys in the chat",
-  "telegram.conversationHint": "Messages you send to the bot go to the agent, as in the app's chat, with the same tools and limits. Approvals and task plans are confirmed in the app. /new starts a new conversation.",
+  "telegram.conversationHint": "Messages you send to the bot, written or voice (up to 5 minutes), go to the agent, as in the app's chat, with the same tools and limits. Approvals and task plans are confirmed in the app. /new starts a new conversation.",
   "telegram.conversationAria": "Talk to Talorys in the Telegram chat",
   "telegram.conversationOn": "Conversation through Telegram turned on",
   "telegram.conversationOff": "Conversation through Telegram turned off",

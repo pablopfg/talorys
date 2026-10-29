@@ -12,6 +12,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Conversa pelo Telegram.** O chat privado com o bot agora conversa com o Talorys, com as mesmas memórias, ferramentas e limites do chat do app, numa conversa que também aparece no app (`/new` começa outra). Ações que pedem aprovação e planos de tarefas continuam sendo confirmados só no app: a resposta traz o botão **Abrir no Talorys**. A conversa liga e desliga em Configurações → Avisos → Telegram (ligar de novo pede a senha). Veja [docs/alerts.md](docs/alerts.md#conversar-pelo-chat-privado).
 
+- **Mensagens de voz no Telegram.** Com a conversa pelo Telegram ligada, grave um áudio (ou envie um arquivo de áudio) de até 5 minutos no chat privado com o bot: o Talorys transcreve com o mesmo Whisper da entrada por voz do app, mostra o texto que entendeu e responde como se você tivesse escrito. Usa o mesmo teto diário de 60 minutos de áudio do app, e o áudio não é guardado. Veja [docs/alerts.md](docs/alerts.md#mensagens-de-voz).
+
 ### Alterado
 
 - O histórico de entregas fala em "aparelho ou chat" nos motivos de não envio, porque vale também para o Telegram.

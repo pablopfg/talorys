@@ -1,12 +1,12 @@
 import { env } from "cloudflare:workers";
-import { DEFAULT_ALERT_PREFERENCES } from "@talorys/shared";
+import { DEFAULT_ALERT_PREFERENCES, TRANSCRIPTION_LIMITS } from "@talorys/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import type { Env } from "../src/env";
 import type { TalorysAgent } from "../src/agent/talorys-agent";
 import { clearAccessKeys } from "../src/auth/access";
 import { isRemoteAllowed } from "../src/remote/allowlist";
-import { isTelegramWebhook, TelegramClient, TelegramError, telegramWebhookSecret } from "../src/telegram/client";
+import { bytesToBase64, isTelegramWebhook, TelegramClient, TelegramError, telegramWebhookSecret } from "../src/telegram/client";
 import type { TgUpdate } from "../src/telegram/service";
 import { BASE, client, freshIp, inAgent, loggedIn } from "./helpers";
 
@@ -21,16 +21,22 @@ interface Call { method: string; params: Record<string, any> }
  * A fake Bot API. Every call is recorded; `replies[method]` answers it (a function may throw a
  * TelegramError-shaped refusal by returning { ok: false, ... }).
  */
-function fakeTelegram(replies: Record<string, (params: Record<string, any>) => unknown> = {}) {
+function fakeTelegram(replies: Record<string, (params: Record<string, any>) => unknown> = {}, files: Record<string, () => Response> = {}) {
   const calls: Call[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    const filePrefix = "https://api.telegram.org/file/bot123456:test-telegram-token/";
+    if (url.startsWith(filePrefix)) {
+      const path = url.slice(filePrefix.length);
+      calls.push({ method: "download", params: { path } });
+      return files[path]?.() ?? new Response("Not Found", { status: 404 });
+    }
     expect(url.startsWith("https://api.telegram.org/bot123456:test-telegram-token/")).toBe(true);
     const method = url.split("/").pop()!;
     const params = JSON.parse(String(init?.body ?? "{}"));
     calls.push({ method, params });
     const reply = replies[method];
-    const out = reply ? reply(params) : method === "getMe" ? { username: "talorys_test_bot" } : method === "sendMessage" ? { message_id: calls.length } : true;
+    const out = reply ? await reply(params) : method === "getMe" ? { username: "talorys_test_bot" } : method === "sendMessage" ? { message_id: calls.length } : true;
     if (out && typeof out === "object" && (out as { ok?: boolean }).ok === false) return Response.json(out, { status: (out as { error_code: number }).error_code });
     return Response.json({ ok: true, result: out });
   }) as typeof fetch;
@@ -45,6 +51,15 @@ let nextUpdate = 1;
 const update = (body: Omit<TgUpdate, "update_id">): TgUpdate => ({ update_id: nextUpdate++, ...body });
 const privateMessage = (text: string, from = OWNER): TgUpdate =>
   update({ message: { message_id: 1, from: { id: from }, chat: { id: from, type: "private" }, text } });
+/** A voice message (or, with `kind: "audio"`, an audio file) from the owner. */
+const voiceMessage = (file: { file_id?: string; duration?: number; file_size?: number }, kind: "voice" | "audio" = "voice", from = OWNER): TgUpdate =>
+  update({ message: { message_id: 1, from: { id: from }, chat: { id: from, type: "private" }, [kind]: { file_id: "voice-1", duration: 4, ...file } } });
+/** A fake Bot API that serves one voice file of `bytes` bytes. */
+const voiceTelegram = (bytes = 16_000, replies: Record<string, (params: Record<string, any>) => unknown> = {}) =>
+  fakeTelegram(
+    { getFile: () => ({ file_id: "voice-1", file_size: bytes, file_path: "voice/file_1.oga" }), ...replies },
+    { "voice/file_1.oga": () => new Response(new Uint8Array(bytes).fill(7)) },
+  );
 const groupMessage = (text: string, from = OWNER, chat: Record<string, unknown> = {}): TgUpdate =>
   update({ message: { message_id: 1, from: { id: from }, chat: { id: GROUP, type: "supergroup", title: "Talorys alerts", ...chat }, text } });
 
@@ -178,7 +193,7 @@ describe("linking", () => {
       const help = privateMessage("/help");
       await t.handle(help);
       await t.handle(help);
-      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write to talk to Talorys"))).toHaveLength(1);
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write or send a voice message"))).toHaveLength(1);
     });
   });
 
@@ -190,7 +205,7 @@ describe("linking", () => {
       await t.handle({ ...privateMessage("/help"), update_id: 900_000 });
       await t.handle({ ...privateMessage("/help"), update_id: 5 });
       await t.handle({ ...privateMessage("/help"), update_id: 899_999 });
-      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write to talk to Talorys"))).toHaveLength(3);
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write or send a voice message"))).toHaveLength(3);
       // Only the last 100 ids are kept.
       for (let i = 0; i < 120; i++) await t.handle({ ...privateMessage("/help"), update_id: 1_000_000 + i });
       expect(t.link().seenUpdates).toHaveLength(100);
@@ -221,7 +236,7 @@ describe("linking", () => {
       const replies = fake.sent().slice(before);
       expect(replies).toHaveLength(1);
       expect(replies[0]!.params).toMatchObject({ chat_id: OWNER });
-      expect(replies[0]!.params.text).toMatch(/^Write to talk to Talorys/);
+      expect(replies[0]!.params.text).toMatch(/^Write or send a voice message to talk to Talorys/);
     });
   });
 
@@ -507,7 +522,7 @@ describe("conversation in the private chat", () => {
       expect(fake.sent().map((c) => c.params.text)).toContain("Talorys is still answering your last message. Wait for it, then write again.");
 
       await t.handle(update({ message: { message_id: 5, from: { id: OWNER }, chat: { id: OWNER, type: "private" } } }));
-      expect(fake.sent().at(-1)!.params.text).toBe("Talorys reads text messages here for now.");
+      expect(fake.sent().at(-1)!.params.text).toBe("Talorys reads text and voice messages here.");
 
       t.setConversation(false);
       const before = agent.services.conversations.list().length;
@@ -578,6 +593,236 @@ describe("conversation in the private chat", () => {
     expect((await c.call("/api/telegram", { method: "PATCH", body: { conversation: true } })).status).toBe(403);
     expect((await c.json("/api/telegram", { method: "PATCH", body: { conversation: false } })).status).toMatchObject({ conversation: false });
     expect((await c.call("/api/telegram", { method: "PATCH", body: { conversation: "yes" } })).status).toBe(400);
+  });
+});
+
+describe("voice messages in the private chat", () => {
+  beforeEach(async () => {
+    await inAgent((agent) => {
+      agent.services.db.run("DELETE FROM tal_usage_daily");
+      agent.services.db.run("DELETE FROM tal_model_usage_daily");
+    });
+  });
+
+  it("transcribes the voice message, shows the text and answers it like a written message", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const before = fake.sent().length;
+      await t.handle(voiceMessage({ duration: 6 }));
+      expect(fake.calls.find((c) => c.method === "getFile")!.params).toEqual({ file_id: "voice-1" });
+      expect(fake.calls.find((c) => c.method === "download")!.params).toEqual({ path: "voice/file_1.oga" });
+      const replies = fake.sent().slice(before).map((c) => c.params.text as string);
+      expect(replies[0]).toBe("🎙️ Demo transcription of 4 s of audio.");
+      expect(replies[1]).toContain('You said: "Demo transcription of 4 s of audio."');
+      const conversationId = t.status().conversation_id!;
+      expect(agent.services.conversations.messages(conversationId)[0]).toMatchObject({ role: "user", content: "Demo transcription of 4 s of audio." });
+      // Charged by the longer of Telegram's length and the model's, against the app's voice cap.
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(6);
+      expect(agent.transcribing).toBe(false);
+      // Audio files are handled the same way.
+      await t.handle(voiceMessage({ duration: 3 }, "audio"));
+      expect(fake.sent().map((c) => c.params.text)).toContain("🎙️ Demo transcription of 4 s of audio.");
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(10);
+    });
+  });
+
+  it("refuses messages over 5 minutes or a few megabytes before downloading them", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const tooLong = "⚠️ This voice message is too long. Send up to 5 minutes, or write it.";
+      await t.handle(voiceMessage({ duration: 301 }));
+      expect(fake.sent().at(-1)!.params.text).toBe(tooLong);
+      await t.handle(voiceMessage({ file_size: 6 * 1024 * 1024 }));
+      expect(fake.sent().at(-1)!.params.text).toBe(tooLong);
+      expect(fake.calls.some((c) => c.method === "getFile" || c.method === "download")).toBe(false);
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(0);
+    });
+  });
+
+  it("stops a download that is larger than Telegram said", async () => {
+    await inAgent(async (agent) => {
+      const big = 5 * 1024 * 1024 + 1;
+      const fake = fakeTelegram(
+        { getFile: () => ({ file_id: "voice-1", file_size: 1000, file_path: "voice/file_1.oga" }) },
+        { "voice/file_1.oga": () => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array(big)); c.close(); } })) },
+      );
+      await linkChat(agent, fake);
+      await agent.services.telegram.handle(voiceMessage({}));
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ This voice message is too long. Send up to 5 minutes, or write it.");
+      // getFile reporting a large file is refused too.
+      const fake2 = voiceTelegram(5 * 1024 * 1024 + 1);
+      useFake(agent, fake2);
+      await agent.services.telegram.handle(voiceMessage({ file_size: undefined }));
+      expect(fake2.calls.some((c) => c.method === "download")).toBe(false);
+      expect(fake2.sent().at(-1)!.params.text).toBe("⚠️ This voice message is too long. Send up to 5 minutes, or write it.");
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(0);
+    });
+  });
+
+  it("keeps to the daily voice limit shared with the app", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      await linkChat(agent, fake);
+      agent.services.usage.increment({ transcription_seconds: TRANSCRIPTION_LIMITS.maxSecondsPerDay - 30 });
+      await agent.services.telegram.handle(voiceMessage({ duration: 60 }));
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys reached its daily limit of 60 minutes of voice input.");
+      expect(agent.services.telegram.status().conversation_id).toBeNull();
+      // A shorter message still fits.
+      await agent.services.telegram.handle(voiceMessage({ duration: 20 }));
+      expect(fake.sent().map((c) => c.params.text)).toContain("🎙️ Demo transcription of 4 s of audio.");
+    });
+  });
+
+  it("explains a failed download, an empty transcript, a busy transcriber and a conversation turned off", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram({ getFile: () => ({ file_id: "voice-1", file_path: "voice/missing.oga" }) });
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      await t.handle(voiceMessage({}));
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys couldn't transcribe this voice message. Try again, or write it.");
+
+      const voice = voiceTelegram();
+      useFake(agent, voice);
+      const spy = vi.spyOn(agent, "transcribeClip").mockResolvedValueOnce({ text: "   ", seconds: 2 });
+      await t.handle(voiceMessage({}));
+      expect(voice.sent().at(-1)!.params.text).toBe("Talorys couldn't make out any words in this voice message. Try again, or write it.");
+      spy.mockRestore();
+
+      agent.transcribing = true;
+      try {
+        await t.handle(voiceMessage({}));
+        expect(voice.sent().at(-1)!.params.text).toBe("⚠️ A recording is already being transcribed.");
+      } finally {
+        agent.transcribing = false;
+      }
+
+      t.setConversation(false);
+      const calls = voice.calls.length;
+      await t.handle(voiceMessage({}));
+      expect(voice.sent().at(-1)!.params.text).toBe("The conversation through Telegram is off. Turn it on in Settings → Alerts → Telegram.");
+      expect(voice.calls.slice(calls).some((c) => c.method === "getFile")).toBe(false);
+    });
+  });
+
+  it("answers one message at a time while a voice message is transcribed", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      const real = agent.transcribeClip.bind(agent);
+      vi.spyOn(agent, "transcribeClip").mockImplementationOnce(async (audio, opts) => {
+        await held;
+        return real(audio, opts);
+      });
+      const first = t.handle(voiceMessage({}));
+      await vi.waitFor(() => expect(fake.calls.some((c) => c.method === "download")).toBe(true));
+      await t.handle(privateMessage("meanwhile"));
+      expect(fake.sent().at(-1)!.params.text).toBe("Talorys is still answering your last message. Wait for it, then write again.");
+      release();
+      await first;
+      expect(fake.sent().map((c) => c.params.text)).toContain("🎙️ Demo transcription of 4 s of audio.");
+    });
+  });
+
+  it("estimates the length from the size when Telegram gives none, and checks the cap with it", async () => {
+    await inAgent(async (agent) => {
+      // 400 KB at 32 kbit/s is 100 s; the mock model reports at most 60 s.
+      const fake = voiceTelegram(400_000);
+      await linkChat(agent, fake);
+      await agent.services.telegram.handle(voiceMessage({ duration: 0 }, "audio"));
+      expect(fake.sent().map((c) => c.params.text)).toContain("🎙️ Demo transcription of 60 s of audio.");
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(100);
+      agent.services.usage.increment({ transcription_seconds: TRANSCRIPTION_LIMITS.maxSecondsPerDay - 100 - 50 });
+      await agent.services.telegram.handle(voiceMessage({ duration: undefined }, "audio"));
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys reached its daily limit of 60 minutes of voice input.");
+      expect(agent.services.usage.transcriptionSecondsToday()).toBe(TRANSCRIPTION_LIMITS.maxSecondsPerDay - 50);
+    });
+  });
+
+  it("keeps the chat busy from the transcript until its answer starts", async () => {
+    await inAgent(async (agent) => {
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let echoing = false;
+      const fake = voiceTelegram(16_000, {
+        sendMessage: async (params) => {
+          if (String(params.text).startsWith("🎙️")) {
+            echoing = true;
+            await held;
+          }
+          return { message_id: 1 };
+        },
+      });
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const first = t.handle(voiceMessage({}));
+      await vi.waitFor(() => expect(echoing).toBe(true));
+      await t.handle(privateMessage("in between"));
+      expect(fake.sent().at(-1)!.params.text).toBe("Talorys is still answering your last message. Wait for it, then write again.");
+      release();
+      await first;
+      const conversationId = t.status().conversation_id!;
+      expect(agent.services.conversations.messages(conversationId).map((m) => m.content)[0]).toBe("Demo transcription of 4 s of audio.");
+      // The chat is free again afterwards.
+      await t.handle(privateMessage("after"));
+      expect(fake.sent().at(-1)!.params.text).toContain('You said: "after"');
+    });
+  });
+
+  it("shows the Workers AI quota message as is", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      await linkChat(agent, fake);
+      const { AppError } = await import("../src/api/errors");
+      vi.spyOn(agent, "transcribeClip").mockRejectedValueOnce(new AppError("AI_QUOTA_EXHAUSTED", "Your Cloudflare account has used its Workers AI allocation for today. Tasks, notes, memories and reminders keep working; chat will resume when the quota resets."));
+      await agent.services.telegram.handle(voiceMessage({}));
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Your Cloudflare account has used its Workers AI allocation for today. Tasks, notes, memories and reminders keep working; chat will resume when the quota resets.");
+    });
+  });
+
+  it("ignores voice messages from anyone but the owner", async () => {
+    await inAgent(async (agent) => {
+      const fake = voiceTelegram();
+      await linkChat(agent, fake);
+      const calls = fake.calls.length;
+      await agent.services.telegram.handle(voiceMessage({}, "voice", STRANGER));
+      expect(fake.calls.slice(calls).some((c) => c.method === "getFile")).toBe(false);
+    });
+  });
+});
+
+describe("Telegram file download", () => {
+  it("accepts only Telegram's file paths, never follows redirects and stops past the limit", async () => {
+    const c = new TelegramClient("123456:test-telegram-token");
+    const seen: { url: string; init?: RequestInit }[] = [];
+    c.fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({ url: String(input), init });
+      return new Response(new Uint8Array([1, 2, 3]));
+    }) as typeof fetch;
+    expect(Array.from(await c.download("voice/file_1.oga", 3))).toEqual([1, 2, 3]);
+    expect(seen[0]!.url).toBe("https://api.telegram.org/file/bot123456:test-telegram-token/voice/file_1.oga");
+    expect(seen[0]!.init?.redirect).toBe("manual");
+    for (const path of ["../bot1/getMe", "voice/../x", "/etc/passwd", "voice/a?b", "https://x.example/a", "voice//a", ""]) {
+      expect(((await c.download(path, 10).catch((e) => e)) as TelegramError).code).toBe(400);
+    }
+    expect(seen).toHaveLength(1);
+    expect(((await c.download("voice/file_1.oga", 2).catch((e) => e)) as TelegramError).code).toBe(413);
+    c.fetcher = (async () => new Response(null, { status: 302, headers: { location: "https://x.example/" } })) as typeof fetch;
+    expect(((await c.download("voice/file_1.oga", 10).catch((e) => e)) as TelegramError).code).toBe(302);
+    c.fetcher = (async () => new Response("x", { headers: { "content-length": "99" } })) as typeof fetch;
+    expect(((await c.download("voice/file_1.oga", 10).catch((e) => e)) as TelegramError).code).toBe(413);
+  });
+
+  it("encodes large files to base64 without overflowing", () => {
+    const bytes = new Uint8Array(300_000).map((_, i) => i % 256);
+    const encoded = bytesToBase64(bytes);
+    expect(Uint8Array.from(atob(encoded), (ch) => ch.charCodeAt(0))).toEqual(bytes);
   });
 });
 

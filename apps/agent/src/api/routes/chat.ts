@@ -13,8 +13,7 @@ import type { AppEnv } from "../app";
 import { body, query } from "../middleware";
 import { AppError, NotFoundError, ValidationError, errorSummary } from "../errors";
 import { ALL_TOOLS, runApprovedAction } from "../../tools";
-import { classifyAiError } from "../../ai/provider";
-import { base64Bytes, createTranscriber } from "../../ai/transcription";
+import { base64Bytes } from "../../ai/transcription";
 
 export const chatRoutes = new Hono<AppEnv>();
 
@@ -137,26 +136,8 @@ chatRoutes.post("/chat", async (c) => {
 chatRoutes.post("/transcribe", async (c) => {
   const { audio, context } = await body(c, transcribeRequestSchema, Math.ceil(TRANSCRIPTION_LIMITS.maxClipBytes / 3) * 4 + 8 * 1024);
   if (base64Bytes(audio) > TRANSCRIPTION_LIMITS.maxClipBytes) throw new ValidationError("The recording is too long. Record a shorter clip.");
-  const s = c.env.agent.services;
-  const transcriber = createTranscriber(c.env.env, s.settings);
-  if (!transcriber) throw new AppError("AI_UNAVAILABLE", "Workers AI is not configured.");
-  const maxMinutes = TRANSCRIPTION_LIMITS.maxSecondsPerDay / 60;
-  if (s.usage.transcriptionSecondsToday() >= TRANSCRIPTION_LIMITS.maxSecondsPerDay) {
-    throw new AppError("AI_LIMIT_REACHED", `Talorys reached its daily limit of ${maxMinutes} minutes of voice input.`);
-  }
-  const agent = c.env.agent;
-  if (agent.transcribing) throw new AppError("CONFLICT", "A recording is already being transcribed.");
-  agent.transcribing = true;
-  try {
-    const result = await transcriber.transcribe(audio, { language: s.settings.language(), context, signal: c.req.raw.signal });
-    s.usage.recordTranscription(transcriber.model, transcriber.billable, result.seconds);
-    return c.json({ text: result.text, seconds: result.seconds });
-  } catch (error) {
-    s.usage.increment({ ai_errors: 1 });
-    throw classifyAiError(error);
-  } finally {
-    agent.transcribing = false;
-  }
+  const result = await c.env.agent.transcribeClip(audio, { context, signal: c.req.raw.signal });
+  return c.json({ text: result.text, seconds: result.seconds });
 });
 
 chatRoutes.post("/chat/cancel", async (c) => {

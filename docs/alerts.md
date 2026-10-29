@@ -133,12 +133,38 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
 - **Formatação.** Negrito, itálico, código e listas aparecem formatados; links ficam como
   texto (sem prévia), para não esconder o endereço. Respostas longas são divididas em
   várias mensagens.
-- **Comandos:** `/new` (conversa nova) e `/help` (o que o bot faz). Por enquanto o bot lê só
-  texto; áudio chega na próxima entrega.
+- **Comandos:** `/new` (conversa nova) e `/help` (o que o bot faz).
+- **Mensagens de voz.** Grave um áudio no chat privado (ou envie um arquivo de áudio) e o
+  Talorys transcreve com o mesmo Whisper da entrada por voz do app. Ele mostra o texto que
+  entendeu (🎙️ …) e responde como se você tivesse escrito. Detalhes em
+  [Mensagens de voz](#mensagens-de-voz).
 - **Liga e desliga** em **Configurações → Avisos → Telegram → Conversar com o Talorys pelo
   chat**. Ela é ligada ao tocar em **Conectar** (que já pede a senha); quem vinculou o bot
   antes desta versão encontra a conversa desligada e liga quando quiser. Ligar pede a senha.
   Desligado, o bot só envia avisos.
+
+### Mensagens de voz
+
+- **Até 5 minutos e 5 MB** por mensagem. Uma mensagem maior recebe "Esta mensagem de voz é
+  longa demais" antes de qualquer download, e um arquivo que passa de 5 MB durante o
+  download é interrompido na hora.
+- **Mesmo limite do app.** A voz pelo Telegram divide com a entrada por voz do app o teto de
+  **60 minutos de áudio por dia** (`TRANSCRIPTION_LIMITS.maxSecondsPerDay`). Uma mensagem
+  que passaria do teto é recusada com "O Talorys atingiu o limite diário de 60 minutos de
+  entrada por voz", e uma mais curta ainda cabe. Conta a maior duração entre a que o
+  Telegram informa e a que o modelo mede; um arquivo de áudio sem duração tem a duração
+  estimada pelo tamanho (cerca de 4 KB por segundo, até 5 minutos), já conferida contra o
+  teto antes da transcrição.
+- **Uma de cada vez.** Enquanto um áudio é transcrito ou respondido, outra mensagem recebe
+  "O Talorys ainda está respondendo sua última mensagem". Uma transcrição já em andamento
+  no app também faz o Telegram esperar ("Uma gravação já está sendo transcrita").
+- **Idioma.** O reconhecimento usa o idioma das Configurações (português, inglês ou coreano).
+- **Privacidade.** O áudio é baixado do Telegram, vai só para o Workers AI e nunca é
+  guardado. Fica gravado só o texto, na conversa, como uma mensagem escrita.
+- **Custo.** Cada minuto de áudio gasta cerca de 46,6 Neurons do Workers AI (60 minutos ≈
+  2.800 Neurons, dentro dos 10.000 diários gratuitos). Áudio sem nenhuma palavra recebe
+  "O Talorys não entendeu nenhuma palavra" e não vira mensagem para o agente.
+- **Desligado.** Com a conversa desligada, o bot nem baixa o áudio.
 
 ### Configurar o Telegram
 
@@ -210,6 +236,9 @@ no Worker; para desligar o bot de vez, apague o segredo
   duas etapas do Telegram (Configurações → Privacidade e Segurança → Verificação em duas
   etapas). Mesmo assim, aprovações e planos só são confirmados no app, e você pode desligar
   a conversa a qualquer momento.
+- Os áudios são baixados só de `api.telegram.org`, sem seguir redirecionamentos, com
+  caminho de arquivo conferido, tempo máximo de 30 segundos e leitura cortada em 5 MB.
+  Só mensagens de voz da sua conta, no chat privado vinculado, são baixadas.
 - O histórico de entregas guarda só metadados; o texto vai ao Telegram apenas nas
   categorias com **Texto completo**.
 - Custos: a Bot API do Telegram é gratuita, e cada aviso ou toque num botão é uma
