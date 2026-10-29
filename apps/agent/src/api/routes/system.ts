@@ -58,8 +58,17 @@ systemRoutes.patch("/settings", async (c) => {
   const newInstructions = !!patch.customInstructions && patch.customInstructions !== before.customInstructions;
   // The agent's name opens every system prompt, so it is guarded the same way.
   const newName = patch.agentName !== undefined && patch.agentName !== before.agentName;
-  if (longer || newInstructions || newName) requireRecentAuth(c);
+  // A paid provider sends conversations to another company and spends money; a higher cap spends more.
+  const newPaid = (patch.aiProvider !== undefined && patch.aiProvider !== before.aiProvider && patch.aiProvider !== "workers-ai")
+    || (patch.aiFallback !== undefined && patch.aiFallback !== before.aiFallback && patch.aiFallback !== "none" && patch.aiFallback !== "workers-ai")
+    || (patch.anthropicModel !== undefined && patch.anthropicModel !== before.anthropicModel)
+    || (patch.openaiModel !== undefined && patch.openaiModel !== before.openaiModel)
+    || (patch.limits?.maxPaidAiUsdPerDay ?? 0) > before.limits.maxPaidAiUsdPerDay;
+  if (longer || newInstructions || newName || newPaid) requireRecentAuth(c);
   const settings = s.settings.update(patch);
+  if (settings.aiProvider !== before.aiProvider || settings.aiFallback !== before.aiFallback) {
+    s.activity.record("settings.ai_provider", `Chat model: ${settings.aiProvider}, fallback: ${settings.aiFallback}`);
+  }
   if (settings.timezone !== before.timezone) await s.automations.rearmAll();
   if (settings.demoMode !== before.demoMode) {
     s.activity.record("settings.demo_mode", settings.demoMode ? "Demo mode enabled (mock AI)" : "Demo mode disabled");
@@ -93,6 +102,7 @@ systemRoutes.get("/system", (c) => {
     schema_version: schemaVersion(s.db),
     ai_binding: !!c.env.env.AI,
     ai_provider: c.env.agent.aiProvider()?.id ?? "none",
+    paid_ai_keys: c.env.agent.paidAiKeys(),
     environment: c.env.env.TALORYS_ENV === "development" ? "development" : "production",
   });
 });

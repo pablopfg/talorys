@@ -893,6 +893,7 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 | `TALORYS_MCP` (`off`), `TALORYS_MCP_MAX_TOOLS` | 24 | não |
 | `TALORYS_MCP_ALLOWED_ORIGINS` | 24 | não (recomendado) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 25 | para a Google Agenda |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | [modelos de IA](modelos-de-ia.md) | só para modelos pagos (geram cobrança) |
 
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.

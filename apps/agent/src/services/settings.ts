@@ -1,4 +1,4 @@
-import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, DEFAULT_TIMEZONE, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
+import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_LANGUAGE, DEFAULT_OPENAI_MODEL, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, DEFAULT_TIMEZONE, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
 import type { z } from "zod";
 import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
@@ -9,6 +9,10 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   language: DEFAULT_LANGUAGE,
   model: DEFAULT_MODEL,
+  aiProvider: "workers-ai",
+  aiFallback: "none",
+  anthropicModel: DEFAULT_ANTHROPIC_MODEL,
+  openaiModel: DEFAULT_OPENAI_MODEL,
   temperature: 0.4,
   limits: { ...DEFAULT_LIMITS },
   autoMemory: true,
