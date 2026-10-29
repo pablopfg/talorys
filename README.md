@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="site/favicon.svg" alt="Logo do Talorys" width="88" height="88">
+<img src="apps/web/public/favicon.svg" alt="Logo do Talorys" width="88" height="88">
 
 # Talorys
 
