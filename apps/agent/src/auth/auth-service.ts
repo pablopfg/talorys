@@ -353,11 +353,12 @@ export class AuthService {
    * before the (async) password check. Otherwise concurrent requests could all pass
    * the check while PBKDF2 runs and bypass the limit. Returns the attempt id.
    */
-  private beginAttempt(client: string, humanVerified = false): number {
+  private beginAttempt(client: string, signIn?: { humanVerified: boolean }): number {
     this.assertLoginAllowed(client);
-    // Again here, in the same synchronous step as the insert: a check that became needed while
-    // siteverify was answering (another try failed meanwhile) still applies.
-    if (!humanVerified && this.humanCheckRequired(client)) throw this.humanCheckError(false);
+    // For a sign-in, again here, in the same synchronous step as the insert: a check that became
+    // needed meanwhile (another try failed while this one was on its way) still applies. Signed-in
+    // checks (confirm, password change) never ask for it: the session already passed.
+    if (signIn && !signIn.humanVerified && this.humanCheckRequired(client)) throw this.humanCheckError(false);
     return this.db.one<{ id: number }>(
       `INSERT INTO tal_login_attempts (client, success, at) VALUES (?, 0, ?) RETURNING id`,
       client,
@@ -433,7 +434,7 @@ export class AuthService {
     await this.syncSecretFingerprint();
     this.assertLoginAllowed(client);
     const humanVerified = await this.assertHuman(client, proof);
-    const attempt = this.beginAttempt(client, humanVerified);
+    const attempt = this.beginAttempt(client, { humanVerified });
     const [passwordOk, emailOk] = await Promise.all([this.checkPassword(password), this.checkEmail(email)]);
     if (!passwordOk || !emailOk) {
       // The failure is counted now, so the next try from this network needs the robot check.

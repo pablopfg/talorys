@@ -216,6 +216,17 @@ describe("when sign-in asks for the robot check", () => {
     });
   });
 
+  it("never asks a signed-in check (confirm, password change) for it", async () => {
+    await inAgent(async (agent) => {
+      const auth = service(agent, await hashPassword(PASSWORD), { human: fakeHuman() });
+      const network = clientKey(freshIp());
+      const { sessionId } = await auth.createSession("t");
+      expect((await failure(auth.confirm(sessionId, { password: "wrong-password-123456" }, network))).code).toBe("FORBIDDEN");
+      expect(auth.humanCheckRequired(network)).toBe(true);
+      expect(await auth.confirm(sessionId, { password: PASSWORD }, network)).toBeInstanceOf(Date);
+    });
+  });
+
   it("is off without Turnstile: no field, no check", async () => {
     await inAgent(async (agent) => {
       const auth = service(agent, await hashPassword(PASSWORD), {});
