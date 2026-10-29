@@ -51,5 +51,6 @@ test("two-step sign-in: turn on with the QR code, sign in with a recovery code, 
   const dialog = page.getByRole("dialog", { name: "Turn off two-step sign-in?" });
   await dialog.getByLabel("Authenticator code").fill(codes[1]!);
   await dialog.getByRole("button", { name: "Turn off" }).click();
-  await expect(page.getByText("Two-step sign-in is off", { exact: true })).toBeVisible();
+  // Off again: the card offers setup. (Not the heading text: the toast says the same words.)
+  await expect(page.getByRole("button", { name: "Turn on two-step sign-in" })).toBeVisible();
 });
