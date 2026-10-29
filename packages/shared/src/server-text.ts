@@ -51,8 +51,18 @@ const PT_BR: Catalog = {
   "Use at least {min} characters.": "Use pelo menos {min} caracteres.",
   "Use at most 256 characters.": "Use no máximo 256 caracteres.",
   "Avoid repeating a single character.": "Evite repetir um único caractere.",
-  "Mix letters with numbers or symbols, or use a passphrase of 16+ characters.": "Misture letras com números ou símbolos, ou use uma frase-senha com 16 ou mais caracteres.",
-  "Avoid common words such as 'password'.": "Evite palavras comuns como 'senha'.",
+  "This password appeared in a known data breach. Choose another one.": "Esta senha apareceu em um vazamento de dados conhecido. Escolha outra.",
+  "Incorrect email or password.": "E-mail ou senha incorretos.",
+  "New sign-in": "Novo login",
+  "Someone signed in to Talorys from a network not used in the last 30 days. If it wasn't you, change your password and sign out the other sessions in Settings → Security.":
+    "Alguém entrou no Talorys por uma rede não usada nos últimos 30 dias. Se não foi você, troque a senha e encerre as outras sessões em Configurações → Segurança.",
+  "Too predictable: common words, sequences like 1234 and your own details don't count. Add more unrelated words.":
+    "Previsível demais: palavras comuns, sequências como 1234 e seus próprios dados não contam. Acrescente mais palavras sem relação entre si.",
+  "Choose a password different from the current one.": "Escolha uma senha diferente da atual.",
+  "Couldn't check the password against known breaches right now. Try again in a minute.":
+    "Não foi possível conferir a senha contra vazamentos conhecidos agora. Tente de novo em um minuto.",
+  "Your password no longer meets the minimum requirements. Change it to continue.":
+    "Sua senha não atende mais aos requisitos mínimos. Troque-a para continuar.",
 
   // AI
   "Your Cloudflare account has used its Workers AI allocation for today. Tasks, notes, memories and reminders keep working; chat will resume when the quota resets.":

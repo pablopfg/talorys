@@ -8,7 +8,7 @@ test.use({
 
 test("dictating puts the transcription in the composer for review @mobile", async ({ page }) => {
   await page.goto("/");
-  await page.getByPlaceholder("Owner password").fill(process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password");
+  await page.getByPlaceholder("Owner password").fill(process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81");
   await page.getByRole("button", { name: "Unlock" }).click();
   const box = page.getByRole("textbox", { name: "Message", exact: true });
   await box.fill("Remind me:");

@@ -1,6 +1,6 @@
 // Creates local-only development secrets (apps/agent/.dev.vars) if missing, and adds a Web Push
 // key pair and an MCP credential key to a file made before they existed (everything else in it is left as is).
-// The dev password defaults to "talorys-dev-password" or $TALORYS_DEV_PASSWORD.
+// The dev password defaults to "dev-Owner-violeta-trem-81" or $TALORYS_DEV_PASSWORD.
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { webcrypto as crypto } from "node:crypto";
 import { dirname, join } from "node:path";
@@ -56,7 +56,7 @@ if (existsSync(target) && !force) {
     console.log("Added missing keys to apps/agent/.dev.vars.");
   }
 } else {
-  const password = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+  const password = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(
     target,
@@ -72,5 +72,5 @@ if (existsSync(target) && !force) {
       "",
     ].join("\n"),
   );
-  console.log(`Created apps/agent/.dev.vars (dev password: ${process.env.TALORYS_DEV_PASSWORD ? "$TALORYS_DEV_PASSWORD" : "talorys-dev-password"}).`);
+  console.log(`Created apps/agent/.dev.vars (dev password: ${process.env.TALORYS_DEV_PASSWORD ? "$TALORYS_DEV_PASSWORD" : "dev-Owner-violeta-trem-81"}).`);
 }

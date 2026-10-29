@@ -11,6 +11,12 @@ export interface Env {
   OWNER_PASSWORD?: string;
   /** Random 256-bit secret used to key session token hashes. Worker secret. */
   SESSION_SECRET?: string;
+  /** Random secret (32+ characters) mixed into password hashes, so a leaked hash can't be guessed offline without it. Worker secret. */
+  PASSWORD_PEPPER?: string;
+  /** The owner's e-mail address. When set, signing in asks for it too. Worker secret, never in the repository. */
+  OWNER_EMAIL?: string;
+  /** "off": don't check new passwords against Have I Been Pwned (only 5 characters of a hash are ever sent). Development only. */
+  TALORYS_HIBP?: string;
   /**
    * Web Push (VAPID) key pair, base64url: the uncompressed public point and the private scalar.
    * Set by the installer as Worker secrets; without them push is unavailable and nothing else changes.

@@ -25,9 +25,9 @@ describe("installer: fresh installation", () => {
     const worker = state.workers.acc1![manifest.worker_name]!;
     expect(worker.workers_dev).toBe(false);
     expect(worker.migrations).toEqual([{ tag: "v1", new_sqlite_classes: ["TalorysAgent"] }]);
-    expect(Object.keys(worker.secrets).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
+    expect(Object.keys(worker.secrets).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "PASSWORD_PEPPER", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
     expect(worker.secrets.VAPID_PUBLIC_KEY!.length).toBe(87);
-    expect(worker.secrets.OWNER_PASSWORD_HASH!.prefix).toBe("pbkdf2-sha256$");
+    expect(worker.secrets.OWNER_PASSWORD_HASH!.prefix).toBe("pbkdf2-sha256-");
     expect(worker.secrets.SESSION_SECRET!.length).toBeGreaterThanOrEqual(43);
     // URL comes from Cloudflare (note the suffix the fake account assigned), not from the project name.
     expect(manifest.public_url).toBe(`https://${manifest.pages_project_name}-x7.pages.dev`);
@@ -182,7 +182,7 @@ describe("installer: idempotency and recovery", () => {
     const ui = new ScriptedUi([STRONG_PASSWORD, STRONG_PASSWORD, true]);
     const m = await install({ dir: sb.dir, ...FAST }, { ui, wrangler: sb.wrangler(), fetch: fakeSite(), templates: sb.templates });
     expect(m.status).toBe("deployed");
-    expect(Object.keys(sb.state().workers.acc1![m.worker_name]!.secrets)).toHaveLength(5);
+    expect(Object.keys(sb.state().workers.acc1![m.worker_name]!.secrets)).toHaveLength(6);
   });
 
   it("waits for propagation and succeeds once the site responds", async () => {
@@ -266,7 +266,7 @@ describe("installer: upgrades and password reset", () => {
     const after = sb.state().workers.acc1![first.worker_name]!.secrets;
     expect(after.OWNER_PASSWORD_HASH).toEqual(before.OWNER_PASSWORD_HASH);
     expect(after.SESSION_SECRET).toEqual(before.SESSION_SECRET);
-    expect(Object.keys(after).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
+    expect(Object.keys(after).sort()).toEqual(["MCP_CREDENTIAL_KEY", "OWNER_PASSWORD_HASH", "PASSWORD_PEPPER", "SESSION_SECRET", "VAPID_PRIVATE_KEY", "VAPID_PUBLIC_KEY"]);
     expect(ui.prompts).toEqual([]);
   });
 
@@ -326,8 +326,10 @@ describe("password hashing interop", () => {
   it("hashes produced by the CLI verify with the Worker's verifier", async () => {
     const { buildOwnerSecrets } = await import("../src/secrets");
     const secrets = await buildOwnerSecrets(STRONG_PASSWORD, { includeSessionSecret: true });
-    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!)).toBe(true);
-    expect(await verifyPassword("wrong-password-123", secrets.OWNER_PASSWORD_HASH!)).toBe(false);
+    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!, secrets.PASSWORD_PEPPER)).toBe(true);
+    expect(await verifyPassword("wrong-password-123", secrets.OWNER_PASSWORD_HASH!, secrets.PASSWORD_PEPPER)).toBe(false);
+    // The hash is useless without the pepper, which is a separate secret.
+    expect(await verifyPassword(STRONG_PASSWORD, secrets.OWNER_PASSWORD_HASH!)).toBe(false);
   });
 });
 

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("chat usage popover supports keyboard, dismissal and settings @mobile", async ({ page }) => {
   await page.goto("/");
-  await page.getByPlaceholder("Owner password").fill(process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password");
+  await page.getByPlaceholder("Owner password").fill(process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81");
   await page.getByRole("button", { name: "Unlock" }).click();
   const trigger = page.getByRole("button", { name: "AI usage", exact: true });
   await trigger.focus();

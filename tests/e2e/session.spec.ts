@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "talorys-dev-password";
+const PASSWORD = process.env.TALORYS_DEV_PASSWORD || "dev-Owner-violeta-trem-81";
 const MIN = 60_000;
 
 async function login(page: Page) {
@@ -10,11 +10,11 @@ async function login(page: Page) {
   await expect(page.getByText("What would you like to do today?")).toBeVisible();
 }
 
-test.describe("automatic sign-out (D9: 15 min without use)", () => {
+test.describe("automatic sign-out (D9: 30 min without use)", () => {
   test("warns two minutes before, and Stay signed in keeps the session", async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.clock.fastForward(12 * MIN);
+    await page.clock.fastForward(27 * MIN);
     await expect(page.getByRole("dialog", { name: "Still there?" })).toHaveCount(0);
     await page.clock.fastForward(1.5 * MIN);
     const dialog = page.getByRole("dialog", { name: "Still there?" });
@@ -26,10 +26,10 @@ test.describe("automatic sign-out (D9: 15 min without use)", () => {
     await expect(page.getByText("What would you like to do today?")).toBeVisible();
   });
 
-  test("ends the session after 15 minutes without use and says why", async ({ page }) => {
+  test("ends the session after 30 minutes without use and says why", async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.clock.fastForward(15 * MIN + 5_000);
+    await page.clock.fastForward(30 * MIN + 5_000);
     await expect(page.getByPlaceholder("Owner password")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("ended because it wasn't used");
     // The server agrees: the old cookie no longer opens the app.

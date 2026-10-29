@@ -1,11 +1,11 @@
-import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
+import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, DEFAULT_TIMEZONE, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
 import type { z } from "zod";
 import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
 
 export const DEFAULT_SETTINGS: Settings = {
   agentName: "Talorys",
-  timezone: "UTC",
+  timezone: DEFAULT_TIMEZONE,
   theme: "system",
   language: DEFAULT_LANGUAGE,
   model: DEFAULT_MODEL,
