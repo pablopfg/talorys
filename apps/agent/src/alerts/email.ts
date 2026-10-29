@@ -118,8 +118,8 @@ export class EmailAlerts {
   /** The message body: the alert (or a note that it is in the app), what kind it is, and where to manage it. */
   alertText(n: Notification, fullText: boolean): string {
     // Mail clients link any address they see; only the footer's own link stays clickable.
-    const lines = [clip(unlinkForChannels(this.text(n.title)), 200), ""];
-    lines.push(fullText ? clip(unlinkForChannels(this.text(n.body)), MAX_BODY) : this.text("Open Talorys to read it."));
+    const lines = [clip(unlinkForChannels(clip(this.text(n.title), 200)), 200), ""];
+    lines.push(fullText ? clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY) : this.text("Open Talorys to read it."));
     lines.push("", `${this.text(CATEGORY_TEXT[n.category])} · ${this.text(PRIORITY_TEXT[n.priority])}`);
     // Phishing copies alerts like these: the real ones never ask for anything.
     if (n.category === "security") lines.push(this.text("Talorys never asks for your password or codes by e-mail."));

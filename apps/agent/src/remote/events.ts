@@ -40,10 +40,11 @@ export class RemoteEvents {
     this.settings.setJson(SENT_KEY, [...recent, now]);
     const source = input.source ?? "remote";
     const kind = input.kind ?? "event";
-    // Named after where it came from, so it can't pass for one of Talorys' own alerts; a source named
-    // like the app or the agent would undo that, so it shows as "remote".
-    const own = ["talorys", this.settings.get().agentName.toLowerCase()];
-    const shown = own.includes(source.toLowerCase()) ? "remote" : source;
+    // Named after where it came from, so it can't pass for one of Talorys' own alerts; a source that
+    // carries the app's or the agent's name ("Talorys-Security") would undo that, so it shows as "remote".
+    const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const own = ["talorys", squash(this.settings.get().agentName)].filter(Boolean);
+    const shown = own.some((name) => squash(source).includes(name)) ? "remote" : source;
     const title = clip(oneLine(`${shown}: ${unlinked(input.title)}`), 160);
     const n = this.alerts.raise({
       title,

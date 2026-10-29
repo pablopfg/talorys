@@ -338,8 +338,8 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   in the run's reply, are shown as plain text that can't be clicked.
 - Outside the app, Telegram and mail clients turn any address into a link, even
   in backticks. So every alert's title and text sent to Telegram or by e-mail
-  has `http` written as `hxxp`, `www.` as `www[.]` and the last dot of a host
-  as `[.]`; only Talorys' own "Open Talorys" button and e-mail footer stay
+  has `http` written as `hxxp`, `tg:` and `mailto:` as `tg[:]` and
+  `mailto[:]`, `www.` as `www[.]` and every dot of a host as `[.]`; only Talorys' own "Open Talorys" button and e-mail footer stay
   clickable.
 - The agent's name opens every system prompt: renaming it needs the recent
   password, a backup can't change it, and it is always put in on one line.
@@ -529,10 +529,11 @@ Optional. Full details: [Remote MCP servers](mcp.md#security-model).
   the Durable Object with a backtracking pattern; the server validates them.
 - A changed tool definition hides the tool until the owner reviews it again.
 - Adding a server needs the password typed in the last 15 minutes. Pointing a
-  server at another origin is treated as adding one: it needs the recent
-  password, raises the same security alert, and turns every tool off, out of
-  scheduled runs and back to asking first, since the owner reviewed them for
-  the old origin.
+  server at another URL (even another path on the same host, where a gateway's
+  path can pick another tenant) is treated as adding one: it needs the recent
+  password, raises the same security alert, drops the stored credential, and
+  turns every tool off, out of scheduled runs and back to asking first, since
+  the owner reviewed them for the old address.
 - Backups carry only server names, URLs and auth types; imported servers arrive
   turned off, without credentials or tools.
 

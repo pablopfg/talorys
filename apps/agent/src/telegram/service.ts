@@ -694,8 +694,8 @@ export class TelegramService {
   format(n: Notification, fullText: boolean, attempt?: AlertAttempt): string {
     // Telegram links any address it sees, backticks or not: text written by a routine, a reminder or
     // an outside system must not arrive as a tappable link that looks like Talorys' own.
-    const title = escapeHtml(clip(unlinkForChannels(this.text(n.title)), 200));
-    const body = fullText ? escapeHtml(clip(unlinkForChannels(this.text(n.body)), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
+    const title = escapeHtml(clip(unlinkForChannels(clip(this.text(n.title), 200)), 200));
+    const body = fullText ? escapeHtml(clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY)) : `<i>${escapeHtml(this.text("Open Talorys to read it."))}</i>`;
     const parts = [this.text(CATEGORY_TEXT[n.category]), this.text(PRIORITY_TEXT[n.priority])];
     if (attempt) parts.push(this.text(`Try ${attempt.number} of ${ESCALATION.attempts}, not confirmed yet`));
     const why = n.priority_reason ? REASON_TEXT[n.priority_reason] : undefined;

@@ -54,12 +54,16 @@ mcpRoutes.patch("/mcp/servers/:id", async (c) => {
   const patch = await body(c, mcpServerUpdateSchema, 16 * 1024);
   const mcp = c.env.agent.services.mcp;
   const before = mcp.require(c.req.param("id"));
-  const originChanged = patch.url !== undefined && originOf(patch.url) !== originOf(before.url);
-  // Pointing a server somewhere else is the same as adding one: recent password and the same alert.
-  if (originChanged) requireRecentAuth(c);
-  const server = await mcp.update(c.req.param("id"), patch, appOrigin(c));
-  if (originChanged) raiseSecurityAlert(c.env.agent.services.alerts, "mcp_added");
-  return c.json({ server });
+  const urlChanged = patch.url !== undefined && normalized(patch.url) !== before.url;
+  // Pointing a server somewhere else is the same as adding one: recent password and the same alert,
+  // raised even if reconnecting to the new address fails.
+  if (!urlChanged) return c.json({ server: await mcp.update(c.req.param("id"), patch, appOrigin(c)) });
+  requireRecentAuth(c);
+  try {
+    return c.json({ server: await mcp.update(c.req.param("id"), patch, appOrigin(c)) });
+  } finally {
+    if (mcp.require(c.req.param("id")).url !== before.url) raiseSecurityAlert(c.env.agent.services.alerts, "mcp_added");
+  }
 });
 
 mcpRoutes.delete("/mcp/servers/:id", async (c) => {
@@ -95,10 +99,10 @@ mcpRoutes.patch("/mcp/servers/:id/tools/:toolId", async (c) => {
   return c.json({ tool: c.env.agent.services.mcp.updateTool(c.req.param("id"), c.req.param("toolId"), patch) });
 });
 
-/** The origin of a URL, or the text itself when it doesn't parse (the service rejects it then). */
-function originOf(url: string): string {
+/** A URL as the service stores it, or the text itself when it doesn't parse (the service rejects it then). */
+function normalized(url: string): string {
   try {
-    return new URL(url).origin;
+    return new URL(url).href;
   } catch {
     return url;
   }

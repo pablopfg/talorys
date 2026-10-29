@@ -69,7 +69,7 @@ conversation.
   derived from the `MCP_CREDENTIAL_KEY` Worker secret, bound to the server's
   id. They are never returned by the API, shown in the UI, sent to the AI,
   logged, or included in backups. The token is only sent to the server's own
-  origin: changing the URL to a different origin requires entering it again.
+  origin: changing the URL, even only its path, requires entering it again.
 - **Endpoints.** Only `https://` URLs on public hosts are accepted. Private,
   loopback, link-local (including cloud metadata), CGNAT and other reserved
   addresses are refused, as are names like `localhost`, `*.local` and
@@ -204,7 +204,7 @@ How it is kept safe:
 - **The authorization server** must pass the same checks as an MCP endpoint:
   public `https://` host, no private addresses (also checked in DNS), no
   redirects.
-- Changing the server's URL to another origin, or switching it to another
+- Changing the server's URL (even only its path), or switching it to another
   authentication method, deletes the stored sign-in.
 
 The callback works the same for the Pages deployment and the one-Worker

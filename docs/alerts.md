@@ -626,8 +626,8 @@ aprende) e aparece no app.
 - **Repetição.** Com `id`, o mesmo `source` + `id` dentro de 24 horas é descartado (resposta
   200 com `duplicate: true`).
 - **Texto desarmado.** O título começa pela origem (`n8n: Backup falhou`), para que um evento
-  não se passe por um aviso do próprio Talorys (uma origem chamada `Talorys` ou com o nome do
-  agente aparece como `remote`), e fica numa linha só (até 120 caracteres enviados); corpo até
+  não se passe por um aviso do próprio Talorys (uma origem que contém `Talorys` ou o nome do
+  agente, como `Talorys-Security`, aparece como `remote`), e fica numa linha só (até 120 caracteres enviados); corpo até
   1.000. Links viram texto não clicável em todos os canais: `https://exemplo.com/x` vira
   `` `hxxps://exemplo[.]com/x` ``, e `www.` e domínios soltos também perdem o ponto (o Telegram
   e os clientes de e-mail não transformam isso em link). O corpo inteiro da requisição tem no

@@ -47,7 +47,7 @@ describe("events from outside systems", () => {
     const b = bearer(await mint("events"));
     const res = await b.call("/api/remote/events", {
       method: "POST",
-      body: { title: "Password changed", body: "Check www.evil.com and evil.example/verify", source: "Talorys" },
+      body: { title: "Password changed", body: "Check www.evil.com and evil.example/verify", source: "Talorys-Security" },
     });
     expect(res.status).toBe(201);
     const result = (await res.json()) as { event: { id: string } };
