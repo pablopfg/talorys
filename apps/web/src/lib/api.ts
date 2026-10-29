@@ -1,5 +1,13 @@
-import { CSRF_HEADER, type ApiErrorBody, type ApiErrorCode, type ChatStreamEvent } from "@talorys/shared";
+import { ACTIVITY_HEADER, CSRF_HEADER, type ApiErrorBody, type ApiErrorCode, type ChatStreamEvent } from "@talorys/shared";
+import { noteReported, recentlyUsed } from "./activity";
 import { currentI18n } from "./i18n";
+
+/** Headers on every API call; the activity header only on calls the owner's input started. */
+function baseHeaders(): Record<string, string> {
+  if (!recentlyUsed()) return { [CSRF_HEADER]: "1" };
+  noteReported();
+  return { [CSRF_HEADER]: "1", [ACTIVITY_HEADER]: "1" };
+}
 
 export class ApiError extends Error {
   constructor(
@@ -61,7 +69,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     method: init.method ?? "GET",
     credentials: "same-origin",
     headers: {
-      [CSRF_HEADER]: "1",
+      ...baseHeaders(),
       ...(init.body !== undefined ? { "content-type": "application/json" } : {}),
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -86,7 +94,7 @@ export async function streamChat(
   const res = await fetch("/api/chat", {
     method: "POST",
     credentials: "same-origin",
-    headers: { [CSRF_HEADER]: "1", "content-type": "application/json", accept: "text/event-stream" },
+    headers: { ...baseHeaders(), "content-type": "application/json", accept: "text/event-stream" },
     body: JSON.stringify(payload),
     signal,
   });

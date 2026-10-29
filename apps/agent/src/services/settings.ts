@@ -1,4 +1,4 @@
-import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
+import { DEFAULT_LANGUAGE, DEFAULT_LIMITS, DEFAULT_MODEL, DEFAULT_MEMORY_HISTORY, DEFAULT_SESSION_TIMEOUTS, type Language, type Settings, settingsSchema, settingsUpdateSchema } from "@talorys/shared";
 import type { z } from "zod";
 import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   memoryHistory: { ...DEFAULT_MEMORY_HISTORY },
   // Off until the owner turns it on: it asks the public npm registry about create-talorys.
   updateCheck: false,
+  session: { ...DEFAULT_SESSION_TIMEOUTS },
 };
 
 const SETTINGS_KEY = "app.settings";
@@ -36,6 +37,7 @@ export class SettingsService {
       ...stored,
       limits: { ...DEFAULT_SETTINGS.limits, ...(stored.limits ?? {}) },
       memoryHistory: { ...DEFAULT_SETTINGS.memoryHistory, ...(stored.memoryHistory ?? {}) },
+      session: { ...DEFAULT_SETTINGS.session, ...(stored.session ?? {}) },
     };
     const parsed = settingsSchema.safeParse(merged);
     if (parsed.success) return parsed.data;
@@ -59,6 +61,7 @@ export class SettingsService {
       ...stripUndefined(parsedPatch.data),
       limits: { ...current.limits, ...stripUndefined(parsedPatch.data.limits ?? {}) },
       memoryHistory: { ...current.memoryHistory, ...stripUndefined(parsedPatch.data.memoryHistory ?? {}) },
+      session: { ...current.session, ...stripUndefined(parsedPatch.data.session ?? {}) },
     };
     const parsed = settingsSchema.safeParse(next);
     if (!parsed.success) throw ValidationError.fromZod(parsed.error);

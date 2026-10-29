@@ -1,7 +1,18 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { checkPasswordStrength, GITHUB_URL, LANGUAGES, LIMIT_CEILINGS, type Limits, type MemoryHistorySettings, type Settings, TALORYS_VERSION } from "@talorys/shared";
+import {
+  checkPasswordStrength,
+  GITHUB_URL,
+  LANGUAGES,
+  LIMIT_CEILINGS,
+  type Limits,
+  type MemoryHistorySettings,
+  SESSION_TIMEOUT_RANGES,
+  type SessionTimeouts,
+  type Settings,
+  TALORYS_VERSION,
+} from "@talorys/shared";
 import { Download, ExternalLink, LogOut, Monitor, Moon, Sun, Upload } from "lucide-react";
 import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch } from "../components/ui";
 import { SemanticRecallCard } from "../components/SemanticRecallCard";
@@ -89,7 +100,7 @@ export default function SettingsPage() {
           {tab === "General" && <PushNotificationsCard />}
           {tab === "AI" && <AiTab settings={settings} />}
           {tab === "Privacy" && <PrivacyTab />}
-          {tab === "Security" && <SecurityTab />}
+          {tab === "Security" && <SecurityTab settings={settings} />}
           {tab === "Integrations" && <McpServersCard />}
           {tab === "About" && <AboutTab settings={settings} />}
         </div>
@@ -101,7 +112,11 @@ export default function SettingsPage() {
 function useSaveSettings() {
   const { t } = useI18n();
   const qc = useQueryClient();
-  type Patch = Partial<Omit<Settings, "limits" | "memoryHistory">> & { limits?: Partial<Limits>; memoryHistory?: Partial<MemoryHistorySettings> };
+  type Patch = Partial<Omit<Settings, "limits" | "memoryHistory" | "session">> & {
+    limits?: Partial<Limits>;
+    memoryHistory?: Partial<MemoryHistorySettings>;
+    session?: Partial<SessionTimeouts>;
+  };
   return useApiMutation((patch: Patch) => api<{ settings: Settings }>("/settings", { method: "PATCH", body: patch }), {
     success: t("settings.saved"),
     onSuccess: (r) => {
@@ -466,7 +481,45 @@ function PrivacyTab() {
   );
 }
 
-function SecurityTab() {
+/** Choices for each timeout, within the range the server enforces. */
+const TIMEOUT_CHOICES: Record<keyof SessionTimeouts, number[]> = {
+  idleMinutes: [5, 10, 15, 20, 30, 45, 60],
+  presenceMinutes: [3, 5, 10, 15],
+  maxHours: [1, 2, 4, 8, 12, 24],
+};
+
+function SessionTimeoutsSection({ settings }: { settings: Settings }) {
+  const { t } = useI18n();
+  const save = useSaveSettings();
+  const rows: { key: keyof SessionTimeouts; label: string; hint: string; unit: (n: number) => string }[] = [
+    { key: "idleMinutes", label: t("settings.idleTimeout"), hint: t("settings.idleTimeoutHint"), unit: (n) => t("settings.minutes", { count: n }) },
+    { key: "presenceMinutes", label: t("settings.presenceTimeout"), hint: t("settings.presenceTimeoutHint"), unit: (n) => t("settings.minutes", { count: n }) },
+    { key: "maxHours", label: t("settings.maxSession"), hint: t("settings.maxSessionHint"), unit: (n) => t("settings.hours", { count: n }) },
+  ];
+  return (
+    <Section title={t("settings.sessionTimeouts")}>
+      {rows.map(({ key, label, hint, unit }) => {
+        const [min, max] = SESSION_TIMEOUT_RANGES[key];
+        const value = settings.session[key];
+        const choices = [...new Set([...TIMEOUT_CHOICES[key], value])].filter((n) => n >= min && n <= max).sort((a, b) => a - b);
+        return (
+          <Row key={key} label={label} hint={hint}>
+            <Select value={value} onChange={(e) => save.mutate({ session: { [key]: Number(e.target.value) } })} aria-label={label} disabled={save.isPending}>
+              {choices.map((n) => (
+                <option key={n} value={n}>
+                  {unit(n)}
+                </option>
+              ))}
+            </Select>
+          </Row>
+        );
+      })}
+      <p className="px-5 py-3 text-xs leading-5 text-fg-subtle">{t("settings.sessionTimeoutsNote")}</p>
+    </Section>
+  );
+}
+
+function SecurityTab({ settings }: { settings: Settings }) {
   const i18n = useI18n();
   const { t } = i18n;
   const { logout } = useSession();
@@ -530,6 +583,7 @@ function SecurityTab() {
           </div>
         </form>
       </Section>
+      <SessionTimeoutsSection settings={settings} />
       <Section title={t("settings.activeSessions")}>
         {sessions.isLoading ? (
           <div className="flex justify-center p-6">

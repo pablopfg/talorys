@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { Bell, Brain, CalendarClock, CheckSquare, LogOut, type LucideIcon, MessageSquare, NotebookPen, Settings } from "lucide-react";
 import { Logo } from "./Logo";
 import { NotificationCenter } from "./NotificationCenter";
+import { SessionGuard } from "./SessionGuard";
 import { useKeyboardOpenFlag } from "../hooks/keyboard";
 import { useSession } from "../hooks/session";
 import { useNotifications, useSettings } from "../hooks/queries";
@@ -48,6 +49,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
+      <SessionGuard />
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-subtle md:flex">
         <div className="flex h-14 items-center justify-between px-4">

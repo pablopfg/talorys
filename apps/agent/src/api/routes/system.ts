@@ -50,6 +50,9 @@ systemRoutes.patch("/settings", async (c) => {
   const patch = await body(c, settingsUpdateSchema);
   const s = c.env.agent.services;
   const before = s.settings.get();
+  // Shorter session timeouts are free; a longer one keeps a stolen session alive longer, so it needs the password.
+  const longer = (Object.keys(patch.session ?? {}) as (keyof typeof before.session)[]).some((k) => (patch.session?.[k] ?? 0) > before.session[k]);
+  if (longer) requireRecentAuth(c);
   const settings = s.settings.update(patch);
   if (settings.timezone !== before.timezone) await s.automations.rearmAll();
   if (settings.demoMode !== before.demoMode) {
