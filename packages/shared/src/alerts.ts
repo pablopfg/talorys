@@ -172,6 +172,13 @@ export function confirmedOnlyOutOfBand(n: { category: AlertCategory }): boolean 
 /** Most alerts insisting at once (security aside), so a flood of high alerts can't ring forever. */
 export const MAX_ACTIVE_ESCALATIONS = 20;
 
+/**
+ * What alerts from outside systems (the "event" category) may use, so a looping or leaked n8n
+ * token can't crowd out the owner's own alerts: at most this many insisting at once, and only the
+ * first half of each channel's hourly and daily limit.
+ */
+export const EVENT_ALERTS = { maxActiveEscalations: 3, channelShare: 0.5 } as const;
+
 /** Whether an alert of this priority insists until the owner confirms it. */
 export function isInsistent(priority: AlertPriority): boolean {
   return priority === "high" || priority === "critical";

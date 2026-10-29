@@ -577,6 +577,29 @@ export const MIGRATIONS: Migration[] = [
       `UPDATE tal_push_subscriptions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE last_seen_at IS NULL`,
     ],
   },
+  {
+    version: 23,
+    name: "events access tokens",
+    statements: [
+      // SQLite can't change a CHECK: the table moves aside and a new one takes its name, now
+      // accepting the "events" scope. Migrations never DROP, so the old one stays, emptied.
+      `ALTER TABLE tal_remote_tokens RENAME TO tal_remote_tokens_v8`,
+      `CREATE TABLE tal_remote_tokens (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        hint TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK (scope IN ('read','write','events')),
+        created_at TEXT NOT NULL,
+        last_used_at TEXT,
+        expires_at TEXT
+      )`,
+      `INSERT INTO tal_remote_tokens (id, name, token_hash, hint, scope, created_at, last_used_at, expires_at)
+        SELECT id, name, token_hash, hint, scope, created_at, last_used_at, expires_at FROM tal_remote_tokens_v8 ORDER BY rowid`,
+      // Credentials live in one place only.
+      `DELETE FROM tal_remote_tokens_v8`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

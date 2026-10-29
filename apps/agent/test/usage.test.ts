@@ -139,6 +139,8 @@ describe("local model consumption", () => {
       for (const col of ["profile", "priority_reason", "signal"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
       db.run("DROP TABLE tal_alert_profiles");
       db.run("DROP TABLE tal_alert_corrections");
+      // Migration 23 (events access tokens) moved the old table aside.
+      db.run("DROP TABLE IF EXISTS tal_remote_tokens_v8");
       // Migration 22 (push device last seen).
       db.run("ALTER TABLE tal_push_subscriptions DROP COLUMN last_seen_at");
       db.run("UPDATE tal_schema SET version = 6 WHERE id = 1");

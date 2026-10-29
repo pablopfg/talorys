@@ -321,6 +321,23 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   notification service, never by a tool. The only tools that reach the network
   are remote MCP tools the owner connected and turned on (below).
 
+## Events from automations
+
+- `POST /api/remote/events` only accepts a remote token of scope `events`, and
+  that scope reaches nothing else (`apps/agent/src/remote/middleware.ts`): a
+  leaked n8n token can raise alerts but cannot read or change data.
+- At most 60 events an hour and 100 in 24 hours across all tokens (counted
+  before raising, so repeats count), bodies of at most 2 KB, and never
+  `critical`: the alert center caps the Events category at High, so an outside
+  system can't make an alert that only Telegram can silence.
+- Events can't crowd out the owner's alerts: they get only the first half of
+  each channel's hourly and daily limit, at most 3 insist at once
+  (`EVENT_ALERTS`), and past 50 source + kind pairs new ones share one learned
+  profile, so the owner's learned priorities are never pushed out.
+- Titles start with the source and stay on one line; links are defanged
+  (`hxxps://` in backticks) so neither the app, Telegram nor a mail client makes
+  them clickable: a leaked token can't send a convincing sign-in link.
+
 ## Push notifications
 
 - The VAPID private key is a Worker secret, generated locally by the installer

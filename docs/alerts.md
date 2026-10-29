@@ -119,10 +119,10 @@ botões.
 | Lembretes | Lembretes criados por você ou pelo agente |
 | Resumos | Resumo agendado de tarefas |
 | Rotinas | Resultado de rotinas de IA (inclusive a ferramenta `notify_owner`) |
-| Tarefas | Prazos e tarefas atrasadas (vigias, numa próxima entrega) |
+| Tarefas | Prazos e tarefas atrasadas (vigias) |
 | Sistema | Rotina pulada por falta de orçamento de IA e outros avisos do próprio Talorys |
 | Segurança | Login de aparelho ou país novo, verificação em duas etapas ligada ou desligada, muitas tentativas de login, código de recuperação usado |
-| Eventos | Eventos enviados pelas suas automações (numa próxima entrega) |
+| Eventos | Eventos enviados pelas suas automações (n8n, scripts, monitores). Veja [Eventos do n8n e de outras automações](#eventos-do-n8n-e-de-outras-automações) |
 
 Os padrões: todas as categorias ligadas no Push e no Telegram, com o Telegram discreto
 (sem o texto completo) em todas.
@@ -554,6 +554,105 @@ desligado. Os logs do Worker mostram só o código do erro, nunca os endereços.
 Para desligar, apague a variável `TALORYS_ALERT_EMAIL_FROM` (ou o bloco `send_email`) e
 faça o deploy; o segredo `ALERT_EMAIL_TO` pode ser apagado com `wrangler secret delete`.
 
+## Eventos do n8n e de outras automações
+
+Um fluxo do n8n (ou qualquer script ou monitor) pode mandar um aviso para o Talorys: o
+backup falhou, o site caiu, o pagamento entrou. Cada evento vira um aviso na categoria
+**Eventos**, passa pela central como os outros (rotas, limites, insistência, prioridade que
+aprende) e aparece no app.
+
+### Regras
+
+- **Token próprio.** O evento é enviado com um token de acesso remoto de escopo **events**.
+  Esse token só faz uma coisa: `POST /api/remote/events`. Não lê nem altera tarefas, notas,
+  memórias ou qualquer outro dado (qualquer outra rota responde 403). E só um token
+  **events** envia eventos: tokens `read` e `write` e a sua sessão no app recebem 403.
+- **No máximo 60 eventos por hora e 100 em 24 horas** (todos os tokens somados). Passando
+  disso, a resposta é 429 com `Retry-After`. Um evento repetido também conta, para que um
+  fluxo em loop não envie para sempre.
+- **Seus avisos têm prioridade.** Eventos usam só a primeira metade do limite de cada canal
+  (com os padrões, 3 por hora e 15 por dia no push e no Telegram); o resto fica no app e a
+  outra metade continua livre para lembretes, rotinas, tarefas e sistema. No máximo 3
+  eventos insistem ao mesmo tempo; os demais de prioridade Alta saem uma vez só.
+- **Nunca crítico.** A prioridade pode ser `low`, `normal` (padrão) ou `high`; `critical` é
+  recusado (400), e a prioridade que aprende nunca leva um evento acima de Alta.
+- **Repetição.** Com `id`, o mesmo `source` + `id` dentro de 24 horas é descartado (resposta
+  200 com `duplicate: true`).
+- **Texto desarmado.** O título começa pela origem (`n8n: Backup falhou`), para que um evento
+  não se passe por um aviso do próprio Talorys, e fica numa linha só (até 120 caracteres
+  enviados); corpo até 1.000. Links viram texto não clicável em todos os canais:
+  `https://` vira `` `hxxps://` `` (o Telegram e os clientes de e-mail não transformam isso em
+  link). O corpo inteiro da requisição tem no máximo 2 KB.
+- **Prioridade que aprende por origem e tipo.** Cada par `source` + `kind` (por exemplo
+  `n8n · backup-falhou`) é um perfil em **O que o Talorys aprendeu**, até 50 pares; depois
+  disso, os pares novos dividem o perfil **Outros eventos**, para não apagar o que os seus
+  outros avisos aprenderam.
+
+### Corpo da requisição
+
+| Campo | Obrigatório | Formato | Para quê |
+| --- | --- | --- | --- |
+| `title` | sim | Texto, 1 a 120 caracteres | Título do aviso |
+| `body` | não | Texto, até 1.000 caracteres | Detalhes (no Telegram e no e-mail só com **Texto completo** ligado em Eventos) |
+| `priority` | não | `low`, `normal` ou `high` | Padrão `normal` |
+| `source` | não | Até 40 caracteres: letras, números, `.`, `-`, `_` | Quem enviou, por exemplo `n8n`. Padrão `remote` |
+| `kind` | não | Igual a `source` | Tipo do evento, por exemplo `backup-falhou`. Padrão `event` |
+| `id` | não | Até 100 caracteres: letras, números, `.`, `:`, `-`, `_` | Identificador do evento no sistema de origem, para descartar repetições |
+
+Respostas: **201** `{ event: { id, priority }, duplicate: false }`; **200**
+`{ event: null, duplicate: true }`; **400** campo inválido; **403** token sem escopo
+`events`; **429** limite por hora (cabeçalho `Retry-After`); **401** token inválido,
+revogado, vencido ou acesso remoto desligado.
+
+### Configurar no n8n
+
+1. No Talorys, abra **Configurações → Segurança → Acesso remoto**, ligue o acesso remoto
+   (pede a senha recente), escreva um nome como `n8n`, escolha o escopo **events** e toque
+   em **Gerar token**. Copie o token na hora: ele não aparece de novo. Criar o token gera o
+   alerta de segurança "Token de acesso criado".
+2. No n8n, crie uma credencial **Header Auth** com nome `Authorization` e valor
+   `Bearer tal_...` (o token copiado).
+3. No fluxo, acrescente um nó **HTTP Request**:
+   - **Method:** `POST`
+   - **URL:** `https://talorys.exemplo.com.br/api/remote/events`
+   - **Authentication:** *Generic Credential Type* → *Header Auth* → a credencial do passo 2.
+   - **Send Body:** ligado, **Body Content Type:** *JSON*, **Specify Body:** *Using JSON*:
+
+     ```json
+     {
+       "title": "Backup do servidor falhou",
+       "body": "{{ $json.error }}",
+       "priority": "high",
+       "source": "n8n",
+       "kind": "backup-falhou",
+       "id": "{{ $execution.id }}"
+     }
+     ```
+
+   - Em **Options → Retry On Fail**, use no máximo 3 tentativas; o `id` garante que uma
+     nova tentativa do mesmo evento não gere aviso repetido.
+4. Execute o nó uma vez: a resposta deve ser 201 e o aviso aparece na central.
+5. Para conferir pelo terminal:
+
+   ```bash
+   curl -X POST https://talorys.exemplo.com.br/api/remote/events \
+     -H "Authorization: Bearer tal_..." \
+     -H "Content-Type: application/json" \
+     -d '{"title":"Teste do n8n","source":"n8n","kind":"teste"}'
+   ```
+
+**Com Cloudflare Access na frente** (veja
+[deploy-github-actions.md](deploy-github-actions.md#6-recomendado-cloudflare-access-na-frente)):
+crie um *Service Token* em **Access → Service Auth** só para o n8n, acrescente à aplicação
+uma política *Service Auth* que inclua esse token e, no nó **HTTP Request**, em **Send
+Headers**, mande também `CF-Access-Client-Id` e `CF-Access-Client-Secret`. Guarde os dois
+como credencial do n8n, nunca dentro do fluxo.
+
+**Se o token vazar:** revogue-o em **Acesso remoto** (ou desligue o acesso remoto). Quem
+tiver o token só consegue mandar até 60 avisos por hora (100 por dia), nunca críticos,
+sempre com a origem no título e sem links clicáveis, e não lê nada.
+Tokens vencem em 90 dias: crie outro e troque a credencial no n8n antes disso.
+
 ## O que o histórico de entregas mostra
 
 | Situação | Motivo | Significado |
@@ -602,7 +701,9 @@ ganham o resumo às 07:30 e os vigias ligados. A migração 21 acrescenta às no
 (`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
 as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
 100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
-avisos. Não há variável nova. A migração 22 acrescenta `last_seen_at` a
+avisos. Não há variável nova. A migração 23 passa os tokens para uma tabela
+`tal_remote_tokens` nova, que aceita o escopo `events`, mantendo todos eles; a antiga fica
+vazia como `tal_remote_tokens_v8` (as migrações nunca apagam tabelas). A migração 22 acrescenta `last_seen_at` a
 `tal_push_subscriptions`, com a hora da migração nos aparelhos que já existem. Os alertas de segurança novos e o canal de e-mail não pedem
 migração; o e-mail é opcional e segue [Configurar o e-mail](#configurar-o-e-mail).
 
@@ -655,6 +756,7 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | `GET /api/alerts` | — | `{ preferences, deliveries, channels, email: { to, sentToday } }`; `channels` tem `push`, `telegram` e `email`; `email.to` é o destino mascarado ou `null` sem e-mail |
 | `POST /api/alerts/email/test` | — | Envia o e-mail de teste; `{ sent, overview }`; pede a senha recente (403 `REAUTH_REQUIRED`); 503 `NOT_CONFIGURED` sem e-mail; 429 depois de 2 testes no dia ou sem espaço no limite |
 | `POST /api/push/subscriptions` | Inscrição do navegador, com `replaces` opcional (endpoint antigo) | Com `replaces` de um aparelho cadastrado, troca o endpoint e as chaves dele (sem senha, sem alerta). Um aparelho novo pede a senha recente e gera o alerta "Novo aparelho no push"; a renovação do mesmo navegador não. 400 com 3 aparelhos já cadastrados |
+| `POST /api/remote/events` | Evento (veja [Eventos do n8n](#eventos-do-n8n-e-de-outras-automações)), até 2 KB | Só com token de escopo `events` (`Authorization: Bearer`); 201, 200 repetido, 400, 403, 429 |
 | `POST /api/push/seen` | `{ endpoint }` (até 4 KB) | `{ known }`: marca o último acesso do aparelho com esse endpoint; `known: false` quando ele não está mais cadastrado (o interruptor do navegador volta a mostrar desligado) |
 | `GET /api/push` | — | `{ available, public_key, devices, max_devices: 3, inactive_days: 7 }`; cada aparelho traz `last_seen_at` |
 | `DELETE /api/notifications/:id` | — | Alerta de segurança pede a senha recente (403 `REAUTH_REQUIRED`); 409 enquanto ainda insiste |

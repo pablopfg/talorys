@@ -14,6 +14,7 @@ import {
   confirmedOnlyOutOfBand,
   ESCALATION,
   isInsistent,
+  EVENT_ALERTS,
   MAX_ACTIVE_ESCALATIONS,
   type Notification,
   type NotificationAction,
@@ -147,7 +148,9 @@ export class AlertService {
     const sending = this.dispatch(n);
     // Only an alert that left the app can insist: with every channel off there is nobody to remind.
     const security = confirmedOnlyOutOfBand(n);
-    if (sending > 0 && isInsistent(n.priority) && this.deps.timers && (security || this.notifications.activeEscalations() < MAX_ACTIVE_ESCALATIONS)) {
+    const room = security || (this.notifications.activeEscalations() < MAX_ACTIVE_ESCALATIONS
+      && (n.category !== "event" || this.notifications.activeEscalations("event") < EVENT_ALERTS.maxActiveEscalations));
+    if (sending > 0 && isInsistent(n.priority) && this.deps.timers && room) {
       const next = this.stepTime(n, 2);
       this.notifications.setEscalation(n.id, "active", 1, next.toISOString());
       this.deps.timers.schedule(next, n.id, 2);
@@ -196,7 +199,8 @@ export class AlertService {
       return false;
     }
     // A later try is never held back: the owner asked to be reminded until they confirm.
-    if (!attempt && !isUnlimited(n) && this.overLimit(channel.id, prefs)) {
+    // Outside events only get the first part of each limit: the rest stays for the owner's alerts.
+    if (!attempt && !isUnlimited(n) && this.overLimit(channel.id, prefs, n.category === "event" ? EVENT_ALERTS.channelShare : 1)) {
       this.deliveries.record(n, channel.id, "skipped", "rate_limited");
       return false;
     }
@@ -337,11 +341,11 @@ export class AlertService {
     this.notifications.delete(id);
   }
 
-  private overLimit(channel: AlertChannel, prefs: AlertPreferences): boolean {
+  private overLimit(channel: AlertChannel, prefs: AlertPreferences, share = 1): boolean {
     const now = Date.now();
     return (
-      this.deliveries.sentSince(channel, new Date(now - HOUR_MS).toISOString()) >= prefs.limits.perHour ||
-      this.deliveries.sentSince(channel, new Date(now - 24 * HOUR_MS).toISOString()) >= prefs.limits.perDay
+      this.deliveries.sentSince(channel, new Date(now - HOUR_MS).toISOString()) >= Math.floor(prefs.limits.perHour * share) ||
+      this.deliveries.sentSince(channel, new Date(now - 24 * HOUR_MS).toISOString()) >= Math.floor(prefs.limits.perDay * share)
     );
   }
 
