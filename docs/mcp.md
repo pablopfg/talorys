@@ -82,6 +82,23 @@ conversation.
   run without asking, the server is turned off or removed, its token changes, or
   the tool's definition changes, the approval fails and nothing is sent. Each
   approval runs at most once.
+- **Run without asking, guarded.** Turning it on for a tool (or turning on a
+  tool set that way, or allowing it in scheduled automations) needs your
+  password typed in the last 15 minutes, with the second factor when it is on.
+  Even then, a call is proposed on an approval card instead of sent when:
+  - a result from **another** MCP server already came into the same turn. A
+    hidden instruction in that result could have the model put your data in
+    the arguments of a call to a second server. Calls to the server whose
+    result is already there still run;
+  - its arguments are longer than 1,000 characters as JSON. A search query is
+    short; data being sent out is not.
+
+  Approving runs exactly the proposed call, once. Scheduled automations can't
+  ask, so there the call is refused.
+- **Allowed servers.** With `TALORYS_MCP_ALLOWED_ORIGINS` set, only the servers
+  on it can be added, connected or called (see [Configuration](#configuration)).
+  With it pointing at hosts on your own domain, DNS rebinding can only reach
+  your own hosts.
 - **Changed tools.** When a server changes a tool's description, inputs or
   labels, Talorys stops using it until you turn it on again. Tools the server
   stops listing are marked as no longer offered.
@@ -128,6 +145,7 @@ retried once, only when a reused session turned out to be stale.
 | `MCP_CREDENTIAL_KEY` | Secret | Encrypts bearer tokens and OAuth sign-ins. The installer creates it, and `npx create-talorys@latest update` adds it to older installations. Without it you can still add servers that need no authentication. Changing it makes stored tokens unreadable; enter them again or sign in again. |
 | `TALORYS_MCP` | Secret or var | `off` turns MCP servers off for the deployment. |
 | `TALORYS_MCP_MAX_TOOLS` | Secret or var | Most tools on at once (default 20, at most 64). |
+| `TALORYS_MCP_ALLOWED_ORIGINS` | Secret or var | The only servers allowed, comma separated: exact origins (`https://n8n.example.com`) or every subdomain of a domain (`https://*.example.com`, not the domain itself). Unset: any public host. Checked when a server is added and before every connection and call, so narrowing it stops servers already added. An entry that isn't a plain origin refuses every server until it is fixed. |
 
 For a [one-Worker deploy](deployment.md#one-worker-without-pages), set the key
 by hand with 32 or more random characters:
@@ -136,7 +154,7 @@ by hand with 32 or more random characters:
 openssl rand -base64 32 | npx wrangler secret put MCP_CREDENTIAL_KEY -c wrangler.standalone.jsonc
 ```
 
-Set `TALORYS_MCP` and `TALORYS_MCP_MAX_TOOLS` with `wrangler secret put` too:
+Set `TALORYS_MCP`, `TALORYS_MCP_MAX_TOOLS` and `TALORYS_MCP_ALLOWED_ORIGINS` with `wrangler secret put` too:
 the installer regenerates the Worker config on update, which would drop a plain
 variable.
 

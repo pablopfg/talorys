@@ -127,3 +127,46 @@ export class McpEndpointError extends Error {
     this.name = "McpEndpointError";
   }
 }
+
+/** One entry of TALORYS_MCP_ALLOWED_ORIGINS: an exact origin, or every subdomain of a domain. */
+export interface AllowedOrigin {
+  protocol: "https:" | "http:";
+  /** Host with port when not the default, lower case. */
+  host: string;
+  /** True for `https://*.example.com`: any subdomain, never example.com itself. */
+  subdomains: boolean;
+}
+
+/**
+ * Reads TALORYS_MCP_ALLOWED_ORIGINS: comma-separated origins such as `https://n8n.example.com` or
+ * `https://*.example.com`. Unset or empty: null (every public host is allowed). An entry that
+ * isn't a plain origin makes the whole setting invalid, and every server is refused until it is fixed.
+ */
+export function parseAllowedOrigins(raw: string | undefined): AllowedOrigin[] | "invalid" | null {
+  const entries = (raw ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+  if (entries.length === 0) return null;
+  const out: AllowedOrigin[] = [];
+  for (const entry of entries) {
+    const wildcard = /^(https?:\/\/)\*\.(.+)$/i.exec(entry);
+    let url: URL;
+    try {
+      url = new URL(wildcard ? `${wildcard[1]}${wildcard[2]}` : entry);
+    } catch {
+      return "invalid";
+    }
+    const plain = url.pathname === "/" && !url.search && !url.hash && !url.username && !url.password;
+    // http:// only matters in development (http://localhost); validateEndpoint refuses it elsewhere.
+    const hostname = /^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(url.hostname) || /^\[[0-9a-f:.]+\]$/.test(url.hostname);
+    if (!plain || !hostname || (url.protocol !== "https:" && url.protocol !== "http:") || (wildcard && !url.hostname.includes("."))) return "invalid";
+    out.push({ protocol: url.protocol, host: url.host.toLowerCase(), subdomains: !!wildcard });
+  }
+  return out;
+}
+
+/** Whether a URL's origin is on the allow list (null: no list, everything allowed). */
+export function originAllowed(url: URL, allowed: AllowedOrigin[] | "invalid" | null): boolean {
+  if (allowed === null) return true;
+  if (allowed === "invalid") return false;
+  const host = url.host.toLowerCase().replace(/\.+(?=:|$)/, "");
+  return allowed.some((rule) => rule.protocol === url.protocol && (rule.subdomains ? host.endsWith(`.${rule.host}`) : host === rule.host));
+}

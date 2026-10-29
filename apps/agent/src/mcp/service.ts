@@ -18,9 +18,9 @@ import { ToolError, type ToolDefinition } from "../tools/registry";
 import { McpConnectionError, McpSessions, type SessionAuth, classifyMcpError } from "./client";
 import { type OAuthRecord, TalorysOAuthProvider, oauthStateServerId, sameSecret } from "./oauth";
 import { McpCredentials } from "./credentials";
-import { McpRepository, type StoredServer, isUsable, presentTool } from "./repository";
+import { McpRepository, type StoredServer, type StoredTool, isUsable, presentTool } from "./repository";
 import { type McpCallOptions, TOOL_LIMITS, checkTool, permissionSnapshot, toToolDefinition, toZod } from "./tools";
-import { type Resolver, assertPublicHost, dohResolver, validateEndpoint } from "./url";
+import { McpEndpointError, type Resolver, assertPublicHost, dohResolver, originAllowed, parseAllowedOrigins, validateEndpoint } from "./url";
 
 /** Network access for MCP. Tests replace it to talk to an in-process server. */
 export interface McpNetwork {
@@ -72,6 +72,27 @@ export class McpService {
 
   private get development(): boolean {
     return this.env.TALORYS_ENV === "development";
+  }
+
+  /**
+   * TALORYS_MCP_ALLOWED_ORIGINS: the only servers Talorys may connect to (for example your own n8n).
+   * Checked when a server is added or changed and again before every connection and call, so
+   * narrowing the list stops servers already added.
+   */
+  private allowedProblem(url: URL): string | null {
+    const allowed = parseAllowedOrigins(this.env.TALORYS_MCP_ALLOWED_ORIGINS);
+    if (allowed === "invalid") {
+      return "TALORYS_MCP_ALLOWED_ORIGINS has an entry that isn't an origin like https://mcp.example.com, so no MCP server is allowed until it is fixed.";
+    }
+    return originAllowed(url, allowed) ? null : "This MCP server isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).";
+  }
+
+  /** A new or changed address must be on the list. */
+  private allowedEndpoint(raw: string): string {
+    const url = validateEndpoint(raw, { development: this.development });
+    const problem = this.allowedProblem(url);
+    if (problem) throw new ValidationError(problem);
+    return url.href;
   }
 
   get maxTools(): number {
@@ -129,7 +150,7 @@ export class McpService {
   async create(input: { name: string; url: string; auth_type: McpAuthType; token?: string }, origin?: string): Promise<McpServerInfo> {
     this.assertEnabled();
     if (this.repo.count() >= MAX_MCP_SERVERS) throw new AppError("CONFLICT", `You can add up to ${MAX_MCP_SERVERS} MCP servers.`);
-    const url = validateEndpoint(input.url, { development: this.development }).href;
+    const url = this.allowedEndpoint(input.url);
     if (input.auth_type !== "none") this.credentials.assertAvailable();
     const server = this.repo.create({ name: input.name, url, auth_type: input.auth_type, enabled: true });
     if (input.auth_type === "bearer" && input.token) {
@@ -146,7 +167,7 @@ export class McpService {
   ): Promise<McpServerInfo> {
     this.assertEnabled();
     const server = this.require(id);
-    const url = patch.url === undefined ? undefined : validateEndpoint(patch.url, { development: this.development }).href;
+    const url = patch.url === undefined ? undefined : this.allowedEndpoint(patch.url);
     const authType = patch.auth_type ?? server.auth_type;
     if (patch.token !== undefined && authType !== "bearer") throw new ValidationError("Only bearer-token servers take a token.");
     if (authType !== "none" && authType !== server.auth_type) this.credentials.assertAvailable();
@@ -291,6 +312,8 @@ export class McpService {
   /** The server's endpoint, re-validated, and the DNS check to run before opening a session to it. */
   private endpoint(server: StoredServer): { url: URL; verify: () => Promise<void> } {
     const url = validateEndpoint(server.url, { development: this.development });
+    const problem = this.allowedProblem(url);
+    if (problem) throw new McpEndpointError(problem);
     return { url, verify: () => assertPublicHost(url, this.network.resolve, { development: this.development }) };
   }
 
@@ -336,6 +359,13 @@ export class McpService {
 
   tools(id: string): McpToolInfo[] {
     return this.repo.tools(this.require(id).id).map(presentTool);
+  }
+
+  /** A tool as stored, for permission checks before a change. */
+  storedTool(serverId: string, toolId: string): StoredTool {
+    const tool = this.repo.tool(this.require(serverId).id, toolId);
+    if (!tool) throw new NotFoundError("Tool not found.");
+    return tool;
   }
 
   updateTool(serverId: string, toolId: string, patch: { enabled?: boolean; policy?: McpToolPolicy; scheduled?: boolean }): McpToolInfo {
@@ -422,11 +452,11 @@ export class McpService {
   }
 
   /** The permission state an approval is bound to (see `permissionSnapshot`). */
-  snapshot(targetId: string): unknown {
+  snapshot(targetId: string, policy: "approve" | "auto" = "approve"): unknown {
     const [serverId, ...rest] = targetId.split("/");
     const server = this.repo.get(serverId ?? "");
     const tool = server ? (this.repo.tools(server.id).find((t) => t.name === rest.join("/")) ?? null) : null;
-    return permissionSnapshot(server, tool);
+    return permissionSnapshot(server, tool, policy);
   }
 
   /**

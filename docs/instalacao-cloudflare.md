@@ -713,6 +713,13 @@ MCP Server Trigger do próprio n8n.
    **Entrar** (OAuth).
 3. Leia a descrição de cada ferramenta e ligue só as que quer usar. Ações que
    mudam algo pedem a sua confirmação no chat.
+4. Recomendado: limite o Talorys aos seus servidores. No Worker, crie o segredo
+   `TALORYS_MCP_ALLOWED_ORIGINS` com as origens permitidas, separadas por
+   vírgula: `https://n8n.exemplo.com.br` ou `https://*.exemplo.com.br` para
+   qualquer subdomínio. Qualquer outro servidor é recusado, inclusive os que
+   já estavam adicionados. Uma entrada mal escrita recusa todos até ser
+   corrigida. Use segredo, não variável, para o endereço do seu n8n ficar fora
+   do GitHub.
 
 O Talorys só se conecta a endereços **públicos** e `https://`: um n8n na sua
 rede local precisa estar publicado (por exemplo por um Cloudflare Tunnel).
@@ -838,6 +845,7 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | 21 | para o push |
 | `TELEGRAM_BOT_TOKEN` | 22 | para o Telegram |
 | `TALORYS_MCP` (`off`), `TALORYS_MCP_MAX_TOOLS` | 24 | não |
+| `TALORYS_MCP_ALLOWED_ORIGINS` | 24 | não (recomendado) |
 
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.

@@ -96,7 +96,13 @@ mcpRoutes.get("/mcp/servers/:id/tools", (c) => {
 
 mcpRoutes.patch("/mcp/servers/:id/tools/:toolId", async (c) => {
   const patch = await body(c, mcpToolUpdateSchema, 1024);
-  return c.json({ tool: c.env.agent.services.mcp.updateTool(c.req.param("id"), c.req.param("toolId"), patch) });
+  const mcp = c.env.agent.services.mcp;
+  const before = mcp.storedTool(c.req.param("id"), c.req.param("toolId"));
+  // Calls that run without asking send what the model writes with no card to stop them: turning
+  // that on (policy, an enabled "auto" tool, or scheduled runs) needs the password typed recently.
+  const auto = (patch.policy ?? before.policy) === "auto";
+  if (auto && (patch.policy === "auto" || patch.scheduled === true || (patch.enabled === true && before.enabled !== 1))) requireRecentAuth(c);
+  return c.json({ tool: mcp.updateTool(c.req.param("id"), c.req.param("toolId"), patch) });
 });
 
 /** A URL as the service stores it, or the text itself when it doesn't parse (the service rejects it then). */
