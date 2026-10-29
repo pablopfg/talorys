@@ -21,7 +21,12 @@ pushRoutes.post("/push/subscriptions", async (c) => {
   // A new device would get every alert from now on: it needs the password typed recently, and
   // the owner is told. The same browser renewing its subscription needs neither.
   const known = s.push.subscriptions.hasEndpoint(input.endpoint);
-  if (!known) requireRecentAuth(c);
+  if (!known) {
+    requireRecentAuth(c);
+    s.push.subscriptions.assertRoom();
+    // Told before it is saved, so the warning reaches the owner's other devices, not the new one.
+    raiseSecurityAlert(s.alerts, "push_added");
+  }
   const device = s.push.subscriptions.save({
     endpoint: input.endpoint,
     p256dh: input.keys.p256dh,
@@ -30,7 +35,6 @@ pushRoutes.post("/push/subscriptions", async (c) => {
     origin: new URL(c.req.url).origin,
   });
   s.activity.record("push.subscribed", `Notifications turned on for ${label}`);
-  if (!known) raiseSecurityAlert(s.alerts, "push_added");
   return c.json({ device, status: s.push.status() });
 });
 

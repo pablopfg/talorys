@@ -46,14 +46,19 @@ export class PushSubscriptionRepository {
         input.p256dh, input.auth, input.label, input.origin, id,
       );
     } else {
-      const count = this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_push_subscriptions`)?.n ?? 0;
-      if (count >= MAX_PUSH_DEVICES) throw new ValidationError(`At most ${MAX_PUSH_DEVICES} devices can receive notifications. Remove one first.`);
+      this.assertRoom();
       this.db.run(
         `INSERT INTO tal_push_subscriptions (id, endpoint, p256dh, auth, label, origin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         id, input.endpoint, input.p256dh, input.auth, input.label, input.origin, now(),
       );
     }
     return this.devices().find((d) => d.id === id)!;
+  }
+
+  /** Throws when no new device fits. */
+  assertRoom(): void {
+    const count = this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_push_subscriptions`)?.n ?? 0;
+    if (count >= MAX_PUSH_DEVICES) throw new ValidationError(`At most ${MAX_PUSH_DEVICES} devices can receive notifications. Remove one first.`);
   }
 
   hasEndpoint(endpoint: string): boolean {

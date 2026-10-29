@@ -156,9 +156,12 @@ export class PushService {
   /** Sends one message to every device. Gone subscriptions are removed, failures counted. */
   async sendToAll(message: PushMessage): Promise<Record<SendOutcome, number>> {
     const counts: Record<SendOutcome, number> = { sent: 0, gone: 0, failed: 0 };
+    // The devices registered when the message was sent: one added meanwhile (the device a "new
+    // push device" alert is about) does not get it.
+    const subscriptions = this.subscriptions.all();
     const keys = await this.vapid();
     if (!keys) return counts;
-    const outcomes = await Promise.all(this.subscriptions.all().map((sub) => this.sendOne(sub, message, keys)));
+    const outcomes = await Promise.all(subscriptions.map((sub) => this.sendOne(sub, message, keys)));
     for (const o of outcomes) counts[o]++;
     return counts;
   }

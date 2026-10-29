@@ -284,14 +284,18 @@ describe("security alerts out of band", () => {
   });
 
   it("tell the owner about a new or removed push device, a new MCP server and deleted sign-in activity", async () => {
+    const stub = pushServiceStub(201);
     await inAgent((agent) => {
       agent.services.db.run(`DELETE FROM tal_push_subscriptions`);
-      agent.services.push.fetcher = pushServiceStub(201).fetcher;
+      agent.services.push.fetcher = stub.fetcher;
     });
     const c = await loggedIn();
     const browser = await fakeBrowser();
     const first = await c.json("/api/push/subscriptions", { method: "POST", body: browser.json });
     expect(first.device).toBeDefined();
+    // The warning about a new device goes to the owner's other devices, never to the new one.
+    await inAgent((agent) => agent.services.push.idle());
+    expect(stub.sent.filter((m) => m.url === browser.json.endpoint)).toEqual([]);
     // The same browser renewing its subscription is not a new device, and needs no password.
     await inAgent((agent) => agent.services.db.run(`UPDATE tal_sessions SET confirmed_at = '2000-01-01T00:00:00.000Z'`));
     const renew = await c.call("/api/push/subscriptions", { method: "POST", body: browser.json });
