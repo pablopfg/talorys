@@ -7,7 +7,7 @@ export const MAX_PUSH_DEVICES = 3;
  * A device that has not opened Talorys (signed in) for this many days is removed from push, so a
  * lost or forgotten phone stops receiving the owner's alerts on its own.
  */
-export const PUSH_INACTIVE_DAYS = 3;
+export const PUSH_INACTIVE_DAYS = 7;
 
 /** A browser subscribed to Web Push. The endpoint and keys stay on the server. */
 export interface PushDevice {

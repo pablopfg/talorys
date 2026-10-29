@@ -60,6 +60,7 @@ describe("push API", () => {
     expect(status.public_key).toMatch(/^[\w-]{87}$/);
     expect(status.max_devices).toBe(MAX_PUSH_DEVICES);
     expect(MAX_PUSH_DEVICES).toBe(3);
+    expect(PUSH_INACTIVE_DAYS).toBe(7);
     expect(status.inactive_days).toBe(PUSH_INACTIVE_DAYS);
     expect(JSON.stringify(status)).not.toContain("PRIVATE");
     const health = await c.json("/api/health");
