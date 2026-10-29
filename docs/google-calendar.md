@@ -86,8 +86,9 @@ In short:
 - **OAuth with PKCE and a single-use state.** The state is stored hashed, the
   PKCE verifier sealed, and both expire in 10 minutes. The callback page
   forwards Google's answer with the owner's session; a state can't be reused.
-  If Google grants fewer permissions than asked, the access is given back at
-  once and nothing is saved.
+  If Google grants fewer permissions than asked, nothing is saved and, unless
+  an account is already connected (revoking would end its grant too), the
+  access is given back at once.
 - **Sealed tokens.** The refresh and access tokens are encrypted with
   AES-256-GCM using `MCP_CREDENTIAL_KEY` and are never in backups, exports or
   API responses. After restoring a backup, connect again.

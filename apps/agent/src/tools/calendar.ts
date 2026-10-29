@@ -92,6 +92,13 @@ function span(start: unknown, end: unknown, timeZone: string, plain = false): st
   return `${describeTime(start, timeZone, plain)} – ${describeTime(end, timeZone, plain)}`;
 }
 
+/**
+ * Event titles and calendar names come from whoever made them. In an approval summary they can't
+ * carry quotes or "; ", so they can't fake where a title ends or add a change to the list.
+ */
+const plain = (text: string) => cleanText(text, 120).replace(/[“”"]/g, "'").replace(/;/g, ",");
+const shown = (text: string) => quoteTitle(plain(text));
+
 /** The calendar the model named (name or id), among `list`. */
 function pickCalendar(ref: string | undefined, list: GoogleCalendarInfo[], what: "read" | "write"): GoogleCalendarInfo {
   if (list.length === 0) {
@@ -290,7 +297,7 @@ export const calendarTools = [
       const body = eventBody({ ...i, all_day: i.all_day ?? DATE.test(i.start.trim()) }, ctx.timezone);
       return {
         targetId: target(calendar.id),
-        summary: `Create ${quoteTitle(i.title)} on ${calendar.name}: ${span(body.start, body.end, ctx.timezone, true)}`,
+        summary: `Create ${shown(i.title)} on ${plain(calendar.name)}: ${span(body.start, body.end, ctx.timezone, true)}`,
         payload: body,
         preview: [i.location && `Location: ${i.location}`, i.description].filter(Boolean).join("\n\n") || undefined,
       };
@@ -332,7 +339,7 @@ export const calendarTools = [
       const before = span(event.start, event.end, ctx.timezone, true);
       const after = patch.start ? span(patch.start, patch.end, ctx.timezone, true) : before;
       const changes = [
-        patch.summary !== undefined && `rename to ${quoteTitle(String(patch.summary))}`,
+        patch.summary !== undefined && `rename to ${shown(String(patch.summary))}`,
         patch.start && `move from ${before} to ${after}`,
         patch.location !== undefined && "change the place",
         patch.description !== undefined && "change the notes",
@@ -340,7 +347,7 @@ export const calendarTools = [
       return {
         targetId: target(calendar.id, String(event.id)),
         // "; " separates the changes, so the app can translate each one.
-        summary: `Change ${quoteTitle(title)} on ${calendar.name}: ${changes.join("; ")}`,
+        summary: `Change ${shown(title)} on ${plain(calendar.name)}: ${changes.join("; ")}`,
         payload: { patch, etag: typeof event.etag === "string" ? event.etag : null },
         preview: [patch.location !== undefined && `Location: ${patch.location}`, patch.description !== undefined && String(patch.description)].filter(Boolean).join("\n\n") || undefined,
       };
@@ -376,7 +383,7 @@ export const calendarTools = [
       const event = await fetchEvent(calendar, i.event_id, ctx);
       return {
         targetId: target(calendar.id, String(event.id)),
-        summary: `Delete ${quoteTitle(cleanText(event.summary, 120) || "—")} on ${calendar.name}: ${span(event.start, event.end, ctx.timezone, true)}`,
+        summary: `Delete ${shown(cleanText(event.summary, 120) || "—")} on ${plain(calendar.name)}: ${span(event.start, event.end, ctx.timezone, true)}`,
         payload: { etag: typeof event.etag === "string" ? event.etag : null },
       };
     },

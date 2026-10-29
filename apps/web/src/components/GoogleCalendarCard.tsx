@@ -205,6 +205,8 @@ export function GoogleCalendarCallback() {
     if (sent.current) return;
     sent.current = true;
     const state = params.get("state");
+    // The code and state are single-use; keep them out of the address bar and history anyway.
+    window.history.replaceState(window.history.state, "", window.location.pathname);
     if (!state) {
       setError(new Error(t("calendar.callbackNoState")));
       return;

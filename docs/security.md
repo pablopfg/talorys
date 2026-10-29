@@ -604,7 +604,8 @@ See [google-calendar.md](google-calendar.md#security-model) for the full model.
   agent; both need the password typed recently, and connecting raises a
   security alert. No tool can change these settings.
 - OAuth uses PKCE and a hashed, single-use state that expires in 10 minutes.
-  If Google grants fewer permissions than asked, the access is revoked at once.
+  If Google grants fewer permissions than asked, nothing is saved and the access
+  is revoked (unless an account is already connected, whose grant it shares).
 - Google's tokens are sealed with `MCP_CREDENTIAL_KEY` (AES-256-GCM) and never
   appear in backups, exports or API responses. Disconnecting revokes them.
 - The agent proposes changes only in chat, only on calendars set to **Read and

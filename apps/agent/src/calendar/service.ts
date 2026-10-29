@@ -81,7 +81,7 @@ export class CalendarError extends Error {
 export function cleanText(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
   // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point.
-  const clean = value.replace(/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, " ").replace(/\s+/g, " ").trim();
+  const clean = value.replace(/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩\u200b-\u200d\u2060\ufeff]/g, " ").replace(/\s+/g, " ").trim();
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
@@ -225,8 +225,9 @@ export class CalendarService {
     }
     const scopes = typeof token.scope === "string" ? token.scope : "";
     if (!GOOGLE_CALENDAR_SCOPES.every((s) => scopes.split(" ").includes(s))) {
-      // Unticked permissions on Google's page: give back what was granted and stop.
-      await this.revoke(token.refresh_token);
+      // Unticked permissions on Google's page: give back what was granted and stop. Not while an
+      // account is connected: revoking ends the whole grant, which may be that account's.
+      if (!this.account()) await this.revoke(token.refresh_token);
       throw new ValidationError("Allow both permissions on Google's page (see your calendars, and see and edit their events). Connect again to retry.");
     }
     const access = this.accessFrom(token);
@@ -257,8 +258,9 @@ export class CalendarService {
       );
       this.storeCalendars(list);
     });
-    // An earlier token for a replaced account is given back to Google.
-    if (previous) {
+    // An earlier token for a replaced account is given back to Google. Not for the same account:
+    // revoking ends the whole grant, the token just stored included.
+    if (previous && previous.email !== email) {
       const old = await this.credentials.decrypt(SEAL_AD, previous.refresh_token);
       if (old && old !== token.refresh_token) await this.revoke(old);
     }

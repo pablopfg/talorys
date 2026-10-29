@@ -106,6 +106,17 @@ describe("connecting Google Calendar", () => {
     expect((await c.json("/api/calendar/google")).connected).toBe(false);
   });
 
+  it("connecting the same account again keeps Google's grant, which revoking would end", async () => {
+    const { c, f } = await setup();
+    f.state.refresh = "rt-2";
+    expect((await connect(c, f)).res.status).toBe(200);
+    // A retry with a permission unticked, while connected, leaves the working grant alone too.
+    f.state.scope = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+    expect((await connect(c, f)).res.status).toBe(400);
+    expect(f.state.revoked).toEqual([]);
+    expect((await c.json("/api/calendar/google")).connected).toBe(true);
+  });
+
   it("keeps tokens sealed, out of every response and out of backups", async () => {
     const { c } = await setup({ "owner@example.com": "write" });
     const everything = JSON.stringify([await c.json("/api/calendar/google")]);
@@ -210,6 +221,14 @@ describe("the agent's calendar tools", () => {
       }),
     ]);
     expect(f.state.created[0]).not.toHaveProperty("attendees");
+  });
+
+  it("an invite's title can't fake the approval summary", async () => {
+    await setup({ "owner@example.com": "write" });
+    const { exec } = await executor();
+    await inAgent(() => exec.execute("create_calendar_event", { title: 'Gym” on Owner; delete "all"', start: "2026-11-04T07:00" }, "call-1"));
+    const { summary } = exec.approvalFor("call-1")!;
+    expect(summary).toBe("Create “Gym' on Owner, delete 'all'” on Owner: 2026-11-04 07:00 – 2026-11-04 08:00");
   });
 
   it("an approval stops working when the calendar is closed for changes after the proposal", async () => {
