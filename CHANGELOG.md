@@ -4,7 +4,9 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ## Não lançado
 
-### Added
+## 1.0.0 — 2026-10-29
+
+### Adicionado
 
 - **Verificação em duas etapas.** Em Configurações → Segurança, ative um app autenticador (Google Authenticator, Microsoft Authenticator, 1Password, Aegis e outros) lendo um QR code: depois disso, o login pede a senha e um código de 6 dígitos. Você recebe 10 códigos de recuperação, mostrados uma única vez, para entrar se perder o celular; dá para gerar novos quando acabarem. Enquanto a verificação estiver desligada, um lembrete aparece nas telas do app (pode ser adiado por 3 dias, nunca para sempre). A confirmação de ações sensíveis também aceita um código do app no lugar da senha. Veja [docs/security.md](docs/security.md#two-step-sign-in).
 
@@ -12,13 +14,13 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Domínio próprio no instalador.** `npx create-talorys@latest update --domain talorys.exemplo.com` passa a usar o seu domínio para tudo (verificação, `status`, `doctor`) e fecha os endereços `*.pages.dev`. Depois de uma mudança de endereço, os aparelhos inscritos no endereço antigo saem da lista de push quando você abre as Configurações no novo, para reativar lá. No deploy pelo GitHub, a variável opcional `TALORYS_VAPID_SUBJECT` define o contato enviado aos serviços de push. Veja [docs/deployment.md](docs/deployment.md).
 
-- **AI task planning.** Ask Talorys to plan a goal ("Help me prepare for my trip to Japan") and it proposes a structured plan as a card in chat: tasks with priorities, optional due dates (suggested dates are marked as suggestions) and an optional existing or new project. You can edit titles, descriptions, priorities and dates, remove tasks or change the project, then confirm or cancel. Nothing is created until you confirm; confirming creates every task (and the new project) in one transaction, at most once, even if the button is pressed twice or in two tabs. Plans expire after 24 hours, survive reloads, and use no extra AI requests for editing or confirming.
+- **Planejamento de tarefas com IA.** Peça ao Talorys para planejar um objetivo ("Me ajude a preparar a viagem ao Japão") e ele propõe um plano num cartão do chat: tarefas com prioridade, prazos opcionais (os sugeridos aparecem marcados como sugestão) e um projeto existente ou novo, também opcional. Você pode editar títulos, descrições, prioridades e datas, remover tarefas ou trocar o projeto, e depois confirmar ou cancelar. Nada é criado antes da confirmação; confirmar cria todas as tarefas (e o projeto novo) numa única transação, uma vez só, mesmo com o botão apertado duas vezes ou em duas abas. Os planos expiram em 24 horas, sobrevivem a recarregar a página e editar ou confirmar não gasta pedidos de IA.
 
 - **Deploy automático pelo GitHub.** Cada merge na `main` testa e publica na Cloudflare, pelo GitHub Actions, o Worker único (interface + API), atrás do ambiente protegido `production`, e confere o `/api/health` no fim. O token da Cloudflare nunca chega aos PRs nem ao job de build, e os segredos do Worker ficam fora do GitHub. Veja [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
 
-- **Remote MCP servers.** Connect remote MCP servers (Streamable HTTP, with no authentication, a bearer token, or OAuth sign-in with PKCE and dynamic client registration) in Settings → Integrations and choose which of their tools Talorys may use in chat. Tools start off; each enabled tool either asks for your approval on every call (the default) or runs without asking. Calls share the chat's tool limits, are never made by scheduled routines, and send only the call's arguments to the server. Tokens are stored encrypted. See [docs/mcp.md](docs/mcp.md).
+- **Servidores MCP remotos.** Conecte servidores MCP remotos (Streamable HTTP, sem autenticação, com token bearer ou com login OAuth, PKCE e registro dinâmico de cliente) em Configurações → Integrações e escolha quais ferramentas deles o Talorys pode usar no chat. As ferramentas começam desligadas; cada uma ligada pede sua aprovação a cada chamada (o padrão) ou executa sem perguntar. As chamadas dividem os limites de ferramentas do chat e enviam ao servidor só os argumentos da chamada. Os tokens ficam cifrados. Veja [docs/mcp.md](docs/mcp.md).
 
-- **Brazilian Portuguese, now the default language.** Every screen, notification, digest, push message and API error is translated. New installations start in Português (Brasil); pick another language in Settings → Language, or set the `TALORYS_DEFAULT_LANGUAGE` Worker variable. With "Browser default", browsers set to any Portuguese variant get it too, and unsupported browser languages fall back to the default. CI fails when new text has no translation.
+- **Português do Brasil, agora o idioma padrão.** Todas as telas, notificações, resumos, mensagens de push e erros da API estão traduzidos. Instalações novas começam em Português (Brasil); escolha outro idioma em Configurações → Idioma ou defina a variável `TALORYS_DEFAULT_LANGUAGE` do Worker. Com "Padrão do navegador", navegadores em qualquer variante do português também recebem pt-BR, e idiomas não suportados caem no padrão. O CI falha quando um texto novo não tem tradução.
 
 - **Entrada por voz no chat.** Toque no microfone ao lado da caixa de mensagem, fale (até 1 minuto) e toque em ✓: o áudio é transcrito pelo Whisper (`@cf/openai/whisper-large-v3-turbo`) no Workers AI da sua conta e o texto aparece na caixa para você revisar antes de enviar. O áudio não é guardado, a transcrição usa o idioma do app e não conta no limite diário de pedidos de IA: ela tem um teto próprio de 60 minutos de áudio por dia (cerca de 2.800 neurons, por volta de 28% da cota gratuita diária). O uso aparece em Configurações → IA. O `Permissions-Policy` agora permite o microfone só para o próprio site. O README mostra o microfone no chat ([docs/screenshots/voice.png](docs/screenshots/voice.png)).
 
@@ -91,7 +93,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **O instalador e o projeto exigem Node.js 24 ou mais novo.** O Node.js 22 entrou em manutenção e perde o suporte em abril de 2027. Quem roda `npx create-talorys` com uma versão anterior recebe a mensagem pedindo para atualizar; instale o LTS atual em https://nodejs.org.
 
-### Upgrading
+### Atualização
 
 - A migração 18 cria a tabela `tal_mfa_challenges`, para o login em duas etapas. Não há segredo novo, e a verificação começa desligada: ative em Configurações → Segurança. A interface ganha a dependência `qrcode-generator` (MIT, sem dependências) para desenhar o QR code no navegador.
 - A migração 17 cria as tabelas `tal_auth_events`, `tal_auth_daily` e `tal_known_devices`. Não há segredo novo. O primeiro login depois da atualização marca o navegador como conhecido, sem aviso.
@@ -99,9 +101,9 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Se a sua senha atual tiver menos de 15 caracteres ou for previsível, o próximo login leva direto à troca de senha. `npx create-talorys@latest reset-password` também grava a senha nova junto com o `PASSWORD_PEPPER`.
 - A migração 14 adiciona `confirmed_at` em `tal_sessions` e `expires_at` em `tal_remote_tokens`. Sessões abertas antes dela pedem a senha na primeira ação sensível. O download do backup em Configurações agora é um botão: scripts que baixavam `GET /api/export` com o cookie precisam de um login recente.
 - A migração 16 adiciona `transcription_seconds` em `tal_usage_daily`, para o teto diário da entrada por voz. Nenhum segredo novo; a transcrição usa o binding `AI` que já existe.
-- Migration 13 adds a `scheduled` column on `tal_mcp_tools`; existing tools stay out of scheduled routines.
-- Migration 12 adds the `tal_mcp_servers` and `tal_mcp_tools` tables and a `result` column on pending actions. `npx create-talorys@latest update` adds the new `MCP_CREDENTIAL_KEY` secret; without it, only MCP servers without authentication can be added. Backups include MCP server names and URLs (never tokens); imported servers arrive turned off.
-- Migration 11 adds the `tal_task_plan_drafts` table. Existing data is untouched. Plan drafts are not included in backups, and plan cards in imported conversations are dropped, like approval cards.
+- A migração 13 adiciona a coluna `scheduled` em `tal_mcp_tools`; as ferramentas existentes ficam fora das rotinas agendadas.
+- A migração 12 cria as tabelas `tal_mcp_servers` e `tal_mcp_tools` e a coluna `result` nas ações pendentes. `npx create-talorys@latest update` adiciona o segredo novo `MCP_CREDENTIAL_KEY`; sem ele, só dá para adicionar servidores MCP sem autenticação. Os backups levam nomes e URLs dos servidores MCP (nunca tokens), e os servidores importados chegam desligados.
+- A migração 11 cria a tabela `tal_task_plan_drafts`. Os dados existentes não mudam. Rascunhos de plano não entram nos backups, e os cartões de plano de conversas importadas são descartados, como os de aprovação.
 
 ## Histórico do Talorys original (até a versão 0.1.7)
 

@@ -1,12 +1,12 @@
 {
   "name": "create-talorys",
-  "version": "0.1.7",
+  "version": "1.0.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "create-talorys",
-      "version": "0.1.7",
+      "version": "1.0.0",
       "dependencies": {
         "@clack/prompts": "1.8.1",
         "wrangler": "4.153.0"
