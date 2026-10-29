@@ -55,7 +55,8 @@ describe("portable backup settings", () => {
       });
       expect(res.status).toBe(200);
       const { settings } = await c.json("/api/settings");
-      expect(settings).toMatchObject({ language: "en", agentName: "Imported" });
+      // The agent's name opens every prompt, so a backup file can't change it either.
+      expect(settings).toMatchObject({ language: "en", agentName: before.agentName });
     } finally {
       await c.json("/api/settings", { method: "PATCH", body: { language: before.language, agentName: before.agentName } });
     }

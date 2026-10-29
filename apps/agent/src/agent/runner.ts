@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatStreamEvent, PendingAction, TaskPlanDraft, ToolActivity } from "@talorys/shared";
+import { type ChatMessage, type ChatStreamEvent, MCP_TOOL_PREFIX, type PendingAction, type TaskPlanDraft, type ToolActivity } from "@talorys/shared";
 import type { Services } from "../services/container";
 import { type AIProvider, classifyAiError, estimateTokens, type ProviderTool, usageOfFailure } from "../ai/provider";
 import { AppError, NotFoundError } from "../api/errors";
@@ -156,6 +156,8 @@ export class AgentRunner {
         .withCurrentState(s.pendingActions.withCurrentStatus(s.conversations.messages(conversation.id, { limit: 200 })))
         .filter((m) => m.role === "user" || m.status === "complete")
         .map(withApprovalOutcomes);
+      // How the owner corrected reminder priorities before: the agent picks new ones the same way.
+      const alertCorrections = s.alerts.reminderCorrections();
       let summary = conversation.summary;
       let summaryUpto = conversation.summary_upto;
       const baseSystem = buildSystemPrompt({
@@ -168,6 +170,7 @@ export class AgentRunner {
         conversationSummary: summary,
         ...(items ? { items } : {}),
         externalTools: this.mcpTools.length > 0,
+        alertCorrections,
       });
       const historyBudget = Math.max(500, limits.maxContextTokens - estimateTokens(baseSystem) - 600);
       let window = buildContextWindow(history, historyBudget, summaryUpto);
@@ -182,6 +185,7 @@ export class AgentRunner {
             maxOutputTokens: 300,
             temperature: 0.2,
             signal: input.signal,
+            reserveNextStep: () => s.usage.reserveAi(limits),
           });
           s.usage.record(result.usage);
           summary = result.text.trim().slice(0, 2000);
@@ -207,6 +211,7 @@ export class AgentRunner {
             conversationSummary: summary,
             ...(items ? { items } : {}),
             externalTools: this.mcpTools.length > 0,
+            alertCorrections,
           });
 
       // 3. Tools with per-turn limits. Built-in (or semantic) tools come first, so an MCP tool can
@@ -215,6 +220,7 @@ export class AgentRunner {
         [...(this.ext?.tools ?? ALL_TOOLS), ...this.mcpTools],
         { services: s, timezone: settings.timezone, mode: "chat", conversationId: conversation.id, signal: input.signal },
         { maxToolCalls: limits.maxToolCalls },
+        { externalSources: this.earlierExternalSources(history) },
       );
       const providerTools = toProviderTools(executor);
       const turnTools = executor;
@@ -288,8 +294,24 @@ export class AgentRunner {
     }
   }
 
+  /**
+   * MCP servers whose results this conversation already holds: an approved call's result or an
+   * unattended call's output the reply may have quoted. A later turn treats them as already read,
+   * so a hidden instruction can't wait a turn to send data to another server. A tool that is gone
+   * now (renamed, disabled, server removed) counts as an unknown server.
+   */
+  private earlierExternalSources(history: ChatMessage[]): string[] {
+    const sources = new Set<string>();
+    for (const t of history.flatMap((m) => m.tools)) {
+      const ran = t.approval ? t.approval.result !== null && t.approval.result !== undefined : t.status === "success";
+      if (!ran || !t.name.startsWith(MCP_TOOL_PREFIX)) continue;
+      sources.add(this.mcpTools.find((tool) => tool.name === t.name)?.external?.serverId ?? "unknown-earlier-server");
+    }
+    return [...sources];
+  }
+
   /** Runs an AI automation prompt with read-only tools (and MCP tools allowed there). Returns the reply text. */
-  async runScheduledPrompt(prompt: string, signal?: AbortSignal, routineName?: string): Promise<string> {
+  async runScheduledPrompt(prompt: string, signal?: AbortSignal, routineName?: string, opts: { sentinel?: boolean } = {}): Promise<string> {
     const s = this.services;
     const settings = s.settings.get();
     if (!this.provider) throw new AppError("AI_UNAVAILABLE", "Workers AI is not configured.");
@@ -309,6 +331,7 @@ export class AgentRunner {
         memoryTokenBudget(settings.limits),
       ),
       scheduled: true,
+      sentinel: opts.sentinel === true,
       externalTools: this.scheduledMcpTools.length > 0,
     });
     const providerTools = toProviderTools(executor);

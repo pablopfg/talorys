@@ -17,8 +17,19 @@ describe("localizeServerText", () => {
     expect(localizeServerText("The new memory explicitly updates your car.", "pt-BR")).toBe("A nova memória atualiza explicitamente seu carro.");
   });
 
+  it("translates a later try of an alert, title included", () => {
+    expect(localizeServerText("New sign-in (2/3)", "pt-BR")).toBe("Novo login (2/3)");
+    expect(localizeServerText("Alert not confirmed after 3 tries: “New sign-in”", "pt-BR")).toBe("Aviso não confirmado depois de 3 tentativas: “Novo login”");
+  });
+
   it("keeps the field of a validation error", () => {
     expect(localizeServerText("timezone: Unknown IANA timezone", "pt-BR")).toBe("timezone: Fuso horário IANA desconhecido");
+  });
+
+  it("translates each change of a calendar approval, keeping the owner's words", () => {
+    expect(localizeServerText("Change “Gym; Run” on Owner: rename to “Run”; move from 2026-11-03 14:00 – 2026-11-03 15:00 to 2026-11-03 16:00 – 2026-11-03 17:00; change the place", "pt-BR")).toBe(
+      "Alterar “Gym; Run” em Owner: renomear para “Run”; mover de 2026-11-03 14:00 – 2026-11-03 15:00 para 2026-11-03 16:00 – 2026-11-03 17:00; mudar o local",
+    );
   });
 
   it("leaves English, unknown text and other languages alone", () => {

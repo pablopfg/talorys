@@ -1,177 +1,256 @@
-# Remote access
+# Acesso remoto
 
-Machine clients can call your private Talorys install with a **personal access token** (PAT). Tokens are named, scoped (`read` or `write`), shown once at creation, stored only as hashes, and revoked from Settings.
+Clientes automatizados podem chamar a sua instalação privada do Talorys com um
+**token de acesso pessoal** (PAT). Os tokens têm nome e escopo (`read` ou
+`write`), aparecem uma única vez na criação, ficam guardados só como hash e são
+revogados nas Configurações.
 
-This is **not** an MCP server. CORS stays closed: use a server-side client (`curl`, Home Assistant, a CLI, a cron job). Browsers on other origins cannot call these routes.
+Isto **não** é um servidor MCP. O CORS continua fechado: use um cliente do lado
+do servidor (`curl`, Home Assistant, uma CLI, um cron job). Navegadores em
+outras origens não conseguem chamar estas rotas.
 
-Cookie + CSRF session access already works for the owner UI and for scripted session clients. Remote access adds **named, scoped, revocable** personal access tokens so an integration does not need the full owner session.
+O acesso por sessão com cookie + CSRF já funciona para a interface do dono e
+para clientes de sessão por script. O acesso remoto acrescenta tokens de acesso
+pessoais **com nome, escopo e revogáveis**, para que uma integração não precise
+da sessão completa do dono.
 
-## Turning it on and creating a token
+## Ligar e criar um token
 
-1. Open **Settings → Security → Remote access**.
-2. Turn **Remote access** on (off by default). If you signed in more than 15 minutes ago, Talorys asks for your password first; creating a token asks the same way.
-3. Enter a name (1–64 characters), leave scope at **`read`** unless you need writes, then **Generate token**.
-4. **Copy the token immediately.** It starts with `tal_` and is shown only once. Closing the panel loses the plaintext forever. The panel also shows a ready-to-run `curl` example for your install.
-5. Store it in your client’s secret store (not in git, chat, or CI logs).
-6. Each token works for **90 days**; Settings shows the date. After that it fails like a revoked token (Bearer **401**), and you create a new one.
+1. Abra **Configurações → Segurança → Acesso remoto**.
+2. Ligue o **Acesso remoto** (desligado por padrão). Se você entrou há mais de 15
+   minutos, o Talorys pede a sua senha antes; criar um token pede do mesmo jeito.
+3. Informe um nome (1 a 64 caracteres), deixe o escopo em **`read`**, a menos
+   que precise de escrita, e escolha **Gerar token**.
+4. **Copie o token na hora.** Ele começa com `tal_` e aparece uma única vez.
+   Fechar o painel faz o texto do token se perder para sempre. O painel também
+   mostra um exemplo de `curl` pronto para a sua instalação.
+5. Guarde-o no cofre de segredos do seu cliente (não no git, no chat nem em logs
+   de CI).
+6. Cada token vale por **90 dias**; as Configurações mostram a data. Depois disso
+   ele falha como um token revogado (Bearer **401**), e você cria um novo.
 
-Admin routes (`/api/remote/*`) require the browser session and CSRF header. Tokens cannot manage other tokens.
+As rotas de administração (`/api/remote/*`) exigem a sessão do navegador e o
+cabeçalho CSRF. Tokens não conseguem gerenciar outros tokens.
 
-## Scopes
+## Escopos
 
-| Scope | Allowed |
+| Escopo | Permitido |
 | --- | --- |
-| `read` (default) | `GET` / `HEAD` on the allowlist only. Writes return **403**. |
-| `write` | Everything `read` can do, plus `POST` / `PATCH` / `DELETE` on allowlisted collections. **Owner-level** on that surface: replace content and delete. |
+| `read` (padrão) | `GET` / `HEAD` só na lista de rotas permitidas. Escritas devolvem **403**. |
+| `write` | Tudo o que `read` faz, mais `POST` / `PATCH` / `DELETE` nas coleções permitidas. **Nível de dono** nessa superfície: substituir conteúdo e excluir. |
+| `events` | Só `POST /api/remote/events`, que transforma um evento do n8n ou de outra automação num aviso. Todas as outras rotas devolvem **403**, e nenhum outro token (nem a sessão do dono) consegue chamar esta. Veja [Eventos](#eventos). |
 
-Named tokens are the least-privilege knob (`home-assistant` = read, `voice-capture` = write). There is no third “capture” scope in v1.
+Tokens com nome são o controle de privilégio mínimo (`home-assistant` = read,
+`voice-capture` = write, `n8n` = events).
 
-## Allowlist
+## Rotas permitidas
 
-Default deny. A Bearer token may call only these method + pathname pairs (matched as sent; no decoding of percent-encoding or trailing slashes into an allowed route):
+Tudo é negado por padrão. Um token Bearer só pode chamar estes pares de método +
+caminho (comparados como foram enviados; percent-encoding e barras no final não
+são decodificados para casar com uma rota permitida):
 
-| Method | Path |
+| Método | Caminho |
 | --- | --- |
 | `GET` | `/api/health` |
 | `GET` | `/api/semantic/search` |
 | `GET`, `POST` | `/api/tasks`, `/api/notes`, `/api/automations`, `/api/memories` |
 | `GET`, `PATCH`, `DELETE` | `/api/tasks/:id`, `/api/notes/:id`, `/api/automations/:id`, `/api/memories/:id` |
 
-`:id` must be a UUID. Path segments that are always denied even if they look like an id: `reviews`, `history`, `correct`, `status`, `notifications`, `import`, `export`.
+`:id` precisa ser um UUID. Segmentos de caminho sempre negados, mesmo que pareçam
+um id: `reviews`, `history`, `correct`, `status`, `notifications`, `import`,
+`export`.
 
-### Deny summary
+### Resumo do que é negado
 
-Anything else returns **403** for a valid token (or **401** if the token is bad / feature off), including: chat, settings, projects, import/export, password, push, `/api/remote/*`, `/api/memories/reviews`, semantic reindex, and every other owner route.
+Todo o resto devolve **403** para um token válido (ou **401** se o token for
+inválido ou o recurso estiver desligado), inclusive: chat, configurações,
+projetos, importação/exportação, senha, push, `/api/remote/*`,
+`/api/memories/reviews`, reindexação semântica e todas as outras rotas do dono.
 
-### D13 — automation kinds
+### D13: tipos de automação
 
-With Bearer `write` you may create / edit / enable / reschedule **`reminder`** and **`task_digest` only**. Creating or changing an **`agent_prompt`** automation returns **403** (“Access tokens cannot create or change AI prompt automations.”). Deleting any automation (including `agent_prompt`) is allowed. The cookie UI is unchanged.
+Com Bearer `write`, você pode criar, editar, ligar e reagendar **só `reminder` e
+`task_digest`**. Criar ou alterar uma automação **`agent_prompt`** devolve
+**403** ("Tokens de acesso não podem criar nem alterar automações de prompt de
+IA."). Excluir qualquer automação (inclusive `agent_prompt`) é permitido. A
+interface com cookie não muda.
 
-## Requests
+## Requisições
 
 ```http
 Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-No `x-talorys-request` CSRF header. No cookies required. JSON request and response bodies match the existing `/api` handlers.
+Sem o cabeçalho CSRF `x-talorys-request`. Sem cookies. Os corpos JSON de
+requisição e resposta são os mesmos dos handlers de `/api` que já existem.
 
-Auth ordering: if `Authorization` is present, it must be a valid Bearer token. An invalid or revoked token is **401** and never falls through to a session cookie.
+Ordem da autenticação: se `Authorization` estiver presente, precisa ser um token
+Bearer válido. Um token inválido ou revogado recebe **401** e nunca cai para um
+cookie de sessão.
 
-## Note filters
+## Filtros de notas
 
-`GET /api/notes?q=tomato&project_id=<project-id>` searches only notes assigned to that project. Omitting `project_id` searches across projects, including unassigned notes.
+`GET /api/notes?q=tomate&project_id=<id-do-projeto>` busca só nas notas daquele
+projeto. Sem `project_id`, a busca passa por todos os projetos, inclusive as
+notas sem projeto.
 
-## Dates
+## Datas
 
-- Task `due_at`: ISO-8601 with offset (or as the tasks API already accepts).
-- One-time automation schedules use **local wall-clock** in the owner timezone (`Settings` → timezone).
-- “Today” for digests: use the today bounds from `GET /api/tasks?view=today` and the `timezone` field on `GET /api/automations`.
+- `due_at` das tarefas: ISO-8601 com fuso (ou como a API de tarefas já aceita).
+- Agendamentos únicos de automação usam o **horário local** no fuso do dono
+  (**Configurações** → fuso horário).
+- "Hoje" nos resumos: use os limites de hoje de `GET /api/tasks?view=today` e o
+  campo `timezone` de `GET /api/automations`.
 
-## Errors
+## Erros
 
-| Status | Meaning |
+| Status | Significado |
 | --- | --- |
-| 200 / 201 | Success (create often 201). |
-| 400 | Validation / bad body or query. |
-| 401 | Missing, invalid, or revoked Bearer, or Remote access turned off (tokens suspended). |
-| 403 | Scope mismatch, route not on allowlist, D13 `agent_prompt` deny, create while off or at max tokens. |
-| 404 | Unknown id. |
-| 409 | Semantic recall disabled on search; other handler conflicts as today. |
-| 429 | Soft per-token rate limit or failed-Bearer throttle; honor `Retry-After` when present. |
-| 5xx | Server / Durable Object error. |
+| 200 / 201 | Sucesso (criar costuma devolver 201). |
+| 400 | Validação / corpo ou query inválidos. |
+| 401 | Bearer ausente, inválido ou revogado, ou Acesso remoto desligado (tokens suspensos). |
+| 403 | Escopo incompatível, rota fora da lista permitida, negação D13 de `agent_prompt`, criação com o recurso desligado ou com o máximo de tokens. |
+| 404 | Id desconhecido. |
+| 409 | Busca semântica desligada na busca; outros conflitos dos handlers, como já acontece. |
+| 429 | Limite de requisições por token ou bloqueio por Bearer inválido; respeite `Retry-After` quando vier. |
+| 5xx | Erro do servidor / Durable Object. |
 
-## List caps and truncation
+## Limites das listas
 
-**One successful list response is not all records.** Clients must not assume completeness. There is no pagination redesign in v1.
+**Uma resposta de lista bem-sucedida não traz todos os registros.** Os clientes
+não podem supor que a lista está completa. Não há paginação nova na v1.
 
-| Resource | Cap |
+| Recurso | Limite |
 | --- | --- |
-| Tasks | Default **200**, max **500** (`limit` query). |
-| Notes | Default **500**; with `q`, search defaults to **50**. |
-| Memories | Default **500**; with `q`, search defaults to **100**. |
-| Automations | Full list in one response (plus recent runs metadata). |
+| Tarefas | Padrão **200**, máximo **500** (query `limit`). |
+| Notas | Padrão **500**; com `q`, a busca usa **50** por padrão. |
+| Memórias | Padrão **500**; com `q`, a busca usa **100** por padrão. |
+| Automações | Lista completa numa resposta (mais os metadados das execuções recentes). |
 
-## Search contract
+## Contrato da busca
 
 `GET /api/semantic/search?q=…`
 
-- Omit `types` → **memory hits only**.
-- `types` is a comma list from `memory`, `task`, `note`, `automation` (and any other types the handler accepts).
-- `limit` default **10**, capped at **50** (applied per type when types are listed; results are concatenated).
-- Semantic recall **off** → **409**. Clients must handle that; there is no special “keyword while off” mode for remote.
-- Token searches may use at most **half** of each daily embedding cap (memories and items). Past that, they return keyword-only hits (`cosine: null`) for the rest of the day, while the owner's chat keeps the other half.
-- Hits are thin (ids / scores / short fields). Follow up with `GET /api/…/:id` for full bodies.
-- Completed tasks and inactive automations are **not** filtered out of item search.
+- Sem `types` → **só resultados de memória**.
+- `types` é uma lista separada por vírgula com `memory`, `task`, `note`,
+  `automation` (e outros tipos que o handler aceitar).
+- `limit` tem padrão **10** e máximo **50** (aplicado por tipo quando os tipos
+  são informados; os resultados são concatenados).
+- Busca semântica **desligada** → **409**. Os clientes precisam tratar isso; não
+  há um modo especial "palavra-chave com o recurso desligado" para o acesso
+  remoto.
+- As buscas por token podem usar no máximo **metade** de cada limite diário de
+  embeddings (memórias e itens). Passado isso, elas devolvem só resultados por
+  palavra-chave (`cosine: null`) pelo resto do dia, enquanto o chat do dono
+  fica com a outra metade.
+- Os resultados são enxutos (ids / pontuações / campos curtos). Depois, use
+  `GET /api/…/:id` para o conteúdo completo.
+- Tarefas concluídas e automações inativas **não** são filtradas da busca de
+  itens.
 
-## Rate limits and max tokens
+## Eventos
 
-| Limit | Value |
+`POST /api/remote/events` com um token `events` gera um aviso na categoria
+**Eventos**. Corpo (JSON, no máximo 2 KB): `title` (1 a 120 caracteres,
+obrigatório), `body` (até 1000), `priority` (`low`, `normal` como padrão, ou
+`high`; `critical` é recusado), `source` e `kind` (até 40 caracteres entre
+letras, dígitos, `.`, `-`, `_`) e `id` (até 100 caracteres; o mesmo `source` +
+`id` dentro de 24 horas é descartado).
+
+| Status | Significado |
 | --- | --- |
-| Max tokens per install | **20** (`MAX_REMOTE_TOKENS`). Create returns **403** at the cap. |
-| Soft per-token requests | **120** per **60s** window. Counted in Durable Object memory, so the window resets when the DO restarts (cold start / eviction) as well as when the minute elapses. |
-| Failed Bearer attempts | **10** per client IP in **15 minutes**, then **429** even with a correct token. The client key is `CF-Connecting-IP` (IPv6 grouped by **/64**), so another host on the same /64 or NAT can lock out a legitimate token for up to 15 minutes. Separate from browser login lockout. |
+| **201** | `{ event: { id, priority }, duplicate: false }` |
+| **200** | `{ event: null, duplicate: true }`: repetição de um `id` |
+| **400** | Campo inválido |
+| **403** | Não é um token `events` |
+| **429** | Mais de **60** eventos numa hora ou **100** em 24 horas, somando todos os tokens (com `Retry-After`) |
 
-Write mutations are attributed in the activity log in a **coalesced** way: at most one `remote.request` row per token per 15-minute window; full write volume is kept in a per-token daily counter so a busy automation cannot flush owner history out of the 1000-row activity log.
+O título começa com a origem (`n8n: …`) e fica numa linha só; os links são
+desarmados (`hxxps://`, entre crases) em todos os canais. Os eventos usam no
+máximo metade dos limites de cada canal de aviso, no máximo 3 insistem ao mesmo
+tempo, e no máximo 50 pares de origem + tipo aprendem a própria prioridade. O
+guia completo, com o nó HTTP Request do n8n e os service tokens do Cloudflare
+Access, está em
+[alerts.md](alerts.md#eventos-do-n8n-e-de-outras-automações).
 
-## Credential lifecycle
+## Limites de requisições e de tokens
 
-| Event | Effect |
+| Limite | Valor |
 | --- | --- |
-| Revoke one | Hash deleted; Bearer **401** immediately. |
-| Revoke all | Every token deleted; Bearer **401**. |
-| 90 days after creation | Token expired; Bearer **401**. Tokens created before expiry existed got 90 days from the upgrade. |
-| Password change (UI) | All remote tokens revoked. |
-| CLI `reset-password` | All remote tokens revoked (with sessions). |
-| `SESSION_SECRET` rotation | Stored hashes no longer verify; regenerate tokens. |
-| Feature off | Bearer always **401**. Tokens **remain stored but suspended** until turned on again. Create disabled; list + revoke (+ revoke all) still work in the UI. |
-| Backups | Token rows are **not** included. Restoring a backup **never** enables Remote access or resurrects tokens. |
+| Máximo de tokens por instalação | **20** (`MAX_REMOTE_TOKENS`). Criar devolve **403** no limite. |
+| Requisições por token | **120** a cada janela de **60 s**. Contadas na memória do Durable Object, então a janela também zera quando o DO reinicia (cold start / remoção da memória), além de quando o minuto passa. |
+| Tentativas de Bearer inválidas | **10** por IP de cliente em **15 minutos**; depois, **429** mesmo com o token certo. A chave do cliente é o `CF-Connecting-IP` (IPv6 agrupado por **/64**), então outro host no mesmo /64 ou atrás do mesmo NAT pode bloquear um token legítimo por até 15 minutos. É separado do bloqueio de login do navegador. |
 
-## Four scenes
+As alterações são atribuídas no registro de atividade de forma **agrupada**: no
+máximo uma linha `remote.request` por token a cada janela de 15 minutos; o
+volume completo de escritas fica num contador diário por token, para que uma
+automação movimentada não empurre o histórico do dono para fora do registro de
+atividade de 1000 linhas.
 
-Placeholders: `$TALORYS_URL` (origin, no trailing slash) and `$TALORYS_TOKEN` (plaintext PAT). Never commit or log the token.
+## Ciclo de vida das credenciais
 
-### Scene 1 — Home Assistant read
+| Evento | Efeito |
+| --- | --- |
+| Revogar um | Hash apagado; Bearer **401** na hora. |
+| Revogar todos | Todos os tokens apagados; Bearer **401**. |
+| 90 dias depois da criação | Token expirado; Bearer **401**. Tokens criados antes de a expiração existir ganharam 90 dias a partir da atualização. |
+| Troca de senha (interface) | Todos os tokens remotos revogados. |
+| `reset-password` na CLI | Todos os tokens remotos revogados (junto com as sessões). |
+| Rotação do `SESSION_SECRET` | Os hashes guardados deixam de conferir; gere os tokens de novo. |
+| Recurso desligado | Bearer sempre **401**. Os tokens **continuam guardados, mas suspensos**, até ligar de novo. Criar fica desativado; listar e revogar (e revogar todos) continuam funcionando na interface. |
+| Backups | As linhas de tokens **não** entram. Restaurar um backup **nunca** liga o Acesso remoto nem ressuscita tokens. |
 
-Read-only token. List automations and search for one by meaning (filter kinds/names client-side).
+## Quatro cenários
+
+Marcadores: `$TALORYS_URL` (a origem, sem barra no final) e `$TALORYS_TOKEN` (o
+PAT em texto). Nunca faça commit do token nem o registre em log.
+
+### Cenário 1: leitura pelo Home Assistant
+
+Token de leitura. Liste as automações e busque uma pelo significado (filtre
+tipos e nomes no cliente).
 
 ```bash
 curl -sS -H "Authorization: Bearer $TALORYS_TOKEN" \
   "$TALORYS_URL/api/automations"
 
 curl -sS -H "Authorization: Bearer $TALORYS_TOKEN" \
-  "$TALORYS_URL/api/semantic/search?q=trash&types=automation"
+  "$TALORYS_URL/api/semantic/search?q=lixo&types=automation"
 ```
 
-A **409** on search means semantic recall is off — use the automations list and filter locally.
+Um **409** na busca significa que a busca semântica está desligada: use a lista
+de automações e filtre localmente.
 
-### Scene 2 — CLI note patch
+### Cenário 2: alterar uma nota pela CLI
 
-Write token. Patch an existing note by id.
+Token de escrita. Altere uma nota existente pelo id.
 
 ```bash
 curl -sS -X PATCH \
   -H "Authorization: Bearer $TALORYS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"content":"Updated from CLI"}' \
-  "$TALORYS_URL/api/notes/<note-id>"
+  -d '{"content":"Atualizado pela CLI"}' \
+  "$TALORYS_URL/api/notes/<id-da-nota>"
 ```
 
-### Scene 3 — Voice capture
+### Cenário 3: captura por voz
 
-Write token. Create a task; dedupe retries client-side (no server idempotency keys in v1).
+Token de escrita. Crie uma tarefa; evite duplicatas de novas tentativas no
+cliente (não há chaves de idempotência no servidor na v1).
 
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $TALORYS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"title":"Pick up dry cleaning"}' \
+  -d '{"title":"Buscar a roupa na lavanderia"}' \
   "$TALORYS_URL/api/tasks"
 ```
 
-### Scene 4 — Morning digest
+### Cenário 4: resumo da manhã
 
-Read token. Today’s tasks plus automations whose `next_run` falls in today (compare using the response `timezone` and today’s bounds).
+Token de leitura. As tarefas de hoje mais as automações cujo `next_run` cai hoje
+(compare usando o `timezone` da resposta e os limites de hoje).
 
 ```bash
 curl -sS -H "Authorization: Bearer $TALORYS_TOKEN" \
@@ -181,19 +260,20 @@ curl -sS -H "Authorization: Bearer $TALORYS_TOKEN" \
   "$TALORYS_URL/api/automations"
 ```
 
-## Smoke script
+## Script de verificação rápida
 
-Dependency-free check (Node ≥ 24):
+Verificação sem dependências (Node ≥ 24):
 
 ```bash
 TALORYS_URL="$TALORYS_URL" TALORYS_TOKEN="$TALORYS_TOKEN" \
   node scripts/remote-smoke.mjs
 ```
 
-Modes:
+Modos:
 
-- default — create a throwaway task, get/list/search, delete it
-- `--read-only` — lists + search; asserts `POST` → 403
-- `--expect-revoked` — asserts `GET /api/tasks` → 401
+- padrão: cria uma tarefa descartável, faz get/list/search e a exclui
+- `--read-only`: listas + busca; confere que `POST` → 403
+- `--expect-revoked`: confere que `GET /api/tasks` → 401
 
-Prints only `ok <step>` / `FAIL <step>: <status>` lines — never the token. Exit **2** if env is missing.
+Imprime só linhas `ok <etapa>` / `FAIL <etapa>: <status>`, nunca o token. Sai
+com **2** se faltar variável de ambiente.

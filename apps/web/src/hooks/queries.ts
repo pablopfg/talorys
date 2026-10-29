@@ -5,9 +5,11 @@ import type {
   AutomationRun,
   Conversation,
   ChatMessage,
+  GoogleCalendarStatus,
   McpServerInfo,
   McpToolInfo,
   MfaStatus,
+  PasskeyInfo,
   Memory,
   MemoryHistory,
   MemoryReview,
@@ -19,6 +21,7 @@ import type {
   Settings,
   Task,
   UsageReport,
+  PaidAiProviderId,
 } from "@talorys/shared";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -41,12 +44,14 @@ export const keys = {
   sessions: ["sessions"] as const,
   authActivity: ["auth-activity"] as const,
   mfa: ["auth", "mfa"] as const,
+  passkeys: ["auth", "passkeys"] as const,
   system: ["system"] as const,
   update: ["system", "update"] as const,
   remoteStatus: ["remote", "status"] as const,
   remoteTokens: ["remote", "tokens"] as const,
   mcpServers: ["mcp", "servers"] as const,
   mcpTools: (id: string) => ["mcp", "tools", id] as const,
+  googleCalendar: ["calendar", "google"] as const,
 };
 
 export function useSettings() {
@@ -68,7 +73,7 @@ export function useConversations(q?: string) {
 export function useConversation(id: string | undefined) {
   return useQuery({
     queryKey: keys.conversation(id ?? ""),
-    queryFn: () => api<{ conversation: Conversation; messages: ChatMessage[]; streaming?: boolean }>(`/conversations/${id}`),
+    queryFn: () => api<{ conversation: Conversation; messages: ChatMessage[]; streaming?: boolean }>(`/conversations/${encodeURIComponent(id ?? "")}`),
     enabled: !!id,
     // A reply started elsewhere (another tab, or before a reload) is still generating: poll until it lands.
     refetchInterval: (query) => (query.state.data?.streaming ? 1500 : false),
@@ -113,7 +118,7 @@ export function useMemoryReviews() {
 export function useMemoryHistory(id: string | null) {
   return useQuery({
     queryKey: keys.memoryHistory(id ?? ""),
-    queryFn: () => api<MemoryHistory>(`/memories/${id}/history`),
+    queryFn: () => api<MemoryHistory>(`/memories/${encodeURIComponent(id ?? "")}/history`),
     enabled: !!id,
   });
 }
@@ -148,7 +153,7 @@ export function useAutomationRuns(id: string | null, status?: AutomationRun["sta
       const params = new URLSearchParams({ limit: "25" });
       if (status) params.set("status", status);
       if (pageParam) params.set("before", pageParam);
-      return api<{ runs: AutomationRun[]; has_more: boolean }>(`/automations/${id}/runs?${params}`);
+      return api<{ runs: AutomationRun[]; has_more: boolean }>(`/automations/${encodeURIComponent(id ?? "")}/runs?${params}`);
     },
     getNextPageParam: (last) => (last.has_more ? last.runs[last.runs.length - 1]?.started_at : undefined),
   });
@@ -173,6 +178,10 @@ export function useAuthActivity(failuresOnly: boolean, enabled: boolean) {
 
 export function useMfaStatus(enabled = true) {
   return useQuery({ queryKey: keys.mfa, enabled, queryFn: () => api<MfaStatus>("/auth/mfa/status") });
+}
+
+export function usePasskeys(enabled = true) {
+  return useQuery({ queryKey: keys.passkeys, enabled, queryFn: () => api<{ passkeys: PasskeyInfo[] }>("/auth/passkeys").then((r) => r.passkeys) });
 }
 
 export function useAuthActivitySummary() {
@@ -200,7 +209,7 @@ export function useSystemInfo() {
   return useQuery({
     queryKey: keys.system,
     queryFn: () =>
-      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; environment: string }>("/system"),
+      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; paid_ai_keys?: Record<PaidAiProviderId, boolean>; environment: string }>("/system"),
   });
 }
 
@@ -234,6 +243,10 @@ export interface McpOverview {
 
 export function useMcpServers() {
   return useQuery({ queryKey: keys.mcpServers, queryFn: () => api<McpOverview>("/mcp/servers") });
+}
+
+export function useGoogleCalendar() {
+  return useQuery({ queryKey: keys.googleCalendar, queryFn: () => api<GoogleCalendarStatus>("/calendar/google") });
 }
 
 export function useMcpTools(serverId: string | null) {

@@ -428,6 +428,30 @@ describe("migration from the previous schema", () => {
       db.run(`ALTER TABLE tal_sessions DROP COLUMN confirmed_at`);
       db.run(`ALTER TABLE tal_sessions DROP COLUMN last_presence_at`);
       db.run(`ALTER TABLE tal_usage_daily DROP COLUMN transcription_seconds`);
+      // Migration 19 (alert center).
+      db.run(`DROP INDEX tal_notifications_dedupe`);
+      for (const col of ["priority", "category", "dedupe_key"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run(`DROP TABLE tal_alert_deliveries`);
+      // Migration 20 (insistent alerts).
+      db.run(`DROP INDEX tal_notifications_escalation`);
+      for (const col of ["escalation", "attempts", "next_attempt_at"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run(`ALTER TABLE tal_automations DROP COLUMN priority`);
+      // Migration 21 (learned alert priority).
+      db.run(`DROP INDEX tal_notifications_profile`);
+      for (const col of ["profile", "priority_reason", "signal"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run(`DROP TABLE tal_alert_profiles`);
+      db.run(`DROP TABLE tal_alert_corrections`);
+      // Migration 24 (sentinel routines).
+      db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
+      // Migration 25 (passkeys).
+      db.run(`ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge`);
+      // Migration 27 (calendar routines).
+      db.run(`ALTER TABLE tal_automations DROP COLUMN calendar_gate`);
+      for (const col of ["notice_minutes", "notice_text"]) db.run(`ALTER TABLE tal_google_calendars DROP COLUMN ${col}`);
+      // Migration 23 (events access tokens) moved the old table aside.
+      db.run(`DROP TABLE IF EXISTS tal_remote_tokens_v8`);
+      // Migration 22 (push device last seen).
+      db.run(`ALTER TABLE tal_push_subscriptions DROP COLUMN last_seen_at`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
         `INSERT INTO tal_memories (id, content, category, source, created_at, updated_at) VALUES ('legacy-1', 'Legacy memory about sailing', 'fact', 'manual', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,

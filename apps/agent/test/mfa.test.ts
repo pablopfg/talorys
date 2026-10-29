@@ -237,6 +237,24 @@ describe("turning two-step sign-in on and off", () => {
     expect((await next.call("/api/auth/mfa", { method: "POST", body: { code: fresh[0] } })).status).toBe(200);
   });
 
+  it("codes typed to confirm identity count as wrong codes: alert at 3 in a row, pause for networks that aren't the owner's", async () => {
+    const { secret } = await turnOn();
+    const owner = client();
+    await passwordStep(owner);
+    await owner.call("/api/auth/mfa", { method: "POST", body: { code: await freshCode(secret) } });
+    for (let i = 0; i < 3; i++) expect((await owner.call("/api/auth/confirm", { method: "POST", body: { code: "000000" } })).status).toBe(403);
+    expect(await alerts("Wrong sign-in codes")).toHaveLength(1);
+    // A stolen session on another network: with the pause on, not even the right code is checked.
+    await inAgent((a) => {
+      a.services.db.run(`DELETE FROM tal_login_attempts`);
+      for (let i = 0; i < 10; i++) a.services.auth.mfa.noteWrongCode();
+    });
+    const paused = await owner.call("/api/auth/confirm", { method: "POST", body: { code: await freshCode(secret) } });
+    expect(paused.status).toBe(429);
+    expect((await errorOf(paused)).code).toBe("RATE_LIMITED");
+    expect((await owner.call("/api/auth/mfa/recovery-codes", { method: "POST", body: { code: await freshCode(secret) } })).status).toBe(429);
+  });
+
   it("an authenticator code also confirms identity for sensitive actions", async () => {
     const { secret } = await turnOn();
     const owner = client();

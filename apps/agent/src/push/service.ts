@@ -1,4 +1,15 @@
-import { type Language, localizeServerText, MAX_PUSH_DEVICES, type Notification, type PushStatus } from "@talorys/shared";
+import {
+  ESCALATION,
+  isInsistent,
+  type Language,
+  localizeServerText,
+  MAX_PUSH_DEVICES,
+  type Notification,
+  type NotificationAction,
+  NOTIFICATION_ACTIONS,
+  PUSH_INACTIVE_DAYS,
+  type PushStatus,
+} from "@talorys/shared";
 import { clip } from "../services/text";
 import { encryptPayload } from "./ece";
 import { fromB64url } from "./encoding";
@@ -19,7 +30,19 @@ export interface PushMessage {
   /** Notification id, so a click can open the app and mark it read. */
   id?: string;
   url: string;
+  /** Buttons under the notification (Done, Snooze, Mute); the service worker answers them. */
+  actions?: { action: NotificationAction; title: string }[];
+  /** Keep the notification on screen until the owner acts on it (high and critical alerts). */
+  sticky?: boolean;
 }
+
+/** Options for one push: a later try of an insistent alert is marked "(2/3)". */
+export interface PushOptions {
+  attempt?: { number: number };
+}
+
+/** Labels of the push buttons, translated with the server-text catalog. */
+const ACTION_TEXT: Record<NotificationAction, string> = { done: "Done", snooze: "Snooze 1 h", mute: "Mute this alert" };
 
 export type SendOutcome = "sent" | "gone" | "failed";
 
@@ -81,7 +104,7 @@ export class PushService {
   status(): PushStatus {
     this.dropMovedDevices();
     const available = this.configured();
-    return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES };
+    return { available, public_key: available ? this.env.VAPID_PUBLIC_KEY! : null, devices: this.subscriptions.devices(), max_devices: MAX_PUSH_DEVICES, inactive_days: PUSH_INACTIVE_DAYS };
   }
 
   private vapid(): Promise<VapidKeys | null> {
@@ -89,14 +112,38 @@ export class PushService {
     return this.keys;
   }
 
-  /** Called for every new notification. Returns at once; delivery continues in the background. */
-  notify(n: Notification): void {
-    if (!this.configured() || this.subscriptions.all().length === 0) return;
+  /**
+   * Sends a notification to every device. Returns at once; delivery continues in the background,
+   * and `onDone` gets the outcome counts (all zero when the send itself threw).
+   */
+  notify(
+    n: Pick<Notification, "id" | "title" | "body"> & Partial<Pick<Notification, "priority" | "category">>,
+    onDone?: (counts: Record<SendOutcome, number>) => void,
+    opts: PushOptions = {},
+  ): void {
+    if (!this.configured() || this.subscriptions.all().length === 0) {
+      onDone?.({ sent: 0, gone: 0, failed: 0 });
+      return;
+    }
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
-    const work: Promise<void> = this.sendToAll(toPushMessage(localized))
-      .then(() => undefined)
-      .catch((error) => console.warn("Push delivery failed", error instanceof Error ? error.message : String(error)))
+    const message = toPushMessage(localized);
+    if (opts.attempt) message.title = `${message.title} (${opts.attempt.number}/${ESCALATION.attempts})`;
+    // Insistent alerts stay on screen and carry their buttons; the rest only open the app. A security
+    // alert has none: answers from the browser can't stop it, only Telegram can.
+    if (n.priority && isInsistent(n.priority)) {
+      message.sticky = true;
+      if (n.category !== "security") {
+        message.actions = NOTIFICATION_ACTIONS.map((action) => ({ action, title: localizeServerText(ACTION_TEXT[action], language) }));
+      }
+    }
+    const work: Promise<void> = this.sendToAll(message)
+      .catch((error) => {
+        console.warn("Push delivery failed", error instanceof Error ? error.message : String(error));
+        return { sent: 0, gone: 0, failed: 0 };
+      })
+      .then((counts) => onDone?.(counts))
+      .catch((error) => console.warn("Push delivery report failed", error instanceof Error ? error.message : String(error)))
       .finally(() => this.pending.delete(work));
     this.pending.add(work);
     this.background(work);
@@ -110,9 +157,12 @@ export class PushService {
   /** Sends one message to every device. Gone subscriptions are removed, failures counted. */
   async sendToAll(message: PushMessage): Promise<Record<SendOutcome, number>> {
     const counts: Record<SendOutcome, number> = { sent: 0, gone: 0, failed: 0 };
+    // The devices registered when the message was sent: one added meanwhile (the device a "new
+    // push device" alert is about) does not get it.
+    const subscriptions = this.subscriptions.all();
     const keys = await this.vapid();
     if (!keys) return counts;
-    const outcomes = await Promise.all(this.subscriptions.all().map((sub) => this.sendOne(sub, message, keys)));
+    const outcomes = await Promise.all(subscriptions.map((sub) => this.sendOne(sub, message, keys)));
     for (const o of outcomes) counts[o]++;
     return counts;
   }

@@ -15,6 +15,12 @@ export interface Env {
   PASSWORD_PEPPER?: string;
   /** The owner's e-mail address. When set, signing in asks for it too. Worker secret, never in the repository. */
   OWNER_EMAIL?: string;
+  /**
+   * Cloudflare Turnstile for risky sign-ins: the widget's site key (a plain variable) and its
+   * secret key (a Worker secret). Without both, sign-in works as before, with no robot check.
+   */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
   /** "off": don't check new passwords against Have I Been Pwned (only 5 characters of a hash are ever sent). Development only. */
   TALORYS_HIBP?: string;
   /**
@@ -30,8 +36,36 @@ export interface Env {
    * installer. Without it, servers that need a bearer token can't be added; nothing else changes.
    */
   MCP_CREDENTIAL_KEY?: string;
+  /**
+   * Telegram bot token from @BotFather. Worker secret. Without it the Telegram channel is
+   * unavailable and nothing else changes. The webhook secret is derived from SESSION_SECRET.
+   */
+  TELEGRAM_BOT_TOKEN?: string;
+  /**
+   * E-mail alerts: Cloudflare Email Routing's send_email binding, the sender on a domain with Email
+   * Routing (a plain variable) and the owner's address, verified in Email Routing (a Worker secret;
+   * OWNER_EMAIL when unset). Without all three the e-mail channel is unavailable and nothing else changes.
+   */
+  SEND_EMAIL?: SendEmail;
+  ALERT_EMAIL_FROM?: string;
+  ALERT_EMAIL_TO?: string;
+  /**
+   * Google Calendar: the OAuth client from Google Cloud (free). The ID can be a plain variable; the
+   * secret is a Worker secret. Tokens are sealed with MCP_CREDENTIAL_KEY. Without all three the
+   * calendar is unavailable and nothing else changes.
+   */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  /**
+   * Paid chat models, with the owner's own keys (Worker secrets). Without a key that provider
+   * can't be chosen and nothing else changes; spend is capped per day in Settings → AI.
+   */
+  ANTHROPIC_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
+  /** Comma-separated origins MCP servers may use (https://n8n.example.com, https://*.example.com). Unset: any public host. */
+  TALORYS_MCP_ALLOWED_ORIGINS?: string;
   /** Most MCP tools enabled at once (default 20, at most 64). */
   TALORYS_MCP_MAX_TOOLS?: string;
   /** "development" enables local-only conveniences (mock AI, http cookies). Never set in production. */

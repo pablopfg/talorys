@@ -14,6 +14,8 @@ type Catalog = Record<string, string>;
 const PT_BR: Catalog = {
   // API and request errors
   "Not found": "Não encontrado",
+  "Notification not found": "Notificação não encontrada",
+  "Changed alert preferences": "Preferências de avisos alteradas",
   "Invalid input": "Dados inválidos",
   "Something went wrong.": "Algo deu errado.",
   "Something went wrong. Your data is safe; please try again.": "Algo deu errado. Seus dados estão seguros; tente novamente.",
@@ -36,6 +38,18 @@ const PT_BR: Catalog = {
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
   "Incorrect code.": "Código incorreto.",
+  "This link has expired or was already used. Ask for a new one.": "Este link expirou ou já foi usado. Peça um novo.",
+  "Enter the code from your authenticator app, or a recovery code.": "Digite o código do app autenticador ou um código de recuperação.",
+  "Password recovery by e-mail is not set up.": "A recuperação de senha por e-mail não está configurada.",
+  "Someone asked to reset your Talorys password. To choose a new one, open this link within 30 minutes:": "Alguém pediu para redefinir a sua senha do Talorys. Para escolher uma nova, abra este link em até 30 minutos:",
+  "The link works once. If it wasn't you, ignore this e-mail: your password stays the same.": "O link funciona uma vez. Se não foi você, ignore este e-mail: a sua senha continua a mesma.",
+  "Reset your password": "Redefinir a sua senha",
+  "Password reset by e-mail": "Senha redefinida por e-mail",
+  "Your Talorys password was reset with the link sent to your e-mail, and every session was signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide) and check your e-mail account.": "A sua senha do Talorys foi redefinida com o link enviado ao seu e-mail, e todas as sessões foram encerradas. Se não foi você, redefina a senha do dono na Cloudflare agora (veja o guia de segurança) e confira a sua conta de e-mail.",
+  "Password reset with the e-mailed link; all sessions signed out and access tokens revoked": "Senha redefinida com o link enviado por e-mail; todas as sessões encerradas e tokens de acesso revogados",
+  "Confirm that you are not a robot, then sign in.": "Confirme que você não é um robô e entre de novo.",
+  "The robot check failed. Please do it again.": "A verificação contra robôs falhou. Faça-a de novo.",
+  "The robot check could not be confirmed right now. Please try again shortly.": "Não foi possível confirmar a verificação contra robôs agora. Tente de novo em instantes.",
   "This sign-in has expired. Enter your password again.": "Este login expirou. Digite sua senha de novo.",
   "Too many wrong codes. Enter your password again.": "Códigos errados demais. Digite sua senha de novo.",
   "Send the password or a code.": "Envie a senha ou um código.",
@@ -78,6 +92,55 @@ const PT_BR: Catalog = {
   "Avoid repeating a single character.": "Evite repetir um único caractere.",
   "This password appeared in a known data breach. Choose another one.": "Esta senha apareceu em um vazamento de dados conhecido. Escolha outra.",
   "Incorrect email or password.": "E-mail ou senha incorretos.",
+  "Password changed": "Senha alterada",
+  "Your Talorys password was changed and the other sessions were signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide).":
+    "A senha do Talorys foi alterada e as outras sessões foram encerradas. Se não foi você, redefina a senha do proprietário na Cloudflare imediatamente (veja o guia de segurança).",
+  "Remote access on": "Acesso remoto ativado",
+  "Remote access was turned on: apps with an access token can now reach your data. If it wasn't you, turn it off in Settings → Security → Remote access and change your password.":
+    "O acesso remoto foi ativado: apps com um token de acesso agora alcançam seus dados. Se não foi você, desative em Configurações → Segurança → Acesso remoto e troque a senha.",
+  "Access token created": "Token de acesso criado",
+  "A new access token was created. If it wasn't you, revoke it in Settings → Security → Remote access and change your password.":
+    "Um novo token de acesso foi criado. Se não foi você, revogue em Configurações → Segurança → Acesso remoto e troque a senha.",
+  "Telegram linked": "Telegram vinculado",
+  "A Telegram chat was linked to Talorys and will receive your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.":
+    "Um chat do Telegram foi vinculado ao Talorys e vai receber seus avisos. Se não foi você, desvincule o Telegram em Configurações → Avisos e troque a senha.",
+  "Telegram group linked": "Grupo do Telegram vinculado",
+  "A Telegram group was linked and now receives your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.":
+    "Um grupo do Telegram foi vinculado e agora recebe seus avisos. Se não foi você, desvincule o Telegram em Configurações → Avisos e troque a senha.",
+  "Telegram conversation on": "Conversa no Telegram ligada",
+  "The conversation with Talorys in the Telegram chat was turned on. If it wasn't you, turn it off in Settings → Alerts and change your password.":
+    "A conversa com o Talorys no chat do Telegram foi ligada. Se não foi você, desligue em Configurações → Avisos e troque a senha.",
+  "Backup exported": "Backup exportado",
+  "A full backup of your data was downloaded. If it wasn't you, change your password now and sign out the other sessions.":
+    "Um backup completo dos seus dados foi baixado. Se não foi você, troque a senha agora e encerre as outras sessões.",
+  "Backup imported": "Backup importado",
+  "A backup was imported into Talorys. If it wasn't you, change your password now and check your data.":
+    "Um backup foi importado no Talorys. Se não foi você, troque a senha agora e confira seus dados.",
+  "This is a test e-mail from Talorys. E-mail alerts work.": "Este é um e-mail de teste do Talorys. Os avisos por e-mail estão funcionando.",
+  "Test e-mail": "E-mail de teste",
+  "This is the last e-mail alert for today. Until tomorrow, alerts stay in the app, push and Telegram.":
+    "Este é o último aviso por e-mail de hoje. Até amanhã, os avisos ficam no app, no push e no Telegram.",
+  "Other alerts stop going by e-mail for today; security and critical alerts still do.":
+    "Os outros avisos param de ir por e-mail hoje; os de segurança e os críticos continuam indo.",
+  "Telegram unlinked": "Telegram desvinculado",
+  "Telegram was unlinked: alerts no longer reach it. If it wasn't you, link it again in Settings → Alerts and change your password.":
+    "O Telegram foi desvinculado: os avisos não chegam mais lá. Se não foi você, vincule de novo em Configurações → Avisos e troque a senha.",
+  "New push device": "Novo aparelho no push",
+  "A new device now receives your push notifications. If it wasn't you, remove it in Settings → Alerts and change your password.":
+    "Um aparelho novo passou a receber suas notificações push. Se não foi você, remova em Configurações → Avisos e troque a senha.",
+  "Push device removed": "Aparelho removido do push",
+  "A device was removed from push notifications. If it wasn't you, check the devices in Settings → Alerts and change your password.":
+    "Um aparelho foi removido das notificações push. Se não foi você, confira os aparelhos em Configurações → Avisos e troque a senha.",
+  "MCP server added": "Servidor MCP adicionado",
+  "A new MCP server was added: the agent can now use its tools. If it wasn't you, remove it in Settings → Integrations and change your password.":
+    "Um servidor MCP novo foi adicionado: o agente agora pode usar as ferramentas dele. Se não foi você, remova em Configurações → Integrações e troque a senha.",
+  "The sign-in activity was deleted. If it wasn't you, change your password now and sign out the other sessions.":
+    "A atividade de acesso foi apagada. Se não foi você, troque a senha agora e encerre as outras sessões.",
+  "Talorys never asks for your password or codes by e-mail.": "O Talorys nunca pede sua senha ou códigos por e-mail.",
+  "Open Talorys:": "Abrir o Talorys:",
+  "Choose which alerts reach your e-mail in Settings → Alerts.": "Escolha quais avisos chegam ao seu e-mail em Configurações → Avisos.",
+  "E-mail alerts are not set up on this deployment.": "Os avisos por e-mail não estão configurados nesta instalação.",
+  "The daily e-mail limit was reached. Try again tomorrow.": "O limite diário de e-mails foi atingido. Tente de novo amanhã.",
   "New sign-in": "Novo login",
   "Someone signed in to Talorys from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.":
     "Alguém entrou no Talorys por um aparelho ou país novo. Se não foi você, troque a senha agora e encerre as outras sessões. Detalhes em Configurações → Segurança → Atividade de acesso.",
@@ -98,6 +161,16 @@ const PT_BR: Catalog = {
   "Workers AI is busy right now. Please try again in a moment.": "O Workers AI está ocupado agora. Tente novamente em instantes.",
   "The configured AI model is not available. Choose another model in Settings.": "O modelo de IA configurado não está disponível. Escolha outro modelo em Configurações.",
   "The response was cancelled.": "A resposta foi cancelada.",
+  "Talorys reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.":
+    "O Talorys atingiu o teto de gasto de hoje com modelos de IA pagos. Aumente em Configurações → IA ou espere até amanhã.",
+  "Anthropic refused the API key. Check the key set on the Worker.": "A Anthropic recusou a chave de API. Confira a chave definida no Worker.",
+  "OpenAI refused the API key. Check the key set on the Worker.": "A OpenAI recusou a chave de API. Confira a chave definida no Worker.",
+  "The Anthropic account has no credit left. Add credit there or choose another model in Settings.":
+    "A conta da Anthropic está sem crédito. Adicione crédito lá ou escolha outro modelo em Configurações.",
+  "The OpenAI account has no credit left. Add credit there or choose another model in Settings.":
+    "A conta da OpenAI está sem crédito. Adicione crédito lá ou escolha outro modelo em Configurações.",
+  "Anthropic is busy right now. Please try again in a moment.": "A Anthropic está ocupada agora. Tente novamente em instantes.",
+  "OpenAI is busy right now. Please try again in a moment.": "A OpenAI está ocupada agora. Tente novamente em instantes.",
   "The AI model could not respond. Please try again.": "O modelo de IA não conseguiu responder. Tente novamente.",
   "Workers AI is not configured for this deployment. Everything else keeps working.": "O Workers AI não está configurado nesta instalação. Todo o resto continua funcionando.",
   "Workers AI is not configured.": "O Workers AI não está configurado.",
@@ -163,6 +236,8 @@ const PT_BR: Catalog = {
   "Access tokens cannot create or change AI prompt automations.": "Tokens de acesso não podem criar nem alterar automações de prompt de IA.",
   Reminder: "Lembrete",
   "Reminder delivered": "Lembrete entregue",
+  "Nothing needed your attention": "Nada precisava da sua atenção",
+  "Only AI routines can stay quiet when there is nothing to report.": "Só rotinas de IA podem ficar em silêncio quando não há nada a avisar.",
   "{overdue} overdue, {today} due today": "{overdue} atrasadas, {today} vencem hoje",
   "**Overdue ({count})**": "**Atrasadas ({count})**",
   "**Due today ({count})**": "**Vencem hoje ({count})**",
@@ -185,6 +260,11 @@ const PT_BR: Catalog = {
   "Invalid or revoked access token.": "Token de acesso inválido ou revogado.",
   "This route is not available to access tokens.": "Esta rota não está disponível para tokens de acesso.",
   "This access token is read-only.": "Este token de acesso é somente leitura.",
+  "This access token can only send events.": "Este token de acesso só pode enviar eventos.",
+  "Only an events access token can send events.": "Só um token de acesso de eventos pode enviar eventos.",
+  "At most {max} events an hour. Please wait before sending more.": "No máximo {max} eventos por hora. Aguarde antes de enviar mais.",
+  "At most {max} events a day. Please wait before sending more.": "No máximo {max} eventos por dia. Aguarde antes de enviar mais.",
+  "Other events": "Outros eventos",
   "SESSION_SECRET must be set (at least 32 characters) before creating remote access tokens.": "SESSION_SECRET precisa estar definido (pelo menos 32 caracteres) antes de criar tokens de acesso remoto.",
   "Remote access is turned off. Turn it on in Settings first.": "O acesso remoto está desligado. Ative-o em Configurações primeiro.",
   "Your session ended. Sign in again to create an access token.": "Sua sessão terminou. Entre novamente para criar um token de acesso.",
@@ -203,6 +283,118 @@ const PT_BR: Catalog = {
   "Push endpoint must not contain credentials.": "O endpoint de push não pode conter credenciais.",
   "Push endpoint must use the default https port.": "O endpoint de push precisa usar a porta https padrão.",
   "Test notification: push works on this device.": "Notificação de teste: o push funciona neste dispositivo.",
+
+  // Telegram
+  "Telegram is not set up on this deployment. Add the TELEGRAM_BOT_TOKEN secret first.": "O Telegram não está configurado nesta instalação. Adicione primeiro o segredo TELEGRAM_BOT_TOKEN.",
+  "Telegram refused the bot token. Check the TELEGRAM_BOT_TOKEN secret.": "O Telegram recusou o token do bot. Confira o segredo TELEGRAM_BOT_TOKEN.",
+  "Telegram could not be reached. Try again in a moment.": "Não foi possível falar com o Telegram. Tente de novo em instantes.",
+  "Unknown webhook.": "Webhook desconhecido.",
+  "Link the Telegram chat first.": "Vincule primeiro o chat do Telegram.",
+  "Started linking Telegram": "Vinculação do Telegram iniciada",
+  "Unlinked Telegram": "Telegram desvinculado",
+  "Linked the Telegram chat": "Chat do Telegram vinculado",
+  "Linked a Telegram group": "Grupo do Telegram vinculado",
+  "Talorys is linked to this chat. Alerts will arrive here until you link a group.": "O Talorys está vinculado a este chat. Os avisos chegam aqui até você vincular um grupo.",
+  "Link the private chat with this bot first, then add it to the group again.": "Vincule primeiro o chat privado com este bot e depois adicione-o ao grupo de novo.",
+  "This group now receives Talorys alerts.": "Este grupo agora recebe os avisos do Talorys.",
+  "Start a new conversation": "Começar uma conversa nova",
+  "What this bot does": "O que este bot faz",
+  "Turned on the Telegram conversation": "Conversa pelo Telegram ligada",
+  "Turned off the Telegram conversation": "Conversa pelo Telegram desligada",
+  "Started a new conversation. Your next message begins it.": "Conversa nova. Sua próxima mensagem começa ela.",
+  "Write or send a voice message to talk to Talorys, as in the app's chat. /new starts a new conversation. Alerts arrive in the group, or here while no group is linked.": "Escreva ou mande uma mensagem de voz para conversar com o Talorys, como no chat do app. /new começa uma conversa nova. Os avisos chegam no grupo, ou aqui enquanto nenhum grupo estiver vinculado.",
+  "Alerts arrive in the group, or here while no group is linked. The conversation through Telegram is off; turn it on in Settings → Alerts → Telegram.": "Os avisos chegam no grupo, ou aqui enquanto nenhum grupo estiver vinculado. A conversa pelo Telegram está desligada; ligue em Configurações → Avisos → Telegram.",
+  "The conversation through Telegram is off. Turn it on in Settings → Alerts → Telegram.": "A conversa pelo Telegram está desligada. Ligue em Configurações → Avisos → Telegram.",
+  "Talorys reads text and voice messages here.": "Aqui o Talorys lê mensagens de texto e de voz.",
+  "This voice message is too long. Send up to 5 minutes, or write it.": "Esta mensagem de voz é longa demais. Envie até 5 minutos, ou escreva.",
+  "Talorys couldn't transcribe this voice message. Try again, or write it.": "O Talorys não conseguiu transcrever esta mensagem de voz. Tente de novo, ou escreva.",
+  "Talorys couldn't make out any words in this voice message. Try again, or write it.": "O Talorys não entendeu nenhuma palavra nesta mensagem de voz. Tente de novo, ou escreva.",
+  "Talorys is still answering your last message. Wait for it, then write again.": "O Talorys ainda está respondendo sua última mensagem. Espere a resposta e escreva de novo.",
+  "Talorys took too long to answer. Try again.": "O Talorys demorou demais para responder. Tente de novo.",
+  "The answer was stopped.": "A resposta foi interrompida.",
+  "Something here needs your confirmation. Open Talorys to review it.": "Algo aqui precisa da sua confirmação. Abra o Talorys para revisar.",
+  "Open in Talorys": "Abrir no Talorys",
+  "Only the owner can use these buttons.": "Só o dono pode usar estes botões.",
+  "This alert no longer exists.": "Este aviso não existe mais.",
+  "Snoozed for 1 hour.": "Adiado por 1 hora.",
+  "This alert was already handled.": "Este aviso já foi tratado.",
+  "Snoozed alert. Its full text is in the notification center.": "Aviso adiado. O texto completo está na central de notificações.",
+  "Marked as done.": "Marcado como feito.",
+  "Done": "Feito",
+  "Snooze 1 h": "Adiar 1 h",
+  "Mute this alert": "Silenciar este aviso",
+  "Muted. Talorys stops insisting on this alert.": "Silenciado. O Talorys para de insistir neste aviso.",
+  "Try {attempt} of {max}, not confirmed yet": "Tentativa {attempt} de {max}, ainda sem confirmação",
+  "Alert not confirmed after {max} tries: “{alert}”": "Aviso não confirmado depois de {max} tentativas: “{alert}”",
+  "{alert} ({attempt}/{max})": "{alert} ({attempt}/{max})",
+  "Security alerts stop insisting only from Telegram.": "Alertas de segurança só param de insistir pelo Telegram.",
+  "This security alert is still waiting for your confirmation on Telegram.": "Este alerta de segurança ainda espera a sua confirmação no Telegram.",
+  "Open Talorys": "Abrir o Talorys",
+  "Open Talorys to read it.": "Abra o Talorys para ler.",
+  "Reminders": "Lembretes",
+  "Digests": "Resumos",
+  "Routines": "Rotinas",
+  "Tasks": "Tarefas",
+  "System": "Sistema",
+  "Security": "Segurança",
+  "Events": "Eventos",
+  "Low priority": "Prioridade baixa",
+  "Normal priority": "Prioridade normal",
+  "High priority": "Prioridade alta",
+  "Critical": "Crítica",
+  "Test message: Telegram alerts work.": "Mensagem de teste: os avisos pelo Telegram funcionam.",
+
+  // Priority that learns
+  "Security alerts are always critical.": "Alertas de segurança são sempre críticos.",
+  "This alert profile no longer exists.": "Este perfil de aviso não existe mais.",
+  "Fixed the priority of a kind of alert": "Fixou a prioridade de um tipo de aviso",
+  "Let a kind of alert learn its priority again": "Deixou um tipo de aviso aprender a prioridade de novo",
+  "Reset what Talorys learned about a kind of alert": "Zerou o que o Talorys aprendeu sobre um tipo de aviso",
+  "Alert priority learned: {alert} one level louder": "Prioridade aprendida: {alert} um nível acima",
+  "Alert priority learned: {alert} one level quieter": "Prioridade aprendida: {alert} um nível abaixo",
+  "One-time reminders": "Lembretes avulsos",
+  "Change priority": "Corrigir prioridade",
+  "Back": "Voltar",
+  "Low": "Baixa",
+  "Normal": "Normal",
+  "High": "Alta",
+  "Priority changed to {priority}. Talorys learns from this.": "Prioridade alterada para {priority}. O Talorys aprende com isso.",
+  "Louder than usual: learned from how you handle these alerts": "Mais alta que o normal: aprendido com o que você faz com estes avisos",
+  "Quieter than usual: learned from how you handle these alerts": "Mais baixa que o normal: aprendido com o que você faz com estes avisos",
+  "The priority you fixed for these alerts": "A prioridade que você fixou para estes avisos",
+
+  // Watchers and the daily summary
+  "Task overdue": "Tarefa atrasada",
+  "Task due within the hour": "Tarefa vence na próxima hora",
+  "Task due in 24 hours": "Tarefa vence em 24 horas",
+  "Task stalled": "Tarefa parada",
+  "“{task}” was due {when}.": "“{task}” venceu {when}.",
+  "“{task}” is due {when}.": "“{task}” vence {when}.",
+  "“{task}” has been in progress for {days} days without changes.": "“{task}” está em andamento há {days} dias sem mudanças.",
+  "Routine failing": "Rotina falhando",
+  "“{routine}” failed its last 2 runs. See the error in Automations.": "“{routine}” falhou nas 2 últimas execuções. Veja o erro em Automações.",
+  "MCP server needs attention": "Servidor MCP precisa de atenção",
+  "“{server}” needs you to sign in again. Open Settings → Integrations.": "“{server}” precisa que você entre de novo. Abra Configurações → Integrações.",
+  "“{server}” is failing. Open Settings → Integrations to reconnect it.": "“{server}” está falhando. Abra Configurações → Integrações para reconectar.",
+  "AI budget used up": "Orçamento de IA esgotado",
+  "Talorys used all {max} AI requests for today. Chat and AI routines resume tomorrow, or raise the limit in Settings → AI.": "O Talorys usou todos os {max} pedidos de IA de hoje. O chat e as rotinas de IA voltam amanhã, ou aumente o limite em Configurações → IA.",
+  "AI budget almost used": "Orçamento de IA quase no fim",
+  "Talorys used {used} of today's {max} AI requests.": "O Talorys usou {used} dos {max} pedidos de IA de hoje.",
+  "Push notifications not arriving": "Notificações push não estão chegando",
+  "None of your devices received the last push notifications. Open Settings → Alerts and turn them on again on each device.": "Nenhum dos seus aparelhos recebeu as últimas notificações push. Abra Configurações → Avisos e ative de novo em cada aparelho.",
+  "Push device removed for inactivity": "Aparelho removido do push por inatividade",
+  "“{device}” had not opened Talorys for {days} days and no longer receives push notifications. To get them again, open Talorys on it and turn them on in Settings → Alerts.": "“{device}” não abria o Talorys havia {days} dias e não recebe mais notificações push. Para voltar a recebê-las, abra o Talorys nele e ative em Configurações → Avisos.",
+  "Time for a backup": "Hora de fazer um backup",
+  "Your last backup is more than {days} days old. Export one in Settings → Data.": "Seu último backup tem mais de {days} dias. Exporte um em Configurações → Dados.",
+  "Update available": "Atualização disponível",
+  "Talorys {latest} is available (you have {current}). See how to update in the docs.": "O Talorys {latest} está disponível (você tem a {current}). Veja como atualizar na documentação.",
+  "Daily summary": "Resumo do dia",
+  "**Scheduled today ({count})**": "**Agendado para hoje ({count})**",
+  "**Waiting in the app ({count})**": "**Esperando no app ({count})**",
+  "**Priority learned this week**": "**Prioridade aprendida nesta semana**",
+  "- {alert} one level louder": "- {alert} um nível acima",
+  "- {alert} one level quieter": "- {alert} um nível abaixo",
+  "- {alert} (unread)": "- {alert} (não lido)",
 
   // Semantic recall
   "Semantic memory recall is turned off.": "A busca semântica de memórias está desligada.",
@@ -224,7 +416,27 @@ const PT_BR: Catalog = {
   "Rewrite the description of task {title}": "Reescrever a descrição da tarefa {title}",
   "Clear the description of task {title}": "Apagar a descrição da tarefa {title}",
   "Schedule AI routine {title}": "Agendar a rotina de IA {title}",
+  "Schedule quiet AI routine {title}": "Agendar a rotina de IA silenciosa {title}",
   "Run “{tool}” on {where}": "Executar “{tool}” em {where}",
+  "No passkey works on this address. Use the code from your authenticator app.": "Nenhuma passkey funciona neste endereço. Use o código do seu app autenticador.",
+  "Turn on two-step sign-in with an authenticator app first. Its recovery codes are the way back in if you lose your passkeys.":
+    "Ative primeiro a verificação em duas etapas com um app autenticador. Os códigos de recuperação dela são o caminho de volta se você perder suas passkeys.",
+  "You already have {max} passkeys. Remove one first.": "Você já tem {max} passkeys. Remova uma primeiro.",
+  "This passkey couldn't be checked, or the request expired. Try again.": "Não foi possível verificar esta passkey, ou o pedido expirou. Tente de novo.",
+  "This passkey wasn't accepted. Try again or use the code from your app.": "Esta passkey não foi aceita. Tente de novo ou use o código do app.",
+  "Passkey not found.": "Passkey não encontrada.",
+  "Passkey added": "Passkey adicionada",
+  "Passkey removed": "Passkey removida",
+  "A new passkey can now do the second sign-in step. If it wasn't you, remove it in Settings → Security and change your password.":
+    "Uma nova passkey agora pode fazer a segunda etapa do login. Se não foi você, remova-a em Configurações → Segurança e troque a senha.",
+  "A passkey was removed from your sign-in. If it wasn't you, change your password now and check Settings → Security.":
+    "Uma passkey foi removida do seu login. Se não foi você, troque a senha agora e confira Configurações → Segurança.",
+  "Invalid encoding.": "Codificação inválida.",
+  "This MCP server isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).": "Este servidor MCP não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",
+  "This server's sign-in address ({origin}) isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).":
+    "O endereço de login deste servidor ({origin}) não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",
+  "TALORYS_MCP_ALLOWED_ORIGINS has an entry that isn't an origin like https://mcp.example.com, so no MCP server is allowed until it is fixed.":
+    "TALORYS_MCP_ALLOWED_ORIGINS tem uma entrada que não é uma origem como https://mcp.example.com, então nenhum servidor MCP é permitido até ela ser corrigida.",
   "Saving to memory": "Salvando na memória",
   "Recalling “{query}”": "Lembrando “{query}”",
   "Updating a memory": "Atualizando uma memória",
@@ -316,12 +528,80 @@ const PT_BR: Catalog = {
   "Choose at least one day.": "Escolha pelo menos um dia.",
   "Expected YYYY-MM-DDTHH:MM local time": "Esperado horário local no formato AAAA-MM-DDTHH:MM",
   "Not a valid calendar date": "Não é uma data válida",
+  // Google Calendar
+  "Google Calendar connected": "Google Agenda conectada",
+  "Google Calendar disconnected": "Google Agenda desconectada",
+  "A Google account's calendars were connected to Talorys. If it wasn't you, disconnect it in Settings → Integrations, remove Talorys from your Google account's third-party access and change your password.":
+    "As agendas de uma conta Google foram conectadas ao Talorys. Se não foi você, desconecte em Configurações → Integrações, remova o Talorys dos acessos de terceiros da sua conta Google e troque a senha.",
+  "Google Calendar can only be managed from the Talorys app.": "A Google Agenda só pode ser gerenciada pelo app do Talorys.",
+  "Google Calendar isn't set up on this deployment. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and MCP_CREDENTIAL_KEY (see the Google Calendar guide).":
+    "A Google Agenda não está configurada nesta instalação. Adicione GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e MCP_CREDENTIAL_KEY (veja o guia da Google Agenda).",
+  "This Google sign-in expired or was already used. Start again from Settings → Integrations.":
+    "Este login do Google expirou ou já foi usado. Comece de novo em Configurações → Integrações.",
+  "Google access wasn't allowed. Connect again to retry.": "O acesso ao Google não foi permitido. Conecte de novo para tentar outra vez.",
+  "Google didn't grant lasting access. Connect again and allow every permission asked.": "O Google não concedeu acesso duradouro. Conecte de novo e permita todas as permissões pedidas.",
+  "Allow both permissions on Google's page (see your calendars, and see and edit their events). Connect again to retry.":
+    "Permita as duas permissões na página do Google (ver suas agendas, e ver e editar os eventos delas). Conecte de novo para tentar outra vez.",
+  "Google didn't return your main calendar. Try connecting again.": "O Google não devolveu sua agenda principal. Tente conectar de novo.",
+  "Connect Google Calendar first.": "Conecte a Google Agenda primeiro.",
+  "Calendar not found.": "Agenda não encontrada.",
+  "Google only lets you read this calendar.": "O Google só permite ler esta agenda.",
+  "This calendar only shares free and busy times, so there's nothing to read.": "Esta agenda só compartilha horários livres e ocupados, então não há nada para ler.",
+  "Google didn't return an access token. Try again.": "O Google não devolveu um token de acesso. Tente de novo.",
+  "Google access was revoked or expired. Connect again in Settings → Integrations.": "O acesso ao Google foi revogado ou expirou. Conecte de novo em Configurações → Integrações.",
+  "Google refused the sign-in. Check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and the redirect address in the Google Cloud console.":
+    "O Google recusou o login. Confira GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e o endereço de redirecionamento no console do Google Cloud.",
+  "Google Calendar isn't connected.": "A Google Agenda não está conectada.",
+  "Google Calendar needs to be connected again.": "A Google Agenda precisa ser conectada de novo.",
+  "Couldn't reach Google Calendar. Try again in a minute.": "Não foi possível acessar a Google Agenda. Tente de novo em um minuto.",
+  "Google Calendar refused the request.": "A Google Agenda recusou o pedido.",
+  "Google Calendar refused access. Check the connection in Settings → Integrations.": "A Google Agenda recusou o acesso. Confira a conexão em Configurações → Integrações.",
+  "That calendar or event doesn't exist anymore.": "Essa agenda ou evento não existe mais.",
+  "The event changed in Google Calendar after it was proposed, so nothing was done. Ask again.": "O evento mudou na Google Agenda depois de proposto, então nada foi feito. Peça de novo.",
+  "Google Calendar is limiting requests right now. Try again in a minute.": "A Google Agenda está limitando pedidos agora. Tente de novo em um minuto.",
+  "Google Calendar couldn't do that right now. Try again later.": "A Google Agenda não conseguiu fazer isso agora. Tente de novo mais tarde.",
+  "Calendar “{name}”: off": "Agenda “{name}”: desligada",
+  "Calendar “{name}”: read": "Agenda “{name}”: só leitura",
+  "Calendar “{name}”: write": "Agenda “{name}”: leitura e alterações",
+  "Checking the calendar": "Verificando a agenda",
+  "Searching the calendar for “{query}”": "Buscando “{query}” na agenda",
+  "Proposing the event “{title}”": "Propondo o evento “{title}”",
+  "Proposing a calendar change": "Propondo uma alteração na agenda",
+  "Proposing to delete a calendar event": "Propondo excluir um evento da agenda",
+  "Create {title} on {calendar}: {when}": "Criar {title} em {calendar}: {when}",
+  "Change {title} on {calendar}: {changes}": "Alterar {title} em {calendar}: {changes}",
+  "Delete {title} on {calendar}: {when}": "Excluir {title} em {calendar}: {when}",
+  "rename to {title}": "renomear para {title}",
+  "move from {before} to {after}": "mover de {before} para {after}",
+  "change the place": "mudar o local",
+  "change the notes": "mudar as observações",
+  "Agent created the calendar event “{title}”": "O agente criou o evento “{title}” na agenda",
+  "Agent changed a calendar event": "O agente alterou um evento da agenda",
+  "Agent deleted a calendar event": "O agente excluiu um evento da agenda",
+  "Choose a Google calendar that is open in Settings → Integrations.": "Escolha uma agenda do Google que esteja aberta em Configurações → Integrações.",
+  "Open this calendar first (read only is enough).": "Abra esta agenda primeiro (só leitura basta).",
+  "Choose one of the offered times": "Escolha um dos tempos oferecidos",
+  "Skipped: the Google calendar this automation depends on isn't open anymore. Open it in Settings → Integrations or edit the automation.":
+    "Pulada: a agenda do Google de que esta automação depende não está mais aberta. Abra-a em Configurações → Integrações ou edite a automação.",
+  "Its Google calendar isn't open": "A agenda do Google dela não está aberta",
+  "No events on “{name}” today": "Nenhum evento em “{name}” hoje",
+  "First event on {name} at {time}": "Primeiro evento em {name} às {time}",
+  "The first event of the day on {name} starts at {time}.": "O primeiro evento do dia em {name} começa às {time}.",
+  "Notice before the first event ({name})": "Aviso antes do primeiro evento ({name})",
+  "Calendar “{name}”: notice {minutes} min before the first event": "Agenda “{name}”: aviso {minutes} min antes do primeiro evento",
+  "Calendar “{name}”: notice off": "Agenda “{name}”: aviso desligado",
+  "**Calendar today ({count})**": "**Agenda de hoje ({count})**",
+  "Access tokens cannot set a calendar condition.": "Tokens de acesso não podem definir uma condição de agenda.",
+  "- all day — {title}": "- dia inteiro — {title}",
 };
 
 const CATALOGS: Partial<Record<Language, Catalog>> = { "pt-BR": PT_BR };
 
 /** Placeholders whose value is itself server text (a topic, a priority), translated too. */
-const NESTED = new Set(["topic", "priority"]);
+const NESTED = new Set(["topic", "priority", "alert", "changes"]);
+
+/** Nested placeholders that hold a list joined with "; ", translated item by item. */
+const LISTS = new Set(["changes"]);
 
 interface Pattern {
   regex: RegExp;
@@ -366,7 +646,9 @@ function localizeLine(line: string, language: Language, catalog: Catalog, depth 
       const index = pattern.names.indexOf(name);
       if (index < 0) return whole;
       const value = match[index + 1]!;
-      return NESTED.has(name) && depth < 1 ? localizeLine(value, language, catalog, depth + 1) : value;
+      if (!NESTED.has(name) || depth >= 1) return value;
+      if (LISTS.has(name)) return value.split("; ").map((item) => localizeLine(item, language, catalog, depth + 1)).join("; ");
+      return localizeLine(value, language, catalog, depth + 1);
     });
   }
   // Validation errors read "field: message"; translate the message and keep the field name.

@@ -26,7 +26,7 @@ describe("push delivery", () => {
       const browser = await subscribe(agent);
       const stub = pushServiceStub(201);
       s.push.fetcher = stub.fetcher;
-      const n = s.notifications.create({ title: "Reminder", body: "**Call** the dentist", automation_id: null });
+      const n = s.alerts.raise({ title: "Reminder", body: "**Call** the dentist", category: "reminder" })!;
       await s.push.idle();
       expect(stub.sent).toHaveLength(1);
       const req = stub.sent[0]!;
@@ -80,7 +80,7 @@ describe("push delivery", () => {
       expect(unconfigured.status()).toMatchObject({ available: false, public_key: null });
       const stub = pushServiceStub();
       s.push.fetcher = stub.fetcher;
-      s.notifications.create({ title: "Nobody listening", body: "x" });
+      s.alerts.raise({ title: "Nobody listening", body: "x", category: "system" });
       await s.push.idle();
       expect(stub.sent).toEqual([]);
     });
@@ -111,7 +111,7 @@ describe("push delivery", () => {
       const stub = pushServiceStub(201);
       push.fetcher = stub.fetcher;
       expect(push.status().devices.map((d) => d.label)).toEqual(["New"]);
-      push.notify({ id: "n", title: "t", body: "b", automation_id: null, read_at: null, created_at: new Date().toISOString() });
+      push.notify({ id: "n", title: "t", body: "b" });
       await push.idle();
       expect(stub.sent.map((r) => r.url)).toEqual([moved.endpoint]);
       // Without the setting, nothing is dropped.

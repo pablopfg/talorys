@@ -1,5 +1,9 @@
 # Deploy automático pelo GitHub
 
+> Instalando pela primeira vez? Siga o guia completo, etapa por etapa, em
+> [instalacao-cloudflare.md](instalacao-cloudflare.md). Este documento detalha
+> o deploy pelo GitHub Actions e o modelo de segurança dele.
+
 Cada merge na `main` publica o Talorys na Cloudflare pelo GitHub Actions
 (`.github/workflows/deploy.yml`). O que vai ao ar é o **Worker único**
 (`apps/agent/wrangler.standalone.jsonc`): o mesmo Worker serve a interface e a
@@ -26,7 +30,7 @@ pessoa lê o código, os workflows e os logs.
 | Dependência maliciosa roubar o token | O job que instala e roda o código do projeto (`build`) não tem segredo. O job `deploy` instala com `npm ci --ignore-scripts` (nenhum script de instalação roda ao lado do token) e não usa cache do npm. |
 | Action de terceiros alterada | Todas as actions são oficiais (`actions/*`) e fixadas pelo SHA completo do commit. |
 | Workflow com permissão demais | `permissions: contents: read` no workflow inteiro e `persist-credentials: false` no checkout. |
-| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID e `MCP_CREDENTIAL_KEY` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
+| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID, `MCP_CREDENTIAL_KEY` `TELEGRAM_BOT_TOKEN` e `GOOGLE_CLIENT_SECRET` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
 | Dados em log público | O health check imprime só o código HTTP; o corpo (que descreve a configuração) não aparece. O ID da conta é segredo e sai mascarado. |
 | Deploy sem revisão | Opcional: o ambiente `production` pode exigir a sua aprovação antes de cada deploy. |
 | Token com poder demais | Token de **conta**, só com as permissões abaixo, só na sua conta e na sua zona, com validade. |
@@ -128,6 +132,8 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_DEFAULT_TIMEZONE` | não | `America/Sao_Paulo` | Fuso padrão do agente. |
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
 | `TALORYS_VAPID_SUBJECT` | não | `mailto:voce@exemplo.com.br` | Contato que os serviços de push (Google, Apple, Mozilla) podem usar. Sem ela, vai o endereço do app. Não crie também um segredo `VAPID_SUBJECT` no Worker. |
+| `TALORYS_ALERT_EMAIL_FROM` | não | `talorys@exemplo.com.br` | Remetente dos avisos por e-mail, num domínio com o Cloudflare Email Routing ligado. Com ela, o deploy acrescenta o binding `send_email` (só esse remetente) e a variável `ALERT_EMAIL_FROM`. Veja [alerts.md](alerts.md#configurar-o-e-mail). |
+| `TALORYS_TURNSTILE_SITE_KEY` | não | `0x4AAAAAAA...` | *Site Key* do widget do Turnstile (passo 7). O Talorys só pede a verificação contra robôs quando um login parece arriscado, e só depois que o segredo `TURNSTILE_SECRET_KEY` também existir. |
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
@@ -185,8 +191,12 @@ de novo.
 | --- | --- | --- |
 | `OWNER_PASSWORD` | sim | A senha de acesso ao Talorys. Gere no gerenciador de senhas (20+ caracteres) e guarde lá. |
 | `SESSION_SECRET` | sim | 48+ caracteres aleatórios, gerados no gerenciador de senhas. Ninguém precisa digitá-lo. |
-| `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
+| `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Para guardar tokens de servidores MCP e da Google Agenda. |
+| `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` | não | Cliente OAuth gratuito do Google Cloud, para a Google Agenda. Veja [google-calendar.md](google-calendar.md). |
 | `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
+| `TELEGRAM_BOT_TOKEN` | não | Token do bot do Telegram (criado no @BotFather) para receber avisos no Telegram. Veja [alerts.md](alerts.md#configurar-o-telegram). |
+| `TURNSTILE_SECRET_KEY` | não | *Secret Key* do widget do Turnstile, para a verificação contra robôs nos logins arriscados (passo 7). |
+| `ALERT_EMAIL_TO` | não | O seu e-mail, verificado no Email Routing, para receber os avisos por e-mail (sem ele, vale o `OWNER_EMAIL`). Veja [alerts.md](alerts.md#configurar-o-e-mail). |
 
 5. Volte ao GitHub → **Actions** → a execução que falhou → **Re-run failed
    jobs**. Agora o health check responde 200 e o job fica verde.
@@ -210,6 +220,11 @@ npx wrangler secret put OWNER_PASSWORD --name talorys     # ou OWNER_PASSWORD_HA
 npx wrangler secret put MCP_CREDENTIAL_KEY --name talorys # opcional
 npx wrangler secret put VAPID_PUBLIC_KEY --name talorys   # opcional (push)
 npx wrangler secret put VAPID_PRIVATE_KEY --name talorys  # opcional (push)
+npx wrangler secret put TELEGRAM_BOT_TOKEN --name talorys # opcional (Telegram)
+npx wrangler secret put ALERT_EMAIL_TO --name talorys     # opcional (e-mail)
+npx wrangler secret put TURNSTILE_SECRET_KEY --name talorys # opcional (Turnstile)
+npx wrangler secret put GOOGLE_CLIENT_ID --name talorys   # opcional (Google Agenda)
+npx wrangler secret put GOOGLE_CLIENT_SECRET --name talorys # opcional (Google Agenda)
 ```
 
 Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores
@@ -236,6 +251,9 @@ no cadastro, a Cloudflare pode pedir um meio de pagamento.
    - **Application domain:** o mesmo domínio, com o caminho `api/health`.
    - **Policy:** *Bypass*, incluindo **Everyone**.
    - Sem cookie nem token, essa rota responde só `{"ok": true}`.
+   - Se você usa o Telegram, crie uma **terceira aplicação** igual, com o caminho
+     `api/telegram/webhook`. O Talorys continua exigindo o cabeçalho secreto do
+     Telegram nessa rota (veja [alerts.md](alerts.md#configurar-o-telegram)).
 4. Na primeira aplicação, aba **Overview**, copie a **Application Audience
    (AUD) Tag**.
 5. No ambiente `production` do GitHub, crie as variáveis
@@ -254,6 +272,33 @@ acrescente à primeira aplicação uma política *Service Auth* que inclua esse
 token, e mande os cabeçalhos `CF-Access-Client-Id` e `CF-Access-Client-Secret`
 junto com o Bearer.
 
+### 7. (Recomendado) Verificação contra robôs (Turnstile)
+
+O Turnstile é a verificação "não sou um robô" da Cloudflare, gratuita e sem
+quebra-cabeça na maior parte das vezes. O Talorys só a mostra quando um login
+parece arriscado: a rede errou a senha nos últimos 15 minutos, ou há muitas
+falhas vindas de várias redes ao mesmo tempo e a rede não é uma das suas. No
+uso normal, o login continua só com a senha. Detalhes em
+[security.md](security.md#verificação-contra-robôs-turnstile).
+
+1. Painel da Cloudflare → **Turnstile** → **Add widget**:
+   - **Widget name:** `Talorys`.
+   - **Hostname:** o seu `TALORYS_CUSTOM_DOMAIN` (ou o endereço
+     `*.workers.dev`, sem `https://`).
+   - **Widget Mode:** *Managed*.
+2. Ao criar, a Cloudflare mostra a **Site Key** e a **Secret Key**.
+3. No ambiente `production` do GitHub, crie a variável
+   `TALORYS_TURNSTILE_SITE_KEY` com a **Site Key** (ela é pública).
+4. No Worker (passo 5), crie o segredo `TURNSTILE_SECRET_KEY` com a
+   **Secret Key**. Ela nunca entra no GitHub.
+5. Rode o Deploy (Actions → **Deploy** → *Run workflow*).
+6. Para conferir: numa janela anônima, erre a senha uma vez. Na tentativa
+   seguinte, a verificação aparece acima do botão de entrar.
+
+Para desligar, apague a variável e o segredo e rode o Deploy. Se a Cloudflare
+não responder à verificação, o login arriscado é recusado com "tente de novo em
+instantes" (os logins sem risco não dependem dela).
+
 ### Conferência final
 
 - [ ] O endereço abre só em `https://` (digitar `http://` redireciona).
@@ -262,6 +307,7 @@ junto com o Bearer.
 - [ ] A aba **Deployments** do repositório mostra o ambiente `production` verde.
 - [ ] Nenhum segredo aparece em Settings → Secrets → Actions → *Repository secrets*.
 - [ ] Com o Access: uma janela anônima pede o e-mail antes de mostrar o Talorys.
+- [ ] Com o Turnstile: depois de uma senha errada, o login pede a verificação.
 
 ## Rotina
 

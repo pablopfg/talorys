@@ -24,6 +24,12 @@ const KIND_LABEL: Record<AuthEventKind, PlainMessageKey> = {
   mfa_enabled: "authActivity.mfaEnabled",
   mfa_disabled: "authActivity.mfaDisabled",
   mfa_codes_regenerated: "authActivity.mfaCodesRegenerated",
+  passkey_added: "authActivity.passkeyAdded",
+  passkey_removed: "authActivity.passkeyRemoved",
+  login_human_check: "authActivity.loginHumanCheck",
+  recovery_requested: "authActivity.recoveryRequested",
+  recovery_failure: "authActivity.recoveryFailure",
+  password_reset: "authActivity.passwordReset",
 };
 
 /** Reasons worth showing next to the kind; the others say nothing the kind doesn't. */
@@ -37,12 +43,21 @@ const REASON_LABEL: Record<string, PlainMessageKey> = {
   malformed: "authActivity.reasonMalformedToken",
   totp: "authActivity.reasonTotp",
   recovery_code: "authActivity.reasonRecoveryCode",
+  passkey: "authActivity.reasonPasskey",
   wrong_code: "authActivity.reasonWrongCode",
   too_many: "authActivity.reasonTooMany",
   expired: "authActivity.reasonExpired",
   rate_limited: "authActivity.reasonRateLimited",
   disable: "authActivity.reasonMfaDisable",
   recovery_codes: "authActivity.reasonMfaCodes",
+  required: "authActivity.reasonHumanRequired",
+  failed: "authActivity.reasonHumanFailed",
+  unavailable: "authActivity.reasonHumanUnavailable",
+  sent: "authActivity.reasonRecoverySent",
+  not_sent: "authActivity.reasonRecoveryNotSent",
+  wrong_email: "authActivity.reasonRecoveryWrongEmail",
+  daily_limit: "authActivity.reasonRecoveryDailyLimit",
+  link: "authActivity.reasonRecoveryLink",
 };
 
 const RETENTION_CHOICES = [30, 60, 90, 120, 180];

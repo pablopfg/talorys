@@ -9,8 +9,8 @@
 //
 // Usage: node scripts/deploy/render-wrangler-config.mjs <base.jsonc> <out.json>
 // Reads TALORYS_WORKER_NAME (required), TALORYS_CUSTOM_DOMAIN, TALORYS_PUBLIC_URL,
-// TALORYS_ACCESS_TEAM_DOMAIN, TALORYS_ACCESS_AUD, TALORYS_VAPID_SUBJECT, TALORYS_DEFAULT_TIMEZONE, TALORYS_AGENT_NAME
-// and TALORYS_DEPLOYED_VERSION from the environment.
+// TALORYS_ACCESS_TEAM_DOMAIN, TALORYS_ACCESS_AUD, TALORYS_VAPID_SUBJECT, TALORYS_DEFAULT_TIMEZONE, TALORYS_AGENT_NAME,
+// TALORYS_ALERT_EMAIL_FROM, TALORYS_TURNSTILE_SITE_KEY and TALORYS_DEPLOYED_VERSION from the environment.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -28,6 +28,10 @@ const ACCESS_TEAM = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.co
 const ACCESS_AUD = /^[0-9a-f]{64}$/;
 // The contact push services may use about this sender (RFC 8292): an e-mail or an https URL.
 const VAPID_SUBJECT = /^(?:mailto:[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+|https:\/\/[^\s<>"]+)$/;
+// The sender of e-mail alerts: a plain address on a domain with Cloudflare Email Routing.
+// The Turnstile widget's site key (public; its secret key is a Worker secret).
+const TURNSTILE_SITE_KEY = /^[0-9A-Za-z_-]{10,128}$/;
+const EMAIL = /^[A-Za-z0-9._%+-]{1,64}@(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
 
 /** The host of an https:// URL with nothing else in it, or undefined when unset. */
 function publicHost(value) {
@@ -95,6 +99,8 @@ export function renderConfig(base, env) {
   if (!accessTeam !== !accessAud) {
     throw new ConfigError("Set both TALORYS_ACCESS_TEAM_DOMAIN and TALORYS_ACCESS_AUD to use Cloudflare Access, or neither.");
   }
+  const alertEmailFrom = optional(env.TALORYS_ALERT_EMAIL_FROM?.toLowerCase(), EMAIL, "TALORYS_ALERT_EMAIL_FROM");
+  const turnstileSiteKey = optional(env.TALORYS_TURNSTILE_SITE_KEY, TURNSTILE_SITE_KEY, "TALORYS_TURNSTILE_SITE_KEY");
   const agentName = (env.TALORYS_AGENT_NAME ?? "").trim();
   if (agentName.length > 64 || /\p{Cc}/u.test(agentName)) {
     throw new ConfigError("TALORYS_AGENT_NAME must be at most 64 characters, without control characters.");
@@ -134,6 +140,16 @@ export function renderConfig(base, env) {
     vars.TALORYS_ACCESS_TEAM_DOMAIN = accessTeam;
     vars.TALORYS_ACCESS_AUD = accessAud;
   }
+  if (alertEmailFrom) {
+    // E-mail alerts: the binding may only send from this address, and Email Routing only delivers
+    // to verified addresses (the owner's, in the ALERT_EMAIL_TO or OWNER_EMAIL secret).
+    vars.ALERT_EMAIL_FROM = alertEmailFrom;
+    config.send_email = [{ name: "SEND_EMAIL", allowed_sender_addresses: [alertEmailFrom] }];
+  } else {
+    delete config.send_email;
+  }
+  // Turnstile on risky sign-ins: on once the TURNSTILE_SECRET_KEY Worker secret is set too.
+  if (turnstileSiteKey) vars.TURNSTILE_SITE_KEY = turnstileSiteKey;
   if (Object.keys(vars).length > 0) config.vars = vars;
 
   return config;

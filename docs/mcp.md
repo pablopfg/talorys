@@ -1,217 +1,264 @@
-# Remote MCP servers
+# Servidores MCP remotos
 
-Talorys can use tools from remote [Model Context Protocol](https://modelcontextprotocol.io)
-(MCP) servers: a search service, your issue tracker, or a server you host
-yourself. You add a server in **Settings → Integrations**, choose which of its
-tools Talorys may use, and the agent can then call them in chat.
+O Talorys consegue usar ferramentas de servidores remotos do
+[Model Context Protocol](https://modelcontextprotocol.io) (MCP): um serviço de
+busca, o seu gerenciador de tarefas ou um servidor que você mesmo hospeda. Você
+adiciona um servidor em **Configurações → Integrações**, escolhe quais
+ferramentas dele o Talorys pode usar, e o agente passa a poder chamá-las no
+chat.
 
-This is optional. With no servers configured nothing changes, and Talorys makes
-no extra requests. Adding or removing a server never needs a redeploy.
+É opcional. Sem servidores configurados nada muda, e o Talorys não faz nenhuma
+requisição a mais. Adicionar ou remover um servidor nunca exige um novo deploy.
 
-## What it can and can't do
+## O que ele faz e o que não faz
 
-- **Transport:** Streamable HTTP only, over `https://`. The older HTTP+SSE
-  transport, stdio and local MCP servers are not supported.
-- **Authentication:** none, a bearer token, or [OAuth sign-in](#oauth-sign-in).
-- **Scheduled AI routines:** off by default. A tool set to **Run without
-  asking** can also be allowed in scheduled automations with its **Also use in
-  scheduled automations** switch. Tools that ask first are never used there,
-  since nobody is present to approve the call.
-- **Tools only:** MCP prompts, resources and sampling are not used.
+- **Transporte:** só Streamable HTTP, por `https://`. O transporte antigo
+  HTTP+SSE, stdio e servidores MCP locais não são aceitos.
+- **Autenticação:** nenhuma, um token Bearer ou
+  [login com OAuth](#login-com-oauth).
+- **Rotinas de IA agendadas:** desligadas por padrão. Uma ferramenta configurada
+  como **Executar sem perguntar** também pode ser liberada nas automações
+  agendadas com a chave **Usar também em automações agendadas**. Ferramentas que
+  perguntam antes nunca são usadas lá, já que não há ninguém presente para
+  aprovar a chamada.
+- **Só ferramentas:** prompts, recursos e sampling do MCP não são usados.
 
-## Connecting a server
+## Conectar um servidor
 
-1. Open **Settings → Integrations** and choose **Add MCP server**.
-2. Enter a name, the server's MCP URL (for example `https://example.com/mcp`)
-   and how it authenticates: a bearer token, or OAuth to sign in with your account.
-3. Choose **Connect**. Talorys checks the URL, connects, and lists the server's
-   tools. If it can't connect, the server is saved with the reason, and you can
-   fix the token or press reconnect.
+1. Abra **Configurações → Integrações** e escolha **Adicionar servidor MCP**.
+2. Informe um nome, a URL MCP do servidor (por exemplo,
+   `https://exemplo.com/mcp`) e como ele autentica: um token Bearer ou OAuth,
+   para entrar com a sua conta.
+3. Escolha **Conectar**. O Talorys confere a URL, conecta e lista as ferramentas
+   do servidor. Se não conseguir conectar, o servidor fica salvo com o motivo, e
+   você pode corrigir o token ou tocar em reconectar.
 
-Every tool starts **off**. Open the server with **Manage**, turn on the tools
-you want, and pick how each one runs:
+Toda ferramenta começa **desligada**. Abra o servidor em **Gerenciar**, ligue as
+ferramentas que quiser e escolha como cada uma roda:
 
-| Setting | What happens |
+| Opção | O que acontece |
 | --- | --- |
-| **Ask me every time** (default) | The agent proposes the call. You see the server, the tool and the exact arguments on an approval card, and the call runs only when you approve it. |
-| **Run without asking (read-only)** | The agent calls the tool directly. Choose this only for tools that just read data. |
+| **Perguntar sempre** (padrão) | O agente propõe a chamada. Você vê o servidor, a ferramenta e os argumentos exatos num cartão de aprovação, e a chamada só roda quando você aprova. |
+| **Executar sem perguntar** (só leitura) | O agente chama a ferramenta diretamente. Escolha isto só para ferramentas que apenas leem dados. |
 
-"Run without asking" is a trust decision about the server. Servers can label a
-tool read-only or destructive; Talorys shows those labels but never relies on
-them, because it can't verify what a tool really does.
+"Executar sem perguntar" é uma decisão de confiança no servidor. Os servidores
+podem marcar uma ferramenta como só leitura ou destrutiva; o Talorys mostra
+essas marcas, mas nunca depende delas, porque não consegue verificar o que uma
+ferramenta realmente faz.
 
-At most 20 tools can be on at once, across all servers, and their descriptions
-must fit a fixed share of the AI's context. Turn off tools you don't use.
+No máximo 20 ferramentas podem ficar ligadas ao mesmo tempo, somando todos os
+servidores, e as descrições delas precisam caber numa fatia fixa do contexto da
+IA. Desligue as ferramentas que você não usa.
 
-## Privacy
+## Privacidade
 
-Talorys normally keeps your data inside your Cloudflare account. **MCP tools
-are the exception:** calling a tool sends its arguments to that server, which is
-run by a third party or by you, and the result comes back into the
-conversation.
+O Talorys normalmente mantém os seus dados dentro da sua conta da Cloudflare.
+**As ferramentas MCP são a exceção:** chamar uma ferramenta envia os argumentos
+dela para aquele servidor, que é operado por terceiros ou por você, e o
+resultado volta para a conversa.
 
-- Only the arguments of the tool call are sent. Talorys never sends your
-  memories, notes, conversation history or other data to an MCP server on its
-  own. The model is told to include only what the request needs, but whatever
-  it puts in the arguments does leave your account, so review approval cards.
-- Server URLs and tool names appear in Talorys's activity log. Arguments,
-  results and credentials do not.
-- Results and tool descriptions are treated as untrusted third-party text: the
-  model is told never to follow instructions in them, and they can't change
-  approvals or permissions.
+- Só os argumentos da chamada são enviados. O Talorys nunca envia por conta
+  própria as suas memórias, notas, histórico de conversas ou outros dados para um
+  servidor MCP. O modelo é instruído a incluir só o que o pedido precisa, mas o
+  que ele puser nos argumentos sai da sua conta, então revise os cartões de
+  aprovação.
+- As URLs dos servidores e os nomes das ferramentas aparecem no registro de
+  atividade do Talorys. Argumentos, resultados e credenciais, não.
+- Resultados e descrições de ferramentas são tratados como texto de terceiros
+  não confiável: o modelo é instruído a nunca seguir instruções que estejam
+  neles, e eles não conseguem mudar aprovações nem permissões.
 
-## Security model
+## Modelo de segurança
 
-- **Owner only.** Servers are managed through `/api/mcp`, which needs an owner
-  session and the CSRF header. Personal access tokens can't reach it, and no
-  part of it is a tool: the agent can't add servers or turn tools on.
-- **Credentials.** Bearer tokens and OAuth tokens are encrypted with AES-256-GCM under a key
-  derived from the `MCP_CREDENTIAL_KEY` Worker secret, bound to the server's
-  id. They are never returned by the API, shown in the UI, sent to the AI,
-  logged, or included in backups. The token is only sent to the server's own
-  origin: changing the URL to a different origin requires entering it again.
-- **Endpoints.** Only `https://` URLs on public hosts are accepted. Private,
-  loopback, link-local (including cloud metadata), CGNAT and other reserved
-  addresses are refused, as are names like `localhost`, `*.local` and
-  `*.internal`, and URLs with credentials or fragments. Before each new
-  connection the host name is resolved over DNS-over-HTTPS, and a name that
-  points to a private address is refused. Requests can only go to the
-  configured origin, and redirects are never followed.
-- **Approvals.** An approval is bound to the exact arguments and to the tool's
-  permission state when it was proposed: if the tool is turned off or set to
-  run without asking, the server is turned off or removed, its token changes, or
-  the tool's definition changes, the approval fails and nothing is sent. Each
-  approval runs at most once.
-- **Changed tools.** When a server changes a tool's description, inputs or
-  labels, Talorys stops using it until you turn it on again. Tools the server
-  stops listing are marked as no longer offered.
-- **Limits.** Every MCP call goes through the same pipeline as built-in tools:
-  input validation, the per-turn call budget, at most 3 calls per tool per turn,
-  and duplicate-call detection. Connections time out after 10 s, tool calls
-  after 30 s, responses over 2 MB are refused, and no response may stay open
-  longer than 35 s. The model sees at most 8,000 characters of a result. Tools
-  with oversized, overly nested or unsupported input schemas are listed but
-  can't be turned on. Regular expressions in a schema (`pattern`,
-  `patternProperties`) are not run by Talorys; the server validates them.
-- **No background traffic.** Sessions are opened on demand and kept in memory
-  for up to two minutes. There is no polling, no long-lived event stream and no
-  automatic reconnect loop.
+- **Só o dono.** Os servidores são gerenciados por `/api/mcp`, que exige uma
+  sessão do dono e o cabeçalho CSRF. Tokens de acesso pessoal não chegam lá, e
+  nenhuma parte disso é uma ferramenta: o agente não consegue adicionar
+  servidores nem ligar ferramentas.
+- **Credenciais.** Tokens Bearer e tokens OAuth são cifrados com AES-256-GCM sob
+  uma chave derivada do segredo `MCP_CREDENTIAL_KEY` do Worker, vinculada ao id
+  do servidor. Eles nunca são devolvidos pela API, mostrados na interface,
+  enviados à IA, registrados em log nem incluídos em backups. O token só é
+  enviado para a própria origem do servidor: mudar a URL, mesmo que só o
+  caminho, exige informá-lo de novo.
+- **Endpoints.** Só são aceitas URLs `https://` em hosts públicos. Endereços
+  privados, de loopback, link-local (inclusive os de metadados de nuvem), CGNAT
+  e outros reservados são recusados, assim como nomes como `localhost`,
+  `*.local` e `*.internal`, e URLs com credenciais ou fragmentos. Antes de cada
+  conexão nova, o nome do host é resolvido por DNS-over-HTTPS, e um nome que
+  aponta para um endereço privado é recusado. As requisições só podem ir para a
+  origem configurada, e redirecionamentos nunca são seguidos.
+- **Aprovações.** Uma aprovação fica vinculada aos argumentos exatos e ao estado
+  de permissão da ferramenta no momento da proposta: se a ferramenta for
+  desligada ou passar a executar sem perguntar, se o servidor for desligado ou
+  removido, se o token dele mudar ou se a definição da ferramenta mudar, a
+  aprovação falha e nada é enviado. Cada aprovação roda no máximo uma vez.
+- **Executar sem perguntar, com proteção.** Ligar a opção numa ferramenta (ou
+  ligar uma ferramenta já configurada assim, ou liberá-la nas automações
+  agendadas) exige a sua senha digitada nos últimos 15 minutos, com o segundo
+  fator quando ele estiver ligado. Mesmo assim, a chamada é proposta num cartão
+  de aprovação, em vez de enviada, quando:
+  - um resultado de **outro** servidor MCP já está na conversa, neste turno ou
+    num anterior. Uma instrução escondida nesse resultado poderia levar o modelo
+    a pôr os seus dados nos argumentos de uma chamada a um segundo servidor.
+    Chamadas ao servidor cujo resultado já está lá continuam rodando;
+  - os argumentos passam de 1.000 caracteres em JSON. Uma consulta de busca é
+    curta; dados sendo enviados para fora, não;
+  - as chamadas que rodaram sem perguntar neste turno já enviaram, juntas, 4.000
+    caracteres de argumentos.
 
-**Residual risk.** The DNS check runs before connecting, and the Workers
-runtime resolves the name again when it connects, so a server that changes its
-DNS answers in between (DNS rebinding) is not fully excluded. Requests from a
-Worker leave from Cloudflare's network, not from your own, so they can't reach
-devices on your home or office network.
+  Aprovar executa exatamente a chamada proposta, uma vez. As automações agendadas
+  não conseguem perguntar, então lá a chamada é recusada.
+- **Servidores permitidos.** Com `TALORYS_MCP_ALLOWED_ORIGINS` definido, só os
+  servidores da lista podem ser adicionados, conectados ou chamados, e um
+  servidor tirado da lista deixa de oferecer as ferramentas na hora (veja
+  [Configuração](#configuração)). Um servidor que entra com OAuth precisa que a
+  origem do servidor de login também esteja na lista. Com ela apontando para
+  hosts do seu próprio domínio, um DNS rebinding só consegue alcançar os seus
+  próprios hosts. Evite curingas em domínios compartilhados, como
+  `https://*.workers.dev` ou o domínio de um n8n hospedado: eles também admitem
+  o servidor de qualquer outro cliente ali.
+- **Ferramentas alteradas.** Quando um servidor muda a descrição, as entradas ou
+  as marcas de uma ferramenta, o Talorys para de usá-la até você ligá-la de novo
+  (para uma ferramenta "Executar sem perguntar", com a senha digitada há pouco).
+  As ferramentas que o servidor deixa de listar ficam marcadas como não mais
+  oferecidas.
+- **Limites.** Toda chamada MCP passa pelo mesmo pipeline das ferramentas
+  nativas: validação da entrada, orçamento de chamadas por turno, no máximo 3
+  chamadas por ferramenta por turno e detecção de chamadas duplicadas. As
+  conexões expiram em 10 s, as chamadas de ferramenta em 30 s, respostas acima
+  de 2 MB são recusadas e nenhuma resposta pode ficar aberta por mais de 35 s. O
+  modelo vê no máximo 8.000 caracteres de um resultado. Ferramentas com schemas
+  de entrada grandes demais, aninhados demais ou não suportados aparecem na
+  lista, mas não podem ser ligadas. Expressões regulares num schema (`pattern`,
+  `patternProperties`) não são executadas pelo Talorys; o servidor as valida.
+- **Sem tráfego em segundo plano.** As sessões são abertas sob demanda e
+  mantidas em memória por até dois minutos. Não há polling, nem stream de
+  eventos de longa duração, nem laço de reconexão automática.
 
-## Approved calls and uncertain results
+**Risco residual.** A verificação de DNS roda antes de conectar, e o runtime do
+Workers resolve o nome de novo quando conecta, então um servidor que muda as
+respostas de DNS nesse intervalo (DNS rebinding) não fica totalmente excluído.
+As requisições de um Worker saem da rede da Cloudflare, não da sua, então elas
+não conseguem alcançar dispositivos da rede da sua casa ou do seu escritório.
 
-An external service may not be able to undo what it did, and Talorys can't
-promise a call happened exactly once. If the connection fails or times out
-after an approved call was sent, Talorys reports it as failed and says it **may
-or may not have run**: check the service before asking again. Approved calls
-are never retried automatically. Calls you set to run without asking are
-retried once, only when a reused session turned out to be stale.
+## Chamadas aprovadas e resultados incertos
 
-## Backups and updates
+Um serviço externo pode não conseguir desfazer o que fez, e o Talorys não
+consegue garantir que uma chamada aconteceu exatamente uma vez. Se a conexão
+falhar ou expirar depois que uma chamada aprovada foi enviada, o Talorys a
+informa como falha e avisa que ela **pode ou não ter rodado**: confira o serviço
+antes de pedir de novo. Chamadas aprovadas nunca são repetidas automaticamente.
+Chamadas configuradas para executar sem perguntar são repetidas uma vez, só
+quando uma sessão reutilizada se mostrou vencida.
 
-- A backup includes each server's name, URL and authentication type. It never
-  includes tokens, OAuth sign-ins, sessions or which tools were on.
-- Imported servers arrive **turned off**, with no token and no tools. Turn one
-  on, add its token or sign in again, and choose its tools again.
-- Updating Talorys keeps your servers, tokens and tool choices (they live in the
-  Durable Object's SQLite database).
+## Backups e atualizações
 
-## Configuration
+- Um backup inclui o nome, a URL e o tipo de autenticação de cada servidor. Ele
+  nunca inclui tokens, logins OAuth, sessões nem quais ferramentas estavam
+  ligadas.
+- Servidores importados chegam **desligados**, sem token e sem ferramentas. Ligue
+  um, adicione o token ou entre de novo e escolha as ferramentas outra vez.
+- Atualizar o Talorys mantém os seus servidores, tokens e escolhas de
+  ferramentas (eles ficam no banco SQLite do Durable Object).
 
-| Name | Kind | Purpose |
+## Configuração
+
+| Nome | Tipo | Para quê |
 | --- | --- | --- |
-| `MCP_CREDENTIAL_KEY` | Secret | Encrypts bearer tokens and OAuth sign-ins. The installer creates it, and `npx create-talorys@latest update` adds it to older installations. Without it you can still add servers that need no authentication. Changing it makes stored tokens unreadable; enter them again or sign in again. |
-| `TALORYS_MCP` | Secret or var | `off` turns MCP servers off for the deployment. |
-| `TALORYS_MCP_MAX_TOOLS` | Secret or var | Most tools on at once (default 20, at most 64). |
+| `MCP_CREDENTIAL_KEY` | Segredo | Cifra os tokens Bearer e os logins OAuth. O instalador o cria, e `npx create-talorys@latest update` o acrescenta a instalações antigas. Sem ele, ainda dá para adicionar servidores que não pedem autenticação. Trocá-lo deixa os tokens guardados ilegíveis; informe-os de novo ou entre de novo. |
+| `TALORYS_MCP` | Segredo ou variável | `off` desliga os servidores MCP na instalação. |
+| `TALORYS_MCP_MAX_TOOLS` | Segredo ou variável | Máximo de ferramentas ligadas ao mesmo tempo (padrão 20, no máximo 64). |
+| `TALORYS_MCP_ALLOWED_ORIGINS` | Segredo ou variável | Os únicos servidores permitidos, separados por vírgula: origens exatas (`https://n8n.exemplo.com`) ou todos os subdomínios de um domínio (`https://*.exemplo.com`, sem o próprio domínio). Sem definir: qualquer host público. É conferido quando um servidor é adicionado e antes de cada conexão e chamada, então restringir a lista também barra servidores já adicionados. Uma entrada que não seja uma origem simples recusa todos os servidores até ser corrigida. |
 
-For a [one-Worker deploy](deployment.md#one-worker-without-pages), set the key
-by hand with 32 or more random characters:
+Num [deploy de um Worker só](deployment.md#um-worker-sem-pages), defina a
+chave à mão com 32 ou mais caracteres aleatórios:
 
 ```bash
 openssl rand -base64 32 | npx wrangler secret put MCP_CREDENTIAL_KEY -c wrangler.standalone.jsonc
 ```
 
-Set `TALORYS_MCP` and `TALORYS_MCP_MAX_TOOLS` with `wrangler secret put` too:
-the installer regenerates the Worker config on update, which would drop a plain
-variable.
+Defina `TALORYS_MCP`, `TALORYS_MCP_MAX_TOOLS` e `TALORYS_MCP_ALLOWED_ORIGINS`
+também com `wrangler secret put`: o instalador gera de novo a configuração do
+Worker a cada atualização, o que descartaria uma variável comum.
 
-## Cloudflare usage
+## Uso da Cloudflare
 
-MCP uses no extra Cloudflare products: configuration lives in the existing
-Durable Object, and calls are ordinary `fetch` subrequests from it, which the
-Workers Free plan includes. Each tool call costs a few subrequests (opening a
-session takes two, then one per call) and counts toward the turn's existing
-tool-call limit. The model still counts against your daily AI request budget as
-usual, and large tool descriptions make every request in a turn longer.
+O MCP não usa nenhum produto a mais da Cloudflare: a configuração fica no
+Durable Object que já existe, e as chamadas são subrequisições `fetch` comuns
+feitas a partir dele, que o plano Workers Free inclui. Cada chamada de
+ferramenta custa algumas subrequisições (abrir uma sessão leva duas, depois uma
+por chamada) e conta no limite de chamadas de ferramenta que o turno já tem. O
+modelo continua contando no seu orçamento diário de pedidos de IA como de
+costume, e descrições de ferramentas grandes deixam mais longa cada requisição
+do turno.
 
-## Troubleshooting
+## Solução de problemas
 
-| Message | What to do |
+| Mensagem | O que fazer |
 | --- | --- |
-| Could not connect to the MCP server | Check the URL, including its path (often `/mcp`). The server may be down. |
-| This doesn't look like a Streamable HTTP MCP server | The URL answers, but not as an MCP server. Servers that only support the older SSE transport don't work. |
-| This server requires authentication | Add or replace the bearer token under **Manage**. |
-| The server answered with a redirect | Use the server's final URL. |
-| This address is on a private or local network | Talorys only connects to public servers. To test a local server, use local development (below). |
-| The server did not return any compatible tools | Its tools have input schemas Talorys can't validate. Each one shows the reason. |
-| Changed, review again | The server changed the tool. Read its description, then turn it on again. |
-| Credential storage isn't set up | Run `npx create-talorys@latest update`, or set `MCP_CREDENTIAL_KEY` by hand. |
-| Sign in to finish connecting | Choose **Sign in** and approve access on the server's page. The link is valid for 10 minutes; choose reconnect for a new one. |
-| Signing in to this server failed | The server's sign-in doesn't support dynamic client registration, or refused the request. Try a bearer token if it offers one. |
-| This sign-in link expired or was already used | Start again with reconnect. Each sign-in link works once. |
+| Não foi possível conectar ao servidor MCP | Confira a URL, inclusive o caminho (muitas vezes `/mcp`). O servidor pode estar fora do ar. |
+| Isto não parece um servidor MCP Streamable HTTP | A URL responde, mas não como um servidor MCP. Servidores que só suportam o transporte SSE antigo não funcionam. |
+| Este servidor exige autenticação | Adicione ou substitua o token Bearer em **Gerenciar**. |
+| O servidor MCP respondeu com um redirecionamento | Use a URL final do servidor. |
+| Este endereço está em uma rede privada ou local | O Talorys só se conecta a servidores públicos. Para testar um servidor local, use o desenvolvimento local (abaixo). |
+| O servidor não retornou nenhuma ferramenta compatível | As ferramentas dele têm schemas de entrada que o Talorys não consegue validar. Cada uma mostra o motivo. |
+| Alterada, revise novamente | O servidor mudou a ferramenta. Leia a descrição e ligue-a de novo. |
+| O armazenamento de credenciais não está configurado | Rode `npx create-talorys@latest update` ou defina `MCP_CREDENTIAL_KEY` à mão. |
+| Entre para concluir a conexão com este servidor | Escolha **Entrar** e aprove o acesso na página do servidor. O link vale por 10 minutos; escolha reconectar para receber um novo. |
+| O login neste servidor falhou | O login do servidor não suporta registro dinâmico de cliente ou recusou o pedido. Tente um token Bearer, se ele oferecer. |
+| Este link de login expirou ou já foi usado | Comece de novo com reconectar. Cada link de login funciona uma vez. |
 
-## Local development
+## Desenvolvimento local
 
-With `TALORYS_ENV=development` (as `npm run dev` sets up), `http://localhost`,
-`http://127.0.0.1` and `http://[::1]` URLs are allowed, so you can point Talorys
-at an MCP server running on your machine. In mock-AI mode, a chat message
-`call mcp_<tool id> {"arg": "value"}` calls an enabled tool directly. The tool
-id is shown in the server's tool list.
+Com `TALORYS_ENV=development` (como o `npm run dev` configura), URLs
+`http://localhost`, `http://127.0.0.1` e `http://[::1]` são permitidas, então
+você pode apontar o Talorys para um servidor MCP rodando na sua máquina. No modo
+de IA simulada (mock), uma mensagem de chat
+`call mcp_<id da ferramenta> {"arg": "valor"}` chama diretamente uma ferramenta ligada. O id da ferramenta
+aparece na lista de ferramentas do servidor.
 
-## OAuth sign-in
+## Login com OAuth
 
-Choose **OAuth (sign in)** as the authentication method for servers that let
-you sign in with your account instead of pasting a token.
+Escolha **OAuth (login)** como método de autenticação nos servidores que deixam
+você entrar com a sua conta em vez de colar um token.
 
-1. When you choose **Connect**, Talorys asks the server how to sign in (OAuth
-   protected-resource and authorization-server metadata), registers itself as an
-   app with the authorization server (dynamic client registration), and opens the
-   server's sign-in page.
-2. Approve access there. The authorization server sends you back to Talorys
-   (`/settings/mcp-oauth`), which finishes signing in and connects.
-3. Talorys refreshes the access token on its own. If the server revokes access,
-   or the refresh token expires, the server shows **Needs authentication** and a
-   **Sign in** button.
+1. Quando você escolhe **Conectar**, o Talorys pergunta ao servidor como entrar
+   (metadados OAuth de recurso protegido e de servidor de autorização), se
+   registra como app no servidor de autorização (registro dinâmico de cliente) e
+   abre a página de login do servidor.
+2. Aprove o acesso lá. O servidor de autorização manda você de volta para o
+   Talorys (`/settings/mcp-oauth`), que conclui o login e conecta.
+3. O Talorys renova o token de acesso sozinho. Se o servidor revogar o acesso ou
+   o token de atualização expirar, o servidor mostra **Precisa de autenticação**
+   e um botão **Entrar**.
 
-How it is kept safe:
+Como isso fica seguro:
 
-- **Authorization code with PKCE (S256)**, as a public client: no client
-  secret is stored. The request names the MCP server as the resource (RFC 8707).
-- **State** is random, tied to the server, single use, and expires after 10
-  minutes. The callback page posts it with your Talorys session and the CSRF
-  header, so a sign-in can only finish in your own logged-in browser. (The
-  redirect back to Talorys is cross-site, so the session cookie isn't sent with
-  it; the callback page makes the request instead.)
-- **Tokens, the app registration and the PKCE verifier** are stored encrypted
-  with `MCP_CREDENTIAL_KEY`, like bearer tokens. They are never returned by the
-  API, shown, sent to the AI, logged or exported. The access token is sent only
-  to the MCP server's own origin, never to the authorization server.
-- **The authorization server** must pass the same checks as an MCP endpoint:
-  public `https://` host, no private addresses (also checked in DNS), no
-  redirects.
-- Changing the server's URL to another origin, or switching it to another
-  authentication method, deletes the stored sign-in.
+- **Código de autorização com PKCE (S256)**, como cliente público: nenhum
+  segredo de cliente é guardado. O pedido indica o servidor MCP como o recurso
+  (RFC 8707).
+- **O state** é aleatório, vinculado ao servidor, de uso único e expira em 10
+  minutos. A página de retorno o envia com a sua sessão do Talorys e o cabeçalho
+  CSRF, então um login só pode ser concluído no seu próprio navegador com
+  sessão aberta. (O redirecionamento de volta para o Talorys é entre sites, então
+  o cookie de sessão não vai junto; a página de retorno faz a requisição.)
+- **Os tokens, o registro do app e o verificador PKCE** ficam guardados cifrados
+  com `MCP_CREDENTIAL_KEY`, como os tokens Bearer. Eles nunca são devolvidos pela
+  API, mostrados, enviados à IA, registrados em log nem exportados. O token de
+  acesso só é enviado para a própria origem do servidor MCP, nunca para o
+  servidor de autorização.
+- **O servidor de autorização** precisa passar pelas mesmas verificações de um
+  endpoint MCP: host público `https://`, sem endereços privados (conferidos
+  também no DNS), sem redirecionamentos.
+- Mudar a URL do servidor (mesmo que só o caminho), ou trocar o método de
+  autenticação dele, apaga o login guardado.
 
-The callback works the same for the Pages deployment and the one-Worker
-deployment: it is an ordinary page of the app, and its request goes through the
-usual `/api` path, so the private Worker is never exposed.
+O retorno funciona igual no deploy com Pages e no deploy de um Worker só: ele é
+uma página comum do app, e a requisição dele passa pelo caminho `/api` de
+sempre, então o Worker privado nunca fica exposto.
 
-Limitations: the authorization server must support dynamic client registration
-(most MCP servers that offer OAuth do). Pre-registered client IDs, client
-secrets and client ID metadata documents are not supported yet. Sign-in can only
-be started from Settings, never by the agent.
+Limitações: o servidor de autorização precisa suportar registro dinâmico de
+cliente (a maioria dos servidores MCP que oferecem OAuth suporta). Client IDs
+pré-registrados, segredos de cliente e documentos de metadados de client ID
+ainda não são aceitos. O login só pode ser iniciado pelas Configurações, nunca
+pelo agente.

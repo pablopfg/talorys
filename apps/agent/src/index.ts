@@ -5,6 +5,7 @@ import { AppError, errorResponse } from "./api/errors";
 import { AccessMisconfigured, accessConfig, verifyAccessToken } from "./auth/access";
 import { allowedHosts } from "./hosts";
 import { WEB_HEADERS, withWebHeaders } from "./web-headers";
+import { isTelegramWebhook, TELEGRAM_WEBHOOK_PATH } from "./telegram/client";
 
 /** API responses are data, never pages: nothing in them may load, run or be framed. */
 const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -93,7 +94,8 @@ function toHttps(request: Request, url: URL): Response {
 /**
  * With Cloudflare Access configured, a request without a valid Access token is refused here,
  * whatever host it came through. Only the anonymous health check is exempt, so a deploy can
- * check itself through an Access bypass rule; it answers no more than "ok" or "not ok".
+ * check itself through an Access bypass rule; it answers no more than "ok" or "not ok". The
+ * Telegram webhook is exempt too, but only with the right secret header (see docs/alerts.md).
  */
 async function accessDenied(request: Request, url: URL, env: Env): Promise<Response | null> {
   let config: ReturnType<typeof accessConfig>;
@@ -106,6 +108,10 @@ async function accessDenied(request: Request, url: URL, env: Env): Promise<Respo
   if (!config) return null;
   const isHealth = request.method === "GET" && url.pathname.replace(/\/$/, "") === "/api/health";
   if (isHealth && !request.headers.has("cookie") && !request.headers.has("authorization")) return null;
+  // Telegram can't pass Access; its webhook proves itself with the secret header instead.
+  const isTelegram = request.method === "POST" && url.pathname === TELEGRAM_WEBHOOK_PATH;
+  if (isTelegram && !request.headers.has("cookie") && !request.headers.has("authorization")
+    && (await isTelegramWebhook(request.headers.get("x-telegram-bot-api-secret-token"), env.SESSION_SECRET))) return null;
   if (await verifyAccessToken(request.headers.get("cf-access-jwt-assertion"), config)) return null;
   return errorResponse(new AppError("FORBIDDEN", "Sign in through Cloudflare Access to continue."));
 }

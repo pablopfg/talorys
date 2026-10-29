@@ -14,6 +14,8 @@ import { pushRoutes } from "../push/routes";
 import { remoteAuth } from "../remote/middleware";
 import { remoteRoutes } from "../remote/routes";
 import { mcpRoutes } from "../mcp/routes";
+import { calendarRoutes } from "../calendar/routes";
+import { telegramRoutes, telegramWebhook } from "../telegram/routes";
 
 export interface AppEnv {
   Bindings: { agent: TalorysAgent; env: Env };
@@ -36,6 +38,8 @@ export function createApi() {
 
   app.use("*", securityHeaders);
   app.use("*", requireHttps);
+  // Telegram's webhook has no session or token: its secret header is checked by the handler itself.
+  app.post("/telegram/webhook", telegramWebhook);
   // Before CSRF and session: a validated token skips both, a bad one fails closed.
   app.use("*", remoteAuth);
   app.use("*", csrfProtection);
@@ -51,6 +55,8 @@ export function createApi() {
   app.route("/", pushRoutes);
   app.route("/", remoteRoutes);
   app.route("/", mcpRoutes);
+  app.route("/", calendarRoutes);
+  app.route("/", telegramRoutes);
 
   return app;
 }

@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { type Automation, type AutomationKind, type AutomationRun, type ScheduleSpec, describeSchedule, getZonedParts, scheduleSpecSchema, upcomingRuns } from "@talorys/shared";
+import { AUTOMATION_PRIORITIES, type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, SENTINEL_TEMPLATES, type SentinelTemplate, describeSchedule, getZonedParts, scheduleSpecSchema, sentinelText, upcomingRuns } from "@talorys/shared";
 import { AlarmClock, Bell, Bot, CalendarClock, ChevronDown, History, ListChecks, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
-import { keys, useApiMutation, useAutomationRuns, useAutomations } from "../hooks/queries";
+import { keys, useApiMutation, useAutomationRuns, useAutomations, useGoogleCalendar } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, formatDateTime, relativeTime } from "../lib/utils";
 import { type I18n, type PlainMessageKey, useI18n } from "../lib/i18n";
+import { PRIORITY_LABELS } from "../lib/alerts";
 
 const KIND_META: Record<AutomationKind, { label: PlainMessageKey; icon: typeof Bell; hint: PlainMessageKey }> = {
   reminder: { label: "automations.kindReminder", icon: Bell, hint: "automations.kindReminderHint" },
@@ -82,6 +83,9 @@ export default function AutomationsPage() {
             {a.status === "failed" && <Badge tone="danger">{t("automations.lastRunFailed")}</Badge>}
             {a.status === "completed" && <Badge>{t("automations.completed")}</Badge>}
             {a.status === "running" && <Badge tone="accent">{t("automations.running")}</Badge>}
+            {a.priority === "high" && <Badge tone="warning">{t("automations.insistent")}</Badge>}
+            {a.sentinel && <Badge tone="accent">{t("automations.sentinel")}</Badge>}
+            {a.calendar_gate && <Badge>{t("automations.gateBadge")}</Badge>}
           </div>
           <p className="mt-0.5 text-sm text-fg-muted">{describeSchedule(a.schedule, i18n.language)}</p>
           <p className="mt-0.5 text-xs text-fg-subtle">
@@ -381,6 +385,11 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const [kind, setKind] = useState<AutomationKind>(automation?.kind ?? "reminder");
   const [name, setName] = useState(automation?.name ?? "");
   const [message, setMessage] = useState(automation?.message ?? "");
+  const [priority, setPriority] = useState<AutomationPriority>(automation?.priority ?? "normal");
+  const [sentinel, setSentinel] = useState(automation?.sentinel ?? false);
+  const [gate, setGate] = useState(automation?.calendar_gate ?? "");
+  const google = useGoogleCalendar();
+  const openCalendars = google.data?.connected ? google.data.calendars.filter((c) => c.mode !== "off") : [];
   const [type, setType] = useState<ScheduleSpec["type"]>(initial?.type ?? "once");
   const [at, setAt] = useState(initial?.type === "once" ? initial.at : tomorrowAt9(tz));
   const [time, setTime] = useState(initial && "time" in initial ? initial.time : "09:00");
@@ -412,16 +421,33 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
     setName("");
     setMessage("");
     setKind("reminder");
+    setSentinel(false);
+    setGate("");
     setType("once");
     setAt(tomorrowAt9(tz));
+  };
+  /** Fills the form from a ready-made sentinel, in the app's language; everything stays editable. */
+  const applyTemplate = (template: SentinelTemplate) => {
+    const text = sentinelText(template, i18n.language);
+    setName(text.name);
+    setMessage(text.prompt);
+    setSentinel(template.sentinel ?? true);
+    // A gated template suggests a calendar that isn't the main one (a work calendar shared with the owner).
+    setGate(template.calendarGate ? (openCalendars.find((c) => !c.primary) ?? openCalendars[0])?.id ?? "" : "");
+    setType(template.schedule.type);
+    if ("time" in template.schedule) setTime(template.schedule.time);
+    if (template.schedule.type === "weekly") setDays(template.schedule.days);
   };
   const save = useApiMutation(
     () => {
       const finalName = name.trim() || message.trim().slice(0, 80) || t(KIND_META[kind].label);
-      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule } });
+      // The calendar condition is sent only when it changed: an unchanged one stays valid even if that calendar was closed since.
+      const gateChange = !automation || (gate || null) !== automation.calendar_gate ? { calendar_gate: gate || null } : {};
+      const quiet = { ...(kind === "agent_prompt" ? { sentinel } : {}), ...gateChange };
+      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule, priority, ...quiet } });
       // Saving a finished one-off with a new schedule brings it back to life.
       const revive = automation.status === "completed" ? { enabled: true } : {};
-      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, ...revive } });
+      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, priority, ...quiet, ...revive } });
     },
     {
       invalidate: [keys.automations],
@@ -472,6 +498,16 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
         </div>
         )}
         <p className="text-xs text-fg-subtle">{t(KIND_META[kind].hint)}</p>
+        {!automation && kind === "agent_prompt" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-fg-subtle">{t("automations.sentinelTemplates")}</span>
+            {SENTINEL_TEMPLATES.map((template) => (
+              <Button key={template.id} type="button" variant="outline" size="sm" onClick={() => applyTemplate(template)}>
+                {sentinelText(template, i18n.language).name}
+              </Button>
+            ))}
+          </div>
+        )}
         <div>
           <Label htmlFor="auto-name" hint={t("tasks.optional")}>
             {t("mcp.name")}
@@ -491,6 +527,39 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
             />
           </div>
         )}
+        {kind === "agent_prompt" && (
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("automations.sentinelLabel")}</p>
+              <p className="mt-0.5 text-xs text-fg-subtle">{t("automations.sentinelHint")}</p>
+            </div>
+            <Switch checked={sentinel} onChange={setSentinel} label={t("automations.sentinelLabel")} />
+          </div>
+        )}
+        {(openCalendars.length > 0 || gate) && (
+          <div>
+            <Label htmlFor="auto-gate">{t("automations.gate")}</Label>
+            <Select id="auto-gate" value={gate} onChange={(e) => setGate(e.target.value)}>
+              <option value="">{t("automations.gateNone")}</option>
+              {openCalendars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {t("automations.gateCalendar", { name: c.name })}
+                </option>
+              ))}
+              {gate && !openCalendars.some((c) => c.id === gate) && <option value={gate}>{t("automations.gateClosed")}</option>}
+            </Select>
+            <p className="mt-1 text-xs text-fg-subtle">{t("automations.gateHint")}</p>
+          </div>
+        )}
+        <div>
+          <Label htmlFor="auto-priority">{t("automations.priority")}</Label>
+          <Select id="auto-priority" value={priority} onChange={(e) => setPriority(e.target.value as AutomationPriority)}>
+            {AUTOMATION_PRIORITIES.map((p) => (
+              <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-fg-subtle">{t(priority === "high" ? "automations.priorityHighHint" : "automations.priorityHint")}</p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 sm:col-span-1">
             <Label htmlFor="auto-type">{t("automations.repeat")}</Label>

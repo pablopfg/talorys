@@ -491,6 +491,183 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 19,
+    name: "alert center",
+    statements: [
+      // Notifications written before the alert center were all sent to every push device: normal.
+      `ALTER TABLE tal_notifications ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
+      `ALTER TABLE tal_notifications ADD COLUMN category TEXT NOT NULL DEFAULT 'system'`,
+      // The same key within its cooldown is not raised again (e.g. one "task overdue" per day).
+      `ALTER TABLE tal_notifications ADD COLUMN dedupe_key TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_dedupe ON tal_notifications(dedupe_key, created_at)`,
+      // One row per alert and channel: what was sent, held back or failed. Metadata only, no body.
+      `CREATE TABLE IF NOT EXISTS tal_alert_deliveries (
+        id TEXT PRIMARY KEY,
+        notification_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        category TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT,
+        reached INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS tal_alert_deliveries_channel ON tal_alert_deliveries(channel, status, created_at)`,
+      `CREATE INDEX IF NOT EXISTS tal_alert_deliveries_created ON tal_alert_deliveries(created_at)`,
+    ],
+  },
+  {
+    version: 20,
+    name: "insistent alerts",
+    statements: [
+      // A high or critical alert is sent again until the owner confirms it (ESCALATION).
+      `ALTER TABLE tal_notifications ADD COLUMN escalation TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN attempts INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE tal_notifications ADD COLUMN next_attempt_at TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_escalation ON tal_notifications(escalation, next_attempt_at)`,
+      // The priority of the alerts an automation raises; existing ones stay normal.
+      `ALTER TABLE tal_automations ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
+    ],
+  },
+  {
+    version: 21,
+    name: "learned alert priority",
+    statements: [
+      // The profile an alert belongs to, why it got its priority, and the one behaviour signal it gave.
+      `ALTER TABLE tal_notifications ADD COLUMN profile TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN priority_reason TEXT`,
+      `ALTER TABLE tal_notifications ADD COLUMN signal TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_profile ON tal_notifications(profile, created_at)`,
+      `CREATE TABLE IF NOT EXISTS tal_alert_profiles (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL,
+        label TEXT,
+        shift INTEGER NOT NULL DEFAULT 0,
+        pinned TEXT,
+        score REAL NOT NULL DEFAULT 0,
+        samples INTEGER NOT NULL DEFAULT 0,
+        changed_at TEXT,
+        last_change INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      // The owner's corrections, newest kept; the agent reads the latest reminder ones.
+      `CREATE TABLE IF NOT EXISTS tal_alert_corrections (
+        id TEXT PRIMARY KEY,
+        notification_id TEXT NOT NULL,
+        profile TEXT NOT NULL,
+        category TEXT NOT NULL,
+        text TEXT NOT NULL,
+        from_priority TEXT NOT NULL,
+        to_priority TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+    ],
+  },
+  {
+    version: 22,
+    name: "push device last seen",
+    statements: [
+      // When each push device last opened Talorys signed in; devices away PUSH_INACTIVE_DAYS are removed.
+      `ALTER TABLE tal_push_subscriptions ADD COLUMN last_seen_at TEXT`,
+      // Devices from before count from the update, so none is removed the moment it lands.
+      `UPDATE tal_push_subscriptions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE last_seen_at IS NULL`,
+    ],
+  },
+  {
+    version: 23,
+    name: "events access tokens",
+    statements: [
+      // SQLite can't change a CHECK: the table moves aside and a new one takes its name, now
+      // accepting the "events" scope. Migrations never DROP, so the old one stays, emptied.
+      `ALTER TABLE tal_remote_tokens RENAME TO tal_remote_tokens_v8`,
+      `CREATE TABLE tal_remote_tokens (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        hint TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK (scope IN ('read','write','events')),
+        created_at TEXT NOT NULL,
+        last_used_at TEXT,
+        expires_at TEXT
+      )`,
+      `INSERT INTO tal_remote_tokens (id, name, token_hash, hint, scope, created_at, last_used_at, expires_at)
+        SELECT id, name, token_hash, hint, scope, created_at, last_used_at, expires_at FROM tal_remote_tokens_v8 ORDER BY rowid`,
+      // Credentials live in one place only.
+      `DELETE FROM tal_remote_tokens_v8`,
+    ],
+  },
+  {
+    version: 24,
+    name: "sentinel routines",
+    statements: [
+      // An AI routine that only notifies when something needs the owner; existing ones keep notifying.
+      `ALTER TABLE tal_automations ADD COLUMN sentinel INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    version: 25,
+    name: "passkeys",
+    statements: [
+      // A passkey's public key and signature counter; nothing here can sign in on its own.
+      `CREATE TABLE IF NOT EXISTS tal_passkeys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        public_key TEXT NOT NULL,
+        counter INTEGER NOT NULL DEFAULT 0,
+        transports TEXT NOT NULL DEFAULT '[]',
+        rp_id TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT
+      )`,
+      // The WebAuthn challenge sent for a sign-in waiting for its second step, used once.
+      `ALTER TABLE tal_mfa_challenges ADD COLUMN passkey_challenge TEXT`,
+    ],
+  },
+  {
+    version: 26,
+    name: "google calendar",
+    statements: [
+      // The one Google account connected. Tokens are AES-GCM sealed; none of this goes into backups.
+      `CREATE TABLE IF NOT EXISTS tal_google_account (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        email TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        access_token TEXT,
+        access_expires_at INTEGER,
+        scopes TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'connected',
+        error TEXT,
+        connected_at TEXT NOT NULL,
+        checked_at TEXT
+      )`,
+      // Calendars of that account and what the agent may do with each: off, read, or read and write.
+      `CREATE TABLE IF NOT EXISTS tal_google_calendars (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        access_role TEXT NOT NULL,
+        time_zone TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        mode TEXT NOT NULL DEFAULT 'off' CHECK (mode IN ('off','read','write')),
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
+  {
+    version: 27,
+    name: "calendar routines",
+    statements: [
+      // A notice some minutes before a calendar's first event of the day, with the owner's text.
+      `ALTER TABLE tal_google_calendars ADD COLUMN notice_minutes INTEGER`,
+      `ALTER TABLE tal_google_calendars ADD COLUMN notice_text TEXT`,
+      // An automation that runs only on days with events on this calendar.
+      `ALTER TABLE tal_automations ADD COLUMN calendar_gate TEXT`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

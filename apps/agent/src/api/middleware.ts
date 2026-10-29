@@ -6,7 +6,16 @@ import { AppError, ValidationError } from "./errors";
 import { type ClientGeo, type ClientInfo, DEVICE_COOKIE_MAX_AGE_S, NO_GEO } from "../auth/auth-log";
 
 /** Routes reachable without a session. Nothing here can claim ownership or read owner data. */
-const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "POST /api/auth/mfa", "GET /api/auth/session"]);
+const PUBLIC_ROUTES = new Set([
+  "GET /api/health",
+  "POST /api/auth/login",
+  "POST /api/auth/mfa",
+  "POST /api/auth/mfa/passkey/options",
+  "POST /api/auth/mfa/passkey",
+  "GET /api/auth/session",
+  "POST /api/auth/recovery",
+  "POST /api/auth/recovery/complete",
+]);
 
 /** All a session can do while its password fails the current rules: change it, or leave. */
 const WEAK_PASSWORD_ROUTES = new Set([...PUBLIC_ROUTES, "POST /api/auth/password", "POST /api/auth/logout", "POST /api/auth/heartbeat"]);
@@ -40,7 +49,7 @@ export const requireHttps: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
-function allowedOrigins(c: Context<AppEnv>): Set<string> {
+export function allowedOrigins(c: Context<AppEnv>): Set<string> {
   const origins = new Set([new URL(c.req.url).origin]);
   if (isDevelopment(c)) {
     for (const o of (c.env.env.TALORYS_DEV_ORIGINS ?? "").split(",")) if (o.trim()) origins.add(o.trim());

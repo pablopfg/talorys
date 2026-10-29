@@ -1,4 +1,4 @@
-import { type Automation, type AutomationKind, type AutomationRun, type ScheduleSpec, computeNextRun, scheduleSpecSchema } from "@talorys/shared";
+import { type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, computeNextRun, scheduleSpecSchema } from "@talorys/shared";
 import type { AutomationRepository } from "../db/repositories/automations";
 import type { SettingsService } from "../services/settings";
 import type { ActivityLog } from "../services/usage";
@@ -10,10 +10,15 @@ import { ValidationError } from "../api/errors";
  * after it fires we compute the following occurrence in the owner's timezone.
  * This keeps wall-clock rules correct across DST and timezone changes.
  */
+/** Only an AI routine can decide there is nothing to say. */
+const SENTINEL_ONLY_AI = "Only AI routines can stay quiet when there is nothing to report.";
+
 export interface Scheduler {
   schedule(at: Date, automationId: string): Promise<string>;
   cancel(scheduleId: string): Promise<void>;
   exists(scheduleId: string): Promise<boolean>;
+  /** Wakes the alert center at `at` for an insistent alert's next try (AlertService.escalate). */
+  scheduleAlert?(at: Date, notificationId: string, step: number): Promise<void>;
 }
 
 export type AutomationExecutor = (automation: Automation) => Promise<{ status: "success" | "skipped"; result: string }>;
@@ -32,6 +37,8 @@ export class AutomationService {
     private readonly settings: SettingsService,
     private readonly activity: ActivityLog,
     private readonly scheduler: Scheduler,
+    /** Whether Talorys may read this Google calendar (the owner opened it). */
+    private readonly calendarOpen: (calendarId: string) => boolean = () => false,
   ) {}
 
   private tz(): string {
@@ -46,8 +53,19 @@ export class AutomationService {
     return this.repo.get(id);
   }
 
-  async create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean }): Promise<Automation> {
+  async create(input: {
+    name: string;
+    kind: AutomationKind;
+    message: string;
+    schedule: ScheduleSpec;
+    enabled: boolean;
+    priority?: AutomationPriority;
+    sentinel?: boolean;
+    calendar_gate?: string | null;
+  }): Promise<Automation> {
     const schedule = scheduleSpecSchema.parse(input.schedule);
+    if (input.calendar_gate) this.checkGate(input.calendar_gate);
+    if (input.sentinel && input.kind !== "agent_prompt") throw new ValidationError(SENTINEL_ONLY_AI);
     if ((input.kind === "reminder" || input.kind === "agent_prompt") && !input.message.trim()) {
       throw new ValidationError(input.kind === "reminder" ? "A reminder needs a message." : "An AI automation needs a prompt.");
     }
@@ -61,9 +79,11 @@ export class AutomationService {
 
   async update(
     id: string,
-    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean },
+    patch: { name?: string; message?: string; schedule?: ScheduleSpec; enabled?: boolean; priority?: AutomationPriority; sentinel?: boolean; calendar_gate?: string | null },
   ): Promise<Automation> {
     const existing = this.repo.require(id);
+    if (patch.calendar_gate) this.checkGate(patch.calendar_gate);
+    if (patch.sentinel && existing.kind !== "agent_prompt") throw new ValidationError(SENTINEL_ONLY_AI);
     if (patch.message !== undefined && (existing.kind === "reminder" || existing.kind === "agent_prompt") && !patch.message.trim()) {
       throw new ValidationError(existing.kind === "reminder" ? "A reminder needs a message." : "An AI automation needs a prompt.");
     }
@@ -80,12 +100,20 @@ export class AutomationService {
       message: patch.message,
       schedule: patch.schedule ? scheduleSpecSchema.parse(patch.schedule) : undefined,
       enabled: patch.enabled,
+      priority: patch.priority,
+      sentinel: patch.sentinel,
+      calendar_gate: patch.calendar_gate,
     });
     if (timingChanged) {
       await this.disarm(next);
       next = next.enabled ? await this.arm(next) : this.repo.update(id, { status: "paused", next_run: null, schedule_id: null });
     }
     return next;
+  }
+
+  /** A gate names a calendar Talorys may read: one the owner opened in Settings → Integrations. */
+  private checkGate(calendarId: string): void {
+    if (!this.calendarOpen(calendarId)) throw new ValidationError("Choose a Google calendar that is open in Settings → Integrations.");
   }
 
   private checkEnabledLimit(): void {

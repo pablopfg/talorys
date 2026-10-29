@@ -10,6 +10,7 @@ import {
   bumpFor,
   changelogProblem,
   compareVersions,
+  githubPackage,
   nextVersion,
   prepareRelease,
   releaseChangelog,
@@ -190,6 +191,47 @@ describe("prepare on a copy of the repository files", () => {
       assert.equal(shrinkwrap.packages[`node_modules/${name}`]?.version, spec, `${name} is locked at ${spec}`);
     }
     assert.ok(unreleasedSection(readFileSync(join(root, "CHANGELOG.md"), "utf8")), "CHANGELOG.md has a Não lançado section");
+  });
+});
+
+describe("GitHub Packages", () => {
+  test("renames the installer to the owner's private scope and keeps everything else", () => {
+    const dir = mkdtempSync(join(tmpdir(), "talorys-package-"));
+    try {
+      for (const file of [VERSION_FILES.installer, VERSION_FILES.shrinkwrap]) {
+        mkdirSync(dirname(join(dir, file)), { recursive: true });
+        cpSync(join(root, file), join(dir, file));
+      }
+      const before = JSON.parse(readFileSync(join(dir, VERSION_FILES.installer), "utf8"));
+      const cli = join(dir, "packages/create-talorys/dist/cli.js");
+      mkdirSync(dirname(cli), { recursive: true });
+      writeFileSync(cli, "Run `npx create-talorys@latest update`. Run `npx create-talorys@latest doctor`.");
+      const worker = join(dir, "packages/create-talorys/templates/web/dist/assets/app.js");
+      mkdirSync(dirname(worker), { recursive: true });
+      writeFileSync(worker, "Run `npx create-talorys update`; see create-talorys-docs.");
+      assert.equal(githubPackage(dir, "PabloX/talorys"), "@pablox/create-talorys");
+
+      const pkg = JSON.parse(readFileSync(join(dir, VERSION_FILES.installer), "utf8"));
+      assert.equal(pkg.name, "@pablox/create-talorys");
+      assert.deepEqual(pkg.publishConfig, { registry: "https://npm.pkg.github.com", access: "restricted" });
+      assert.equal(pkg.repository.url, "git+https://github.com/PabloX/talorys.git");
+      // The command, version, files and dependencies are the same as the tested package's.
+      for (const key of ["version", "bin", "files", "dependencies", "engines"]) assert.deepEqual(pkg[key], before[key]);
+      const shrinkwrap = JSON.parse(readFileSync(join(dir, VERSION_FILES.shrinkwrap), "utf8"));
+      assert.equal(shrinkwrap.name, "@pablox/create-talorys");
+      assert.equal(shrinkwrap.packages[""].name, "@pablox/create-talorys");
+      assert.equal(shrinkwrap.packages[""].version, before.version);
+      assert.equal(readFileSync(cli, "utf8"), "Run `npx @pablox/create-talorys@latest update`. Run `npx @pablox/create-talorys@latest doctor`.");
+      assert.equal(readFileSync(worker, "utf8"), "Run `npx @pablox/create-talorys update`; see create-talorys-docs.");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses anything but owner/name", () => {
+    for (const bad of ["", "talorys", "a/b/c", "-x/talorys", "x/ta lorys", "../x", "x/talorys\n"]) {
+      assert.throws(() => githubPackage("/nonexistent", bad), /owner\/name/);
+    }
   });
 });
 

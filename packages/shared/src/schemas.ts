@@ -2,6 +2,8 @@ import { z } from "zod";
 import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
+import { AUTOMATION_PRIORITIES, type AlertCategory, type AlertEscalation, type AlertPriority, type AutomationPriority, type PriorityReason } from "./alerts";
+import { AI_FALLBACKS, AI_PROVIDERS, ANTHROPIC_MODEL_IDS, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODEL_IDS } from "./ai-models";
 
 // ---------- Primitives ----------
 
@@ -177,6 +179,15 @@ export interface Automation {
   schedule: z.infer<typeof scheduleSpecSchema>;
   schedule_description: string;
   enabled: boolean;
+  /** Priority of the alerts this automation raises; a high reminder insists until confirmed. */
+  priority: AutomationPriority;
+  /**
+   * An AI routine that only speaks when something needs the owner (a sentinel): when the model
+   * answers SENTINEL_NOTHING, the run ends quietly with no notification.
+   */
+  sentinel: boolean;
+  /** Runs only on days with an event on this Google calendar (by id); null runs every time. */
+  calendar_gate: string | null;
   status: AutomationStatus;
   schedule_id: string | null;
   next_run: string | null;
@@ -204,7 +215,21 @@ export interface Notification {
   title: string;
   body: string;
   automation_id: string | null;
+  /** How loud the alert is; see ALERT_PRIORITIES. */
+  priority: AlertPriority;
+  /** What the alert is about; see ALERT_CATEGORIES. */
+  category: AlertCategory;
   read_at: string | null;
+  /** Insistence of a high or critical alert; null for alerts that never insist. */
+  escalation: AlertEscalation | null;
+  /** Tries sent so far (1 = only the first). */
+  attempts: number;
+  /** When the next try goes out (or the alert is recorded as unacknowledged), while insisting. */
+  next_attempt_at: string | null;
+  /** The learned profile this alert belongs to (category + origin); null for security alerts. */
+  profile: string | null;
+  /** Why it has this priority; null for alerts raised before the priority learned. */
+  priority_reason: PriorityReason | null;
   created_at: string;
 }
 
@@ -303,6 +328,9 @@ export const automationCreateSchema = z.object({
   message: z.string().trim().max(4000).optional().default(""),
   schedule: scheduleSpecSchema,
   enabled: z.boolean().optional().default(true),
+  priority: z.enum(AUTOMATION_PRIORITIES).optional().default("normal"),
+  sentinel: z.boolean().optional().default(false),
+  calendar_gate: z.string().min(1).max(1024).nullable().optional().default(null),
 });
 export const automationUpdateSchema = z
   .object({
@@ -310,6 +338,9 @@ export const automationUpdateSchema = z
     message: z.string().trim().max(4000),
     schedule: scheduleSpecSchema,
     enabled: z.boolean(),
+    priority: z.enum(AUTOMATION_PRIORITIES),
+    sentinel: z.boolean(),
+    calendar_gate: z.string().min(1).max(1024).nullable(),
   })
   .partial();
 
@@ -320,6 +351,7 @@ export const limitsSchema = z.object({
   maxContextTokens: z.number().int().min(1000).max(LIMIT_CEILINGS.maxContextTokens),
   maxScheduledAiRunsPerDay: z.number().int().min(0).max(LIMIT_CEILINGS.maxScheduledAiRunsPerDay),
   maxAiRequestsPerDay: z.number().int().min(1).max(LIMIT_CEILINGS.maxAiRequestsPerDay),
+  maxPaidAiUsdPerDay: z.number().min(0).max(LIMIT_CEILINGS.maxPaidAiUsdPerDay),
 });
 export type Limits = z.infer<typeof limitsSchema>;
 
@@ -357,6 +389,14 @@ export const settingsSchema = z.object({
    */
   language: languagePreferenceSchema.catch("system"),
   model: z.string().regex(/^@(cf|hf)\/[\w.\-/]+$/, "Must be a Workers AI model id"),
+  /**
+   * The chat model's provider, its fallback, and the model of each paid provider. A value saved
+   * by a newer version reads as the default, so it can't reset every other setting.
+   */
+  aiProvider: z.enum(AI_PROVIDERS).catch("workers-ai"),
+  aiFallback: z.enum(AI_FALLBACKS).catch("none"),
+  anthropicModel: z.enum(ANTHROPIC_MODEL_IDS).catch(DEFAULT_ANTHROPIC_MODEL),
+  openaiModel: z.enum(OPENAI_MODEL_IDS).catch(DEFAULT_OPENAI_MODEL),
   temperature: z.number().min(0).max(1.5),
   limits: limitsSchema,
   autoMemory: z.boolean(),
@@ -377,6 +417,10 @@ export const settingsUpdateSchema = settingsSchema
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
     customInstructions: customInstructionsSchema.optional(),
+    aiProvider: z.enum(AI_PROVIDERS).optional(),
+    aiFallback: z.enum(AI_FALLBACKS).optional(),
+    anthropicModel: z.enum(ANTHROPIC_MODEL_IDS).optional(),
+    openaiModel: z.enum(OPENAI_MODEL_IDS).optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
     session: sessionTimeoutsSchema.partial().optional(),
@@ -384,7 +428,22 @@ export const settingsUpdateSchema = settingsSchema
 
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
 /** Signing in: the e-mail address is asked for only when OWNER_EMAIL is set. */
-export const signInSchema = loginSchema.extend({ email: z.string().max(254).optional() });
+export const signInSchema = loginSchema.extend({
+  email: z.string().max(254).optional(),
+  /** The Turnstile widget's answer, when the sign-in form showed it (GET /api/auth/session says when). */
+  turnstile_token: z.string().max(2048).optional(),
+});
+/** "Forgot password": the address (when the sign-in asks for one) and the robot check's answer. */
+export const recoveryRequestSchema = z.object({
+  email: z.string().max(254).optional(),
+  turnstile_token: z.string().max(2048).optional(),
+});
+/** The e-mailed link's token, the new password and, with two-step sign-in on, a code. */
+export const recoveryCompleteSchema = z.object({
+  token: z.string().min(16).max(128),
+  new_password: z.string().min(1).max(256),
+  code: z.string().min(1).max(40).optional(),
+});
 /** Step-up: the password, or with two-step sign-in on, a current authenticator code. */
 export const confirmSchema = z
   .object({ password: z.string().min(1).max(256).optional(), code: z.string().min(1).max(40).optional() })
@@ -446,6 +505,8 @@ export type ApiErrorCode =
   | "REAUTH_REQUIRED"
   /** The password in use fails the current rules: only changing it (POST /api/auth/password) works. */
   | "PASSWORD_CHANGE_REQUIRED"
+  /** The sign-in looks risky: solve the Turnstile check (details.site_key) and send its token. */
+  | "HUMAN_CHECK_REQUIRED"
   /** A service the request depends on (such as the breach check) did not answer; retry later. */
   | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR";

@@ -1,8 +1,11 @@
 /** A resource id in an allowlisted path: a UUID, as `newId()` mints them. */
 export const REMOTE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The one route an `events` token may call (POST), and that no other token may. */
+export const REMOTE_EVENTS_PATH = "/api/remote/events";
+
 /** Path segments a token can never reach, even if a future pattern would match them. */
-export const REMOTE_DENIED_SEGMENTS: readonly string[] = ["reviews", "history", "correct", "status", "notifications", "import", "export", "mcp"];
+export const REMOTE_DENIED_SEGMENTS: readonly string[] = ["reviews", "history", "correct", "status", "notifications", "alerts", "telegram", "import", "export", "mcp", "calendar"];
 
 const COLLECTIONS = new Set(["tasks", "notes", "automations", "memories"]);
 const COLLECTION_METHODS = new Set(["GET", "POST"]);

@@ -15,7 +15,7 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 [![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-1f6f63)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-1f6f63)](#-onde-ficam-seus-dados)
 
-[Site](https://rociiu.github.io/talorys/) · [Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+[Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -29,7 +29,7 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 npx create-talorys@latest
 ```
 
-Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#one-worker-without-pages):
+Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [único Worker](docs/deployment.md#um-worker-sem-pages):
 
 [![Instalar com o Appflare](https://appflare.dev/badge.svg)](https://appflare.dev/install/talorys/)
 
@@ -76,7 +76,9 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | ✅ | **Tarefas, notas e projetos** | Criar, ver, editar e apagar pela interface e pelo chat (_"Adicione uma tarefa para revisar meu projeto amanhã"_). Prazos de tarefas criados pelo chat recusam datas impossíveis no calendário, inclusive horários com fuso UTC explícito. |
 | 🗺️ | **Planejamento de tarefas com IA** | Descreva um objetivo (_"Planeje as tarefas para lançar meu app de iOS no mês que vem"_) e receba um plano em um cartão interativo. Revise, edite ou remova tarefas, escolha um projeto e confirme: nada é criado antes disso, e a confirmação cria tudo de uma vez, uma única vez. |
 | ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
-| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Geral**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Avisos**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 📣 | **Central de avisos** | Todo aviso tem prioridade (baixa, normal, alta ou crítica, editável em cada notificação) e categoria. Você escolhe quais categorias saem do app, limita quantas mensagens cada canal manda por hora e por dia e vê o histórico de entregas com o motivo de cada aviso não enviado. Avisos repetidos são descartados. Avisos de prioridade alta insistem (de novo em 15 min e em 1 h) até você tocar em Feito, Adiar ou Silenciar. A prioridade aprende com o seu uso (correções, rapidez, avisos ignorados), no máximo um nível por semana, e você fixa ou zera cada tipo de aviso. Vigias a cada 15 min avisam de prazos, rotinas falhando, MCP sem login, orçamento de IA e backup antigo, e o resumo do dia chega às 07:30. Mudanças de segurança (senha, token, acesso remoto, Telegram, backup) avisam por todos os canais, inclusive e-mail pelo Cloudflare Email Routing, mesmo para quem entrou no app. [Saiba mais](docs/alerts.md) |
+| ✈️ | **Avisos no Telegram** | Um bot do Telegram registra os avisos num grupo (com um tópico por categoria, se o grupo tiver tópicos) ou no chat privado. Discreto por padrão, com texto completo por categoria, e botões para marcar como feito ou adiar 1 hora. No chat privado, você conversa com o Talorys como no app, por texto ou mensagem de voz (até 5 minutos). Só a sua conta é ouvida. [Saiba mais](docs/alerts.md#telegram) |
 
 > [!TIP]
 > No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.
@@ -165,6 +167,9 @@ O Talorys **não** provisiona R2, D1, KV, Vectorize, AI Search, Workflows nem qu
 
 ## 🚀 Implantação
 
+> [!IMPORTANT]
+> **Guia completo de instalação na Cloudflare, passo a passo:** [docs/instalacao-cloudflare.md](docs/instalacao-cloudflare.md). Ele cobre conta, domínio, HTTPS, token, GitHub (regras, ambientes, Actions, secret scanning, CodeQL), primeiro deploy, segredos, Access, Turnstile, e-mail, push, Telegram, n8n, MCP e a primeira release.
+
 ```bash
 npx create-talorys@latest
 ```
@@ -222,7 +227,7 @@ Veja [docs/deployment.md](docs/deployment.md).
 
 Abra a URL que o instalador mostrar, digite a senha do dono e comece a conversar. Entre por quantos aparelhos quiser — todos são o mesmo dono. Gerencie as sessões em **Configurações → Segurança**.
 
-Esqueceu a senha? No seu diretório `talorys/`:
+Esqueceu a senha? Com os avisos por e-mail configurados, use **Esqueceu a senha?** na tela de login: chega um link de uso único, válido por 30 minutos (com a verificação em duas etapas ligada, ele também pede o código). Sem e-mail, no seu diretório `talorys/`:
 
 ```bash
 npx create-talorys@latest reset-password
@@ -241,7 +246,7 @@ Todos os dados ficam num único Durable Object com SQLite (`personal-agent`) **n
 
 A Cloudflare processa seus dados para prestar os serviços dela — inclusive a inferência do Workers AI sobre as suas mensagens do chat e as memórias relevantes incluídas em cada prompt. Leia a política de privacidade da Cloudflare e os termos do Workers AI.
 
-Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia os argumentos dessa chamada ao servidor, fora da sua conta Cloudflare. Nada é enviado a um servidor MCP a menos que você o tenha conectado e ligado a ferramenta. Veja [docs/mcp.md](docs/mcp.md#privacy).
+Se você conectar um servidor MCP remoto, chamar uma das ferramentas dele envia os argumentos dessa chamada ao servidor, fora da sua conta Cloudflare. Nada é enviado a um servidor MCP a menos que você o tenha conectado e ligado a ferramenta. Veja [docs/mcp.md](docs/mcp.md#privacidade).
 
 | Leia mais | |
 | --- | --- |

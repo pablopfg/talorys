@@ -1,12 +1,21 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AtSign, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
+import { AtSign, Eye, EyeOff, Fingerprint, KeyRound, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
+import { TurnstileWidget } from "../components/TurnstileWidget";
 import { Button } from "../components/ui";
+import type { HumanCheck } from "../hooks/session";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 
-export function LoginPage({ configured, ended, emailRequired = false }: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean }) {
+export function LoginPage({
+  configured,
+  ended,
+  emailRequired = false,
+  humanCheck,
+  canRecover = false,
+}: { configured: boolean; ended?: "idle" | "ended"; emailRequired?: boolean; humanCheck?: HumanCheck; canRecover?: boolean }) {
   const { t, rich } = useI18n();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -20,10 +29,46 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
   const [codeStep, setCodeStep] = useState(false);
   const [code, setCode] = useState("");
   const [recovery, setRecovery] = useState(false);
+  const [passkey, setPasskey] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   // Kept from the moment the lock screen appeared, so a later session refresh doesn't erase it.
   const [endedReason] = useState(ended);
+  // The robot check: shown only when the server says this sign-in looks risky (a recent failure,
+  // or an attack in progress). Its site key comes with the session or with the refusal.
+  const [humanKey, setHumanKey] = useState<string | null>(humanCheck?.required ? humanCheck.site_key : null);
+  const [humanToken, setHumanToken] = useState<string | null>(null);
+  const [humanBroken, setHumanBroken] = useState(false);
+  // A token works once: a new widget after every try.
+  const [humanRound, setHumanRound] = useState(0);
+  useEffect(() => {
+    if (humanCheck?.required) setHumanKey(humanCheck.site_key);
+  }, [humanCheck?.required, humanCheck?.site_key]);
+  // A widget that can't load doesn't lock the form: the server decides whether it was needed.
+  const humanMissing = humanKey !== null && !humanToken && !humanBroken;
+  // "Forgot password": the address (when asked for) and, with Turnstile on, always the robot check.
+  const [forgot, setForgot] = useState<"form" | "sent" | null>(null);
+  const [forgotToken, setForgotToken] = useState<string | null>(null);
+  const [forgotRound, setForgotRound] = useState(0);
+  const forgotKey = humanCheck?.site_key ?? null;
+
+  async function requestLink(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || pending || (forgotKey && !forgotToken && !humanBroken)) return;
+    setPending(true);
+    setError(null);
+    const token = forgotToken;
+    setForgotToken(null);
+    setForgotRound((n) => n + 1);
+    try {
+      await api("/auth/recovery", { method: "POST", body: { email, ...(token ? { turnstile_token: token } : {}) } });
+      setForgot("sent");
+    } catch (err) {
+      setError(err instanceof ApiError && err.code === "RATE_LIMITED" ? t("login.rateLimited") : err instanceof Error ? err.message : t("login.failed"));
+    } finally {
+      setPending(false);
+    }
+  }
 
   useEffect(() => {
     if (!retryAt) return;
@@ -34,20 +79,33 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0) return;
+    if (!password || (emailRequired && !email.trim()) || pending || waitSeconds > 0 || humanMissing) return;
     setPending(true);
     setError(null);
+    const token = humanToken;
+    if (humanKey !== null) {
+      setHumanToken(null);
+      setHumanRound((n) => n + 1);
+    }
     try {
-      const result = await api<{ authenticated: boolean; mfa_required?: boolean }>("/auth/login", { method: "POST", body: emailRequired ? { email, password } : { password } });
+      const body = { password, ...(emailRequired ? { email } : {}), ...(token ? { turnstile_token: token } : {}) };
+      const result = await api<{ authenticated: boolean; mfa_required?: boolean; passkey?: boolean }>("/auth/login", { method: "POST", body });
       setPassword("");
       if (result.mfa_required) {
         setCodeStep(true);
+        setPasskey(!!result.passkey);
         setCode("");
         setRecovery(false);
         return;
       }
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
+      const check = err instanceof ApiError ? (err.details as { human_check?: string; site_key?: string } | undefined) : undefined;
+      if (check?.human_check && check.site_key) {
+        // The next try from here needs the check (or it must be done again).
+        if (humanKey === null) setHumanRound((n) => n + 1);
+        setHumanKey(check.site_key);
+      }
       if (err instanceof ApiError && err.code === "RATE_LIMITED") {
         const seconds = (err.details as { retry_after?: number } | undefined)?.retry_after ?? 60;
         setRetryAt(Date.now() + seconds * 1000);
@@ -57,6 +115,35 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
       }
       setPassword("");
       inputRef.current?.focus();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  /** A failed second step: back to the password when the challenge is over, else try again here. */
+  function secondStepFailed(err: unknown) {
+    setError(err instanceof Error ? err.message : t("login.failed"));
+    if (err instanceof ApiError && (err.details as { mfa?: string } | undefined)?.mfa === "expired") {
+      setCodeStep(false);
+      inputRef.current?.focus();
+    } else {
+      codeRef.current?.focus();
+    }
+  }
+
+  async function signInWithPasskey() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const { options } = await api<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"] }>("/auth/mfa/passkey/options", { method: "POST", body: {} });
+      const response = await startAuthentication({ optionsJSON: options });
+      await api("/auth/mfa/passkey", { method: "POST", body: { response } });
+      await qc.invalidateQueries({ queryKey: ["session"] });
+    } catch (err) {
+      // Closing the browser's prompt isn't a wrong answer: the code is still there to use.
+      if (err instanceof Error && (err.name === "NotAllowedError" || err.name === "AbortError")) setError(t("login.passkeyCancelled"));
+      else secondStepFailed(err);
     } finally {
       setPending(false);
     }
@@ -72,14 +159,8 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
       await qc.invalidateQueries({ queryKey: ["session"] });
     } catch (err) {
       setCode("");
-      setError(err instanceof Error ? err.message : t("login.failed"));
       // A challenge that ran out (time or tries) starts again from the password.
-      if (err instanceof ApiError && (err.details as { mfa?: string } | undefined)?.mfa === "expired") {
-        setCodeStep(false);
-        inputRef.current?.focus();
-      } else {
-        codeRef.current?.focus();
-      }
+      secondStepFailed(err);
     } finally {
       setPending(false);
     }
@@ -115,6 +196,11 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
       <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!code.trim()}>
         {t("login.verify")}
       </Button>
+      {passkey && (
+        <Button type="button" variant="outline" className="h-12 w-full justify-center rounded-xl text-[15px]" disabled={pending} onClick={() => void signInWithPasskey()}>
+          <Fingerprint className="h-4 w-4" /> {t("login.usePasskey")}
+        </Button>
+      )}
       {error && (
         <p id="login-error" role="alert" className="text-center text-sm text-danger">
           {error}
@@ -153,6 +239,70 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
           </div>
         ) : codeStep ? (
           codeForm
+        ) : forgot ? (
+          <form onSubmit={requestLink} className="space-y-3" noValidate>
+            <h2 className="text-center text-base font-semibold">{t("login.recoverTitle")}</h2>
+            {forgot === "sent" ? (
+              <p role="status" className="rounded-lg border border-border bg-surface p-3 text-center text-sm leading-6 text-fg-muted">
+                {t("login.recoverSent")}
+              </p>
+            ) : (
+              <>
+                <p className="text-center text-sm leading-6 text-fg-muted">{t("login.recoverHint")}</p>
+                <div className="relative">
+                  <label htmlFor="recover-email" className="sr-only">
+                    {t("login.email")}
+                  </label>
+                  <AtSign className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+                  <input
+                    id="recover-email"
+                    type="email"
+                    autoComplete="username"
+                    autoFocus
+                    placeholder={t("login.emailPlaceholder")}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] shadow-sm placeholder:text-fg-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  />
+                </div>
+                {forgotKey && (
+                  <TurnstileWidget
+                    key={`${forgotKey}-${forgotRound}`}
+                    siteKey={forgotKey}
+                    action="recovery"
+                    onToken={(value) => {
+                      setForgotToken(value);
+                      if (value) setHumanBroken(false);
+                    }}
+                    onError={() => setHumanBroken(true)}
+                  />
+                )}
+                <Button
+                  type="submit"
+                  className="h-12 w-full justify-center rounded-xl text-[15px]"
+                  loading={pending}
+                  disabled={!email.trim() || (!!forgotKey && !forgotToken && !humanBroken)}
+                >
+                  {t("login.recoverSend")}
+                </Button>
+                {error && (
+                  <p id="login-error" role="alert" className="text-center text-sm text-danger">
+                    {error}
+                  </p>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              className="w-full text-center text-sm text-fg-muted hover:text-fg"
+              onClick={() => {
+                setForgot(null);
+                setError(null);
+              }}
+            >
+              {t("login.recoverBack")}
+            </button>
+          </form>
         ) : (
           <form onSubmit={submit} className="space-y-3" noValidate>
             {endedReason && !error && (
@@ -209,13 +359,44 @@ export function LoginPage({ configured, ended, emailRequired = false }: { config
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <Button type="submit" className="h-12 w-full justify-center rounded-xl text-[15px]" loading={pending} disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0}>
+            {humanKey !== null && (
+              <div className="space-y-1.5">
+                <p className="text-center text-sm leading-6 text-fg-muted">{humanBroken ? t("login.humanCheckBroken") : t("login.humanCheckHint")}</p>
+                <TurnstileWidget
+                  key={`${humanKey}-${humanRound}`}
+                  siteKey={humanKey}
+                  onToken={(value) => {
+                    setHumanToken(value);
+                    if (value) setHumanBroken(false);
+                  }}
+                  onError={() => setHumanBroken(true)}
+                />
+              </div>
+            )}
+            <Button
+              type="submit"
+              className="h-12 w-full justify-center rounded-xl text-[15px]"
+              loading={pending}
+              disabled={!password || (emailRequired && !email.trim()) || waitSeconds > 0 || humanMissing}
+            >
               {waitSeconds > 0 ? t("login.tryAgainIn", { seconds: waitSeconds }) : t("login.unlock")}
             </Button>
             {error && (
               <p id="login-error" role="alert" className="text-center text-sm text-danger">
                 {error}
               </p>
+            )}
+            {canRecover && (
+              <button
+                type="button"
+                className="w-full text-center text-sm text-accent hover:underline"
+                onClick={() => {
+                  setForgot("form");
+                  setError(null);
+                }}
+              >
+                {t("login.forgot")}
+              </button>
             )}
           </form>
         )}

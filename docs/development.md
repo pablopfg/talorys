@@ -1,119 +1,136 @@
-# Development
+# Desenvolvimento
 
 ```bash
 npm install
 npm run dev
 ```
 
-| Process | Port | Purpose |
+| Processo | Porta | Para quê |
 | --- | --- | --- |
-| `wrangler dev --local` (apps/agent) | 8787 | Agent Worker + Durable Object (state in `.wrangler/state`) |
-| `wrangler pages dev` (apps/web) | 8788 | Real Pages Function + `AGENT` service binding |
-| Vite | 5173 | UI with HMR; proxies `/api` to 8788 |
+| `wrangler dev --local` (apps/agent) | 8787 | Worker do agente + Durable Object (estado em `.wrangler/state`) |
+| `wrangler pages dev` (apps/web) | 8788 | Pages Function real + service binding `AGENT` |
+| Vite | 5173 | Interface com HMR; repassa `/api` para a 8788 |
 
-`scripts/dev-setup.mjs` creates `apps/agent/.dev.vars` (git-ignored) with
-`TALORYS_ENV=development`, the mock AI provider, a local password hash and a
-session secret and a Web Push key pair (browsers allow push on `localhost`). Set `TALORYS_DEV_PASSWORD` before the first run to choose the
-password, or delete the file to regenerate. A file made before push existed gets a
-Web Push key pair added on the next run; nothing else in it changes.
+`scripts/dev-setup.mjs` cria `apps/agent/.dev.vars` (ignorado pelo git) com
+`TALORYS_ENV=development`, o provedor de IA simulado, um hash de senha local, um
+segredo de sessão e um par de chaves do Web Push (os navegadores permitem push
+em `localhost`). Defina `TALORYS_DEV_PASSWORD` antes da primeira execução para
+escolher a senha, ou apague o arquivo para gerá-lo de novo. Um arquivo criado
+antes de o push existir ganha um par de chaves do Web Push na próxima execução;
+nada mais nele muda.
 
-### Real Workers AI locally
+### Workers AI real no ambiente local
 
 ```bash
 npx wrangler login
-npm run dev:remote-ai -w @talorys/agent   # instead of dev:agent
+npm run dev:remote-ai -w @talorys/agent   # no lugar de dev:agent
 ```
 
 ### Scripts
 
-| Script | What it does |
+| Script | O que faz |
 | --- | --- |
-| `npm run build` | Web build, Worker bundle (dry run), CLI + templates |
-| `npm test` | Shared, agent (inside workerd), Pages Function and installer tests |
-| `npm run test:e2e` | Playwright UI tests on an isolated local stack |
-| `npm run test:pack` | `npm pack` the installer and run it outside the monorepo |
-| `npm run test:smoke` | Optional real Cloudflare deployment test |
-| `npm run typecheck` | TypeScript across all workspaces |
+| `npm run build` | Build da web, bundle do Worker (simulação), CLI + templates |
+| `npm test` | Testes do shared, do agente (dentro do workerd), da Pages Function e do instalador |
+| `npm run test:e2e` | Testes de interface com Playwright num ambiente local isolado |
+| `npm run test:pack` | Roda `npm pack` no instalador e o executa fora do monorepo |
+| `npm run test:smoke` | Teste opcional com um deploy real na Cloudflare |
+| `npm run typecheck` | TypeScript em todos os workspaces |
 | `npm run lint` | Biome |
 
-### Mock AI intents
+### Intenções da IA simulada
 
 `remember …`, `add task …`, `add note …`, `complete task …`, `list tasks`,
-`remind me in N minutes to …`, `search …`. Anything else gets an echo reply.
+`remind me in N minutes to …`, `search …`. Qualquer outra coisa recebe uma
+resposta de eco.
 
-### Semantic recall
+### Busca semântica
 
-With the mock AI provider (or demo mode), [semantic recall](semantic-recall.md)
-uses the mock embedder instead of Workers AI: a deterministic hashed bag of
-words plus a small concept table (car/tesla/oil, vegetarian/dinner,
-peanut/allergic, city/denver, heights/mountains/knee). It exercises the full
-code path offline but does not produce real semantic similarity. The Settings
-card shows "Mock (local dev)" as the embedder. Use `dev:remote-ai` to try real
-embeddings.
+Com o provedor de IA simulado (ou no modo Demo), a
+[busca semântica](semantic-recall.md) usa o gerador de embeddings simulado no
+lugar do Workers AI: um saco de palavras com hash determinístico mais uma
+pequena tabela de conceitos (car/tesla/oil, vegetarian/dinner, peanut/allergic,
+city/denver, heights/mountains/knee). Ele percorre o caminho de código completo
+sem rede, mas não produz semelhança semântica de verdade. O cartão nas
+Configurações mostra "Simulado (dev local)" como gerador de embeddings. Use
+`dev:remote-ai` para testar embeddings reais.
 
-### Adding a tool
+### Adicionar uma ferramenta
 
-1. Create `apps/agent/src/tools/<name>.ts` with `defineTool({...})` entries.
-2. Register them in `apps/agent/src/tools/index.ts`.
-3. Add tests in `apps/agent/test/`.
+1. Crie `apps/agent/src/tools/<nome>.ts` com entradas `defineTool({...})`.
+2. Registre-as em `apps/agent/src/tools/index.ts`.
+3. Adicione testes em `apps/agent/test/`.
 
-### UI text and languages
+### Textos da interface e idiomas
 
-UI text lives in `apps/web/src/lib/i18n/en.ts`. Components read it through
-`useI18n()`: `t("key")` for plain strings and attributes, `rich("key", {...})`
-when a parameter is an element such as `<code>`. Placeholders are written as
-`{name}` and their names are type-checked against the English text. A plural
-message is an object keyed by `Intl.PluralRules` categories (`one`, `few`,
-`many`, `other`, ...) and takes `{count}`.
+Os textos da interface ficam em `apps/web/src/lib/i18n/en.ts`. Os componentes os
+leem por `useI18n()`: `t("chave")` para textos simples e atributos,
+`rich("chave", {...})` quando um parâmetro é um elemento, como `<code>`. Os
+marcadores são escritos como `{nome}`, e os nomes deles são conferidos pelo
+TypeScript contra o texto em inglês. Uma mensagem com plural é um objeto com as
+categorias do `Intl.PluralRules` como chaves (`one`, `few`, `many`, `other`,
+...) e recebe `{count}`.
 
-Keys are grouped by where the text appears: `nav.*` for the app shell,
-`tasks.*`, `memory.*` and so on for each page. Labels that many screens share,
-such as Cancel, Delete and Close, live under `common.*`.
+As chaves são agrupadas por onde o texto aparece: `nav.*` para a estrutura do
+app, `tasks.*`, `memory.*` e assim por diante para cada página. Rótulos que
+muitas telas compartilham, como Cancelar, Excluir e Fechar, ficam em
+`common.*`.
 
-Pass `locale` from `useI18n()` to `formatDateTime`, `relativeTime`,
-`toLocaleString` and other display formatters, so dates and numbers follow the
-chosen language.
+Passe o `locale` de `useI18n()` para `formatDateTime`, `relativeTime`,
+`toLocaleString` e os outros formatadores de exibição, para que datas e números
+sigam o idioma escolhido.
 
-The default language is Brazilian Portuguese (`DEFAULT_LANGUAGE` in
-`packages/shared/src/constants.ts`). It applies to new installations, and to
-"Browser default" when the browser asks for a language Talorys doesn't have.
-A deployment can pick another default with the `TALORYS_DEFAULT_LANGUAGE`
-Worker variable (`en`, `ko`, `pt-BR` or `system`); the agent tests and the e2e
-server set it to `en`, and the e2e browser starts in English.
+O idioma padrão é o português do Brasil (`DEFAULT_LANGUAGE` em
+`packages/shared/src/constants.ts`). Ele vale para instalações novas e para
+"Padrão do navegador" quando o navegador pede um idioma que o Talorys não tem.
+Uma instalação pode escolher outro padrão com a variável
+`TALORYS_DEFAULT_LANGUAGE` do Worker (`en`, `ko`, `pt-BR` ou `system`); os
+testes do agente e o servidor dos testes e2e a definem como `en`, e o navegador
+dos testes e2e começa em inglês.
 
-To add a language:
+Para adicionar um idioma:
 
-1. Add its code to `LANGUAGES` in `packages/shared/src/constants.ts`.
-2. Create `apps/web/src/lib/i18n/<code>.ts` exporting an object that
-   `satisfies Translation`. Keys missing from it fall back to English; keys
-   that don't exist in English are a type error.
-3. Register it in `translations` in `apps/web/src/lib/i18n/core.ts` and add its
-   name, in that language, to `LANGUAGE_NAMES` in `apps/web/src/lib/i18n/index.tsx`.
+1. Adicione o código dele a `LANGUAGES` em `packages/shared/src/constants.ts`.
+2. Crie `apps/web/src/lib/i18n/<código>.ts` exportando um objeto que
+   `satisfies Translation`. As chaves que faltarem nele caem para o inglês;
+   chaves que não existem em inglês são erro de tipo.
+3. Registre-o em `translations` em `apps/web/src/lib/i18n/core.ts` e adicione o
+   nome dele, no próprio idioma, a `LANGUAGE_NAMES` em
+   `apps/web/src/lib/i18n/index.tsx`.
 
-Text generated on the server (API errors, notifications, digests, tool and
-approval labels, automation errors) is written in English and stored that way.
-`packages/shared/src/server-text.ts` translates it from a catalog keyed by the
-English text, with `{name}` placeholders for the parts that vary. The web app
-shows it through `serverText(text)` from `useI18n()`, and Web Push translates
-title and body before sending, using the owner's language setting. Text the
-catalog doesn't know, such as what the model wrote, is shown as it is. The
-agent's system prompt and tool descriptions are not translated; the model
-answers in the language the owner writes in.
+Os textos gerados no servidor (erros da API, notificações, resumos, rótulos de
+ferramentas e de aprovações, erros de automações) são escritos em inglês e
+guardados assim. `packages/shared/src/server-text.ts` os traduz a partir de um
+catálogo cujas chaves são o texto em inglês, com marcadores `{nome}` para as
+partes que variam. O app web os mostra por `serverText(texto)`, de `useI18n()`,
+e o Web Push traduz o título e o corpo antes de enviar, usando o idioma
+configurado pelo dono. Um texto que o catálogo não conhece, como o que o modelo
+escreveu, aparece como está. O prompt de sistema do agente e as descrições das
+ferramentas não são traduzidos; o modelo responde no idioma em que o dono
+escreve.
 
-CI keeps translations complete as the code changes:
+O CI mantém as traduções completas conforme o código muda:
 
-- `apps/web/test/i18n-coverage.test.ts` fails when an English key has no
-  `pt-BR` message, when a translation drops a placeholder, or when a component
-  writes UI text directly instead of using `t()`. A developer-only string can
-  opt out with an `// i18n-ignore` comment on the line above.
-- `apps/web/test/server-text-coverage.test.ts` fails when the agent throws an
-  error or sets a label, summary, reason, title or body whose text is not in
-  the server-text catalog.
+- `apps/web/test/i18n-coverage.test.ts` falha quando uma chave em inglês não tem
+  mensagem em `pt-BR`, quando uma tradução perde um marcador ou quando um
+  componente escreve texto de interface diretamente, em vez de usar `t()`. Um
+  texto só para desenvolvedores pode ficar de fora com um comentário
+  `// i18n-ignore` na linha de cima.
+- `apps/web/test/server-text-coverage.test.ts` falha quando o agente lança um
+  erro ou define um rótulo, resumo, motivo, título ou corpo cujo texto não está
+  no catálogo de textos do servidor.
 
-So a change that adds text adds it to `en.ts` and `pt-BR.ts` (or to the
-server-text catalog) in the same pull request.
+Então uma mudança que acrescenta texto o acrescenta a `en.ts` e a `pt-BR.ts` (ou
+ao catálogo de textos do servidor) no mesmo pull request.
 
-### Adding a migration
+### Documentação
 
-Append to `MIGRATIONS` in `apps/agent/src/db/migrations.ts` with the next
-version. Never edit existing entries or drop owner data.
+A documentação em `docs/`, o `README.md`, o `CHANGELOG.md` e os textos de PRs,
+commits e releases são escritos em português do Brasil. Nomes de código,
+comandos, variáveis e rótulos de serviços de terceiros que não têm interface em
+português (GitHub, Cloudflare, Google Cloud) ficam como aparecem na tela.
+
+### Adicionar uma migration
+
+Acrescente ao `MIGRATIONS` em `apps/agent/src/db/migrations.ts` com a próxima
+versão. Nunca edite entradas existentes nem apague dados do dono.

@@ -12,6 +12,7 @@ import {
   scheduleSpecSchema,
 } from "@talorys/shared";
 import type { Services } from "./container";
+import { raiseSecurityAlert } from "../alerts/security";
 import { ValidationError } from "../api/errors";
 import { decodeTools } from "../db/repositories/conversations";
 import { validateEndpoint } from "../mcp/url";
@@ -19,10 +20,10 @@ import { REMOTE_ID_PATTERN } from "../remote/allowlist";
 import { clip } from "./text";
 
 /**
- * Settings a backup may never change: they control cost, model behaviour and how long a
- * session lasts, and a backup file is untrusted input. The owner changes them in Settings instead.
+ * Settings a backup may never change: they control cost, model behaviour (the agent's name and
+ * instructions go into every prompt) and how long a session lasts, and a backup file is untrusted input. The owner changes them in Settings instead.
  */
-export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "customInstructions", "memoryHistory", "session"] as const;
+export const IMPORT_IGNORED_SETTINGS = ["model", "aiProvider", "aiFallback", "anthropicModel", "openaiModel", "limits", "demoMode", "autoMemory", "customInstructions", "agentName", "memoryHistory", "session"] as const;
 
 /** Builds a portable backup. Sessions, login attempts and credentials are never exported. */
 export function exportData(s: Services): Backup {
@@ -44,8 +45,8 @@ export function exportData(s: Services): Backup {
       notes: db.all(`SELECT * FROM tal_notes ORDER BY created_at`),
       projects: db.all(`SELECT * FROM tal_projects ORDER BY created_at`),
       automations: db
-        .all<Record<string, unknown>>(`SELECT id, name, kind, message, schedule, enabled, created_at, updated_at FROM tal_automations`)
-        .map((a) => ({ ...a, schedule: JSON.parse(String(a.schedule)), enabled: a.enabled === 1 })),
+        .all<Record<string, unknown>>(`SELECT id, name, kind, message, schedule, enabled, priority, sentinel, calendar_gate, created_at, updated_at FROM tal_automations`)
+        .map((a) => ({ ...a, schedule: JSON.parse(String(a.schedule)), enabled: a.enabled === 1, sentinel: a.sentinel === 1 })),
       // Where each server is and how it authenticates; never the credential, a session or tool choices.
       mcp_servers: db.all(`SELECT id, name, url, auth_type, created_at FROM tal_mcp_servers ORDER BY created_at`),
     },
@@ -246,9 +247,12 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
         continue;
       }
       db.run(
-        `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, 'paused', ?, ?)`,
-        a.id, a.name, kind, str(a.message), JSON.stringify(schedule.data), at(a.created_at), now,
+        // A calendar condition is kept as written: until that calendar is open again, runs are skipped with an alert.
+        `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, calendar_gate, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'paused', ?, ?)`,
+        a.id, a.name, kind, str(a.message), JSON.stringify(schedule.data),
+        pick(a.priority, ["low", "normal", "high"], "normal"), kind === "agent_prompt" && (a.sentinel === true || a.sentinel === 1) ? 1 : 0,
+        typeof a.calendar_gate === "string" && a.calendar_gate.length <= 1024 ? a.calendar_gate : null, at(a.created_at), now,
       );
       automations++;
     }
@@ -299,6 +303,8 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
     };
   });
 
+  // The data is in: the owner hears about it even if re-arming the schedules fails below.
+  raiseSecurityAlert(s.alerts, "data_imported");
   // Disarm automations the backup paused; a new timezone also moves the owner's existing schedules.
   if (paused > 0 || s.settings.get().timezone !== previousTimezone) await s.automations.rearmAll();
   s.activity.record("data.imported", `Imported backup from ${backup.exported_at}`);

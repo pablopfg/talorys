@@ -11,7 +11,10 @@ import { useI18n } from "../lib/i18n";
 const DOCS_URL = `${GITHUB_URL}/blob/main/docs/remote-access.md`;
 
 /** A ready-to-run request for the once-only panel, against this install. */
-function curlExample(token: string): string {
+function curlExample(token: string, scope: RemoteScope): string {
+  if (scope === "events") {
+    return `curl -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" -d '{"title":"Test event","source":"n8n"}' ${window.location.origin}/api/remote/events`;
+  }
   return `curl -H "Authorization: Bearer ${token}" ${window.location.origin}/api/tasks`;
 }
 
@@ -37,7 +40,7 @@ export function RemoteAccessCard() {
   const [name, setName] = useState("");
   const [scope, setScope] = useState<RemoteScope>("read");
   // The plaintext lives only here: the create mutation returns the name, never the token.
-  const [plaintext, setPlaintext] = useState<string | null>(null);
+  const [plaintext, setPlaintext] = useState<{ token: string; scope: RemoteScope } | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
   const enabled = status.data?.enabled === true;
   const list = tokens.data ?? [];
@@ -51,7 +54,7 @@ export function RemoteAccessCard() {
       const r = await api<{ token: RemoteTokenInfo & { token: string } }>("/remote/tokens", { method: "POST", body: input });
       // Cleared with the panel's appearance, not after the list refetch: by then the owner may have typed the next name.
       setName("");
-      setPlaintext(r.token.token);
+      setPlaintext({ token: r.token.token, scope: r.token.scope });
       return r.token.name;
     },
     { invalidate: [keys.remoteTokens], success: (n) => t("remote.created", { name: n }) },
@@ -127,10 +130,12 @@ export function RemoteAccessCard() {
                     <Select id="remote-token-scope" value={scope} onChange={(e) => setScope(e.target.value as RemoteScope)}>
                       <option value="read">read</option>
                       <option value="write">write</option>
+                      <option value="events">events</option>
                     </Select>
                   </div>
                 </div>
                 {scope === "write" && <p className="text-xs leading-5 text-warning">{t("remote.writeHint")}</p>}
+                {scope === "events" && <p className="text-xs leading-5 text-fg-subtle">{t("remote.eventsHint")}</p>}
                 <div className="flex justify-end">
                   <Button type="submit" loading={create.isPending} disabled={!enabled || !name.trim()}>
                     <KeyRound className="h-4 w-4" /> {t("remote.generate")}
@@ -140,7 +145,7 @@ export function RemoteAccessCard() {
               {plaintext && (
                 <div className="space-y-3 bg-subtle px-5 py-4" role="region" aria-label={t("remote.newToken")}>
                   <p className="text-sm font-medium text-warning">{t("remote.copyNow")}</p>
-                  <code className="block break-all rounded-lg border border-border bg-surface px-3 py-2 font-mono text-sm">{plaintext}</code>
+                  <code className="block break-all rounded-lg border border-border bg-surface px-3 py-2 font-mono text-sm">{plaintext.token}</code>
                   <p className="text-xs leading-5 text-fg-subtle">
                     {t("remote.useAsBearer")}{" "}
                     <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
@@ -151,13 +156,13 @@ export function RemoteAccessCard() {
                     data-testid="remote-token-example"
                     className="block break-all rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs"
                   >
-                    {curlExample(plaintext)}
+                    {curlExample(plaintext.token, plaintext.scope)}
                   </code>
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => void copy(plaintext)}>
+                    <Button variant="outline" size="sm" onClick={() => void copy(plaintext.token)}>
                       <Copy className="h-3.5 w-3.5" /> {t("chat.copy")}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => void copy(curlExample(plaintext), t("remote.exampleCopied"))}>
+                    <Button variant="outline" size="sm" onClick={() => void copy(curlExample(plaintext.token, plaintext.scope), t("remote.exampleCopied"))}>
                       <Copy className="h-3.5 w-3.5" /> {t("remote.copyExample")}
                     </Button>
                     <Button variant="secondary" size="sm" onClick={() => setPlaintext(null)}>

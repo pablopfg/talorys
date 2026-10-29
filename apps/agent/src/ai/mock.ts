@@ -116,17 +116,17 @@ function planTools(text: string): PlannedCall[] {
       },
     ];
   }
-  if ((m = text.match(/^remind me in (\d+) minutes? to (.+)$/i))) {
+  if ((m = text.match(/^remind me in (\d+) minutes? to (.+?)( until I confirm)?$/i))) {
     return [
       {
         name: "create_reminder",
-        input: { message: m[2], in_minutes: Number(m[1]) },
+        input: { message: m[2], in_minutes: Number(m[1]), ...(m[3] ? { insistent: true } : {}) },
         describe: () => `I'll remind you in ${m![1]} minutes to ${m![2]}.`,
       },
     ];
   }
-  if ((m = text.match(/^call (mcp_\w+)(?:\s+(\{.*\}))?$/is))) {
-    // Exercises a remote MCP tool end to end: "call mcp_docs_search {"query":"x"}".
+  if ((m = text.match(/^call (mcp_\w+|\w+_calendar_\w+)(?:\s+(\{.*\}))?$/is))) {
+    // Exercises a remote MCP or calendar tool end to end: "call mcp_docs_search {"query":"x"}".
     let input: unknown = {};
     try {
       input = m[2] ? JSON.parse(m[2]) : {};

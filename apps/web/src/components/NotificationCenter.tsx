@@ -1,10 +1,26 @@
 import { BellOff, Trash2 } from "lucide-react";
-import { Button, Dialog, EmptyState, Spinner } from "./ui";
+import { type AlertPriority, ESCALATION, type PriorityReason } from "@talorys/shared";
+import { Badge, Button, Dialog, EmptyState, Spinner } from "./ui";
 import { Markdown } from "./Markdown";
 import { keys, useApiMutation, useNotifications } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, relativeTime } from "../lib/utils";
 import { useI18n } from "../lib/i18n";
+import { PRIORITY_LABELS, PRIORITY_TONES } from "../lib/alerts";
+import { ALERT_PROFILES_KEY, CATEGORY_LABELS } from "./AlertsCard";
+import type { PlainMessageKey } from "../lib/i18n";
+
+/** "Why this priority", when it is not simply what the alert asked for. */
+const REASON_TEXT: Partial<Record<PriorityReason, PlainMessageKey>> = {
+  rule: "notifications.reason.rule",
+  raised: "notifications.reason.raised",
+  lowered: "notifications.reason.lowered",
+  pinned: "notifications.reason.pinned",
+  corrected: "notifications.reason.corrected",
+};
+
+/** Priorities the owner can pick; critical is kept for security alerts. */
+const CORRECTABLE: AlertPriority[] = ["low", "normal", "high"];
 
 /** In-app notification center for reminders and automation results. */
 export function NotificationCenter({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -15,6 +31,14 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
     invalidate: [keys.notifications],
   });
   const remove = useApiMutation((id: string) => api(`/notifications/${id}`, { method: "DELETE" }), { invalidate: [keys.notifications] });
+  const mute = useApiMutation((id: string) => api(`/notifications/${id}/action`, { method: "POST", body: { action: "mute" } }), {
+    invalidate: [keys.notifications],
+    success: t("notifications.muted"),
+  });
+  const setPriority = useApiMutation(
+    (v: { id: string; priority: AlertPriority }) => api(`/notifications/${v.id}`, { method: "PATCH", body: { priority: v.priority } }),
+    { invalidate: [keys.notifications, ALERT_PROFILES_KEY], success: t("alerts.priorityChanged") },
+  );
 
   return (
     <Dialog
@@ -51,6 +75,54 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
                 <div className="mt-1 text-sm text-fg-muted">
                   <Markdown content={serverText(n.body)} compact plainLinks />
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
+                  {(n.priority === "high" || n.priority === "critical") && <Badge tone={PRIORITY_TONES[n.priority]}>{t(PRIORITY_LABELS[n.priority])}</Badge>}
+                  <span>{t(CATEGORY_LABELS[n.category])}</span>
+                  {n.escalation === "active" && (
+                    <>
+                      <Badge tone="warning">{t("notifications.insisting", { attempt: n.attempts, max: ESCALATION.attempts })}</Badge>
+                      {n.category === "security" ? (
+                        <span>{t("notifications.confirmOnTelegram")}</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={mute.isPending && mute.variables === n.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            mute.mutate(n.id);
+                          }}
+                        >
+                          {t("notifications.mute")}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {n.escalation === "unacknowledged" && !n.read_at && <Badge tone="danger">{t("notifications.unacknowledged")}</Badge>}
+                  {n.escalation === "muted" && !n.read_at && <span>{t("notifications.mutedLabel")}</span>}
+                  {n.category === "security" ? (
+                    <span>{t("notifications.securityCritical")}</span>
+                  ) : (
+                    <label className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {t("notifications.correct")}
+                      <select
+                        className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-fg-muted"
+                        value={n.priority}
+                        aria-label={t("alerts.changePriority")}
+                        disabled={setPriority.isPending}
+                        onChange={(e) => setPriority.mutate({ id: n.id, priority: e.target.value as AlertPriority })}
+                      >
+                        {/* A critical alert that isn't about security can still be corrected down from it. */}
+                        {(n.priority === "critical" ? [...CORRECTABLE, "critical" as const] : CORRECTABLE).map((p) => (
+                          <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+                {n.priority_reason && REASON_TEXT[n.priority_reason] && (
+                  <p className="mt-1 text-xs text-fg-subtle">{t(REASON_TEXT[n.priority_reason]!)}</p>
+                )}
               </div>
               <button type="button"
                 onClick={() => remove.mutate(n.id)}
