@@ -596,6 +596,42 @@ mesmo com um token de escrita vazado ou importações repetidas:
 - Resolver um conflito de memória com "substituir" ou "cancelar" continua
   excluindo de vez a versão descartada, porque é uma escolha explícita sua.
 
+### Limpeza automática
+
+Ligada por padrão, com uma chave em **Configurações → Privacidade →
+Armazenamento**. A primeira execução espera 7 dias depois do deploy e é
+anunciada com um aviso. Ela roda junto com a verificação de 15 minutos, em
+rodadas curtas, e não usa IA:
+
+- **Toda semana:**
+  - as tarefas concluídas há mais de 90 dias vão para o **arquivo**, onde
+    ficam um ano;
+  - as notas vazias (sem texto e sem título próprio) e paradas há mais de 7
+    dias vão para a lixeira;
+  - as mensagens do chat com mais de 6 meses que o resumo da conversa cobre
+    por completo são removidas de vez. O Talorys anota, a cada resumo, desde
+    quando ele cobre a conversa sem lacunas, e só remove mensagens nesse
+    trecho. O agente continua lendo o resumo. Uma conversa sem resumo, um
+    resumo anterior a esta versão e as mensagens importadas nunca perdem nada.
+- O relatório da semana também conta as notas sem alteração há 6 meses, como
+  sugestão, só quando esse número cresce. Elas nunca são apagadas sozinhas.
+- **A cada 15 dias**, se houver pelo menos 50 memórias novas (ou antes disso,
+  se as memórias passarem de 70% do limite), as memórias repetidas que o agente
+  salvou são combinadas, e a mais recente fica. As repetições são o mesmo texto
+  e a mesma categoria ou, com a busca semântica ligada, um vetor já guardado
+  com cosseno de 0,95 ou mais cuja redação diz a mesma coisa: os mesmos
+  números, a mesma negação e pelo menos 80% das palavras em comum ("alérgico a
+  penicilina" e "não alérgico a penicilina" nunca se juntam). As cópias mais
+  antigas vão para a lixeira por 30 dias.
+- O que nunca é removido: as tarefas abertas; as memórias que você escreveu,
+  editou ou importou; as enviadas por token; as que têm um conflito esperando
+  revisão; e as que sucedem um fato passado, para não perder o histórico.
+- Tudo o que sai, menos as mensagens já resumidas, fica na lixeira ou no
+  arquivo, que funcionam como o ponto de restauração de cada execução. Depois
+  de cada execução que mudou algo, chega um aviso de prioridade baixa com o
+  resumo.
+- Um backup importado não muda essa chave.
+
 ## Instalador
 
 - Os comandos são iniciados com listas de argumentos (sem shell).

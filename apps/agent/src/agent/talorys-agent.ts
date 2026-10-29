@@ -15,7 +15,7 @@ import { localDayBounds, formatLocal } from "../services/time";
 import { defangLinks } from "../services/text";
 import { semanticExtensions } from "../semantic";
 import { AppError } from "../api/errors";
-import { semanticNeighbors } from "../semantic/neighbors";
+import { semanticNeighbors, storedDuplicates } from "../semantic/neighbors";
 import { CLEF_MODEL, type ClefRun } from "../memory/conflict";
 import { createTranscriber, type Transcription } from "../ai/transcription";
 import { classifyAiError } from "../ai/provider";
@@ -161,8 +161,10 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     try {
       // Trash entries go for good when they expire, even if the owner never opens the trash.
       this.services.storage.purgeExpired();
+      // The weekly cleanup and the memory compaction, when due (each round is short).
+      await this.services.retention.runDue((memories, minCosine) => storedDuplicates(this.services, this.env, memories, minCosine));
     } catch (error) {
-      console.warn("Trash purge failed", error instanceof Error ? error.message : String(error));
+      console.warn("Storage maintenance failed", error instanceof Error ? error.message : String(error));
     }
     try {
       // Notices before a calendar's first event, timed to the minute rather than to this round.

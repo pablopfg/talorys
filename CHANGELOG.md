@@ -12,6 +12,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Limites de armazenamento e lixeira.** Cada tipo de dado tem um limite (10.000 memórias, 20.000 tarefas, 5.000 notas, 1.000 projetos, 5.000 conversas, 200.000 mensagens do chat e 500 automações), além de 4 GiB para o banco inteiro, o que mantém o Talorys bem dentro do plano gratuito da Cloudflare. No limite, o item novo é recusado com uma mensagem clara e nada é apagado para abrir espaço. **Configurações → Privacidade** mostra o uso de cada tipo e avisa a partir de 80%. Tarefas, notas e memórias excluídas vão para a **lixeira** por 30 dias (as arquivadas ficam um ano), de onde podem ser restauradas ou excluídas de vez. Veja [docs/security.md](docs/security.md#limites-de-armazenamento-e-lixeira).
 
+- **Limpeza automática e compactação de memórias.** Toda semana, as tarefas concluídas há mais de 90 dias vão para o arquivo, as notas vazias vão para a lixeira e as mensagens do chat com mais de 6 meses que o resumo da conversa já cobre são removidas. O relatório também aponta as notas paradas há 6 meses, só como sugestão. A cada 15 dias (ou antes, perto do limite), as memórias repetidas que o agente salvou são combinadas, mantendo a mais recente. Tarefas abertas e memórias que você escreveu, editou ou importou nunca são tocadas, a primeira execução espera 7 dias com um aviso, tudo o que sai pode ser restaurado da lixeira e um aviso resume cada execução. Não usa IA. A chave fica em **Configurações → Privacidade**. Veja [docs/security.md](docs/security.md#limpeza-automática).
+
 ### Removido
 
 - **Site de apresentação.** A pasta `site/` (a página de divulgação herdada do projeto original) e o workflow **Pages** do GitHub saem do repositório: o Talorys usa só a própria interface, publicada no Worker da Cloudflare. O logo do README passa a ser o ícone do app.
@@ -23,6 +25,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 ### Atualização
 
 - **Lixeira.** A migração 29 roda sozinha depois do deploy e cria a tabela `tal_trash`. Não há segredo nem variável nova.
+
+- **Limpeza automática.** A migração 30 roda sozinha e anota até onde cada resumo de conversa cobre as mensagens; resumos anteriores a ela nunca levam mensagens. A limpeza começa ligada, mas a primeira execução espera 7 dias depois do deploy, com um aviso. Para desligar, use a chave em **Configurações → Privacidade**.
 
 - **Workflows.** A migração 28 roda sozinha depois do deploy e cria as tabelas `tal_workflows` e `tal_workflow_runs`. O deploy passa a criar um Workflow da Cloudflare, `<nome do Worker>-workflow` (binding `TALORYS_WORKFLOW`, classe `TalorysWorkflow`), com o mesmo token de antes; não há segredo nem variável nova, e todos os workflows começam desligados. Incluído no plano gratuito do Workers. Quem instalou pelo `create-talorys` ganha o mesmo binding no próximo `update`.
 

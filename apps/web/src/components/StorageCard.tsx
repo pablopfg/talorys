@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { StorageKind, TrashItem } from "@talorys/shared";
 import { RotateCcw, Trash2 } from "lucide-react";
-import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Spinner } from "./ui";
-import { keys, useApiMutation, useStorage, useTrash } from "../hooks/queries";
+import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Spinner, Switch } from "./ui";
+import { keys, useApiMutation, useSettings, useStorage, useTrash } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, relativeTime } from "../lib/utils";
 import { type PlainMessageKey, useI18n } from "../lib/i18n";
@@ -68,7 +68,13 @@ export function StorageCard() {
     onSuccess: () => setConfirmEmpty(false),
   });
 
-  const usage = storage.data;
+  const settings = useSettings();
+  const autoCleanup = useApiMutation((on: boolean) => api("/settings", { method: "PATCH", body: { autoCleanup: on } }), {
+    invalidate: [keys.settings],
+    success: t("settings.saved"),
+  });
+  const usage = storage.data?.storage;
+  const retention = storage.data?.retention;
   const items = trash.data ?? [];
   const warned = usage?.warnings.map((w) => (w === "bytes" ? t("storage.database") : t(KIND_LABELS[w]))) ?? [];
   const busy = restore.isPending || purge.isPending;
@@ -107,6 +113,26 @@ export function StorageCard() {
                 )}
               </div>
             )}
+            <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{t("storage.autoCleanup")}</p>
+                <p className="mt-0.5 text-xs leading-5 text-fg-subtle">{t("storage.autoCleanupHint")}</p>
+                {retention && (retention.last_cleanup || retention.last_compaction) && (
+                  <p className="mt-1 text-xs text-fg-subtle">
+                    {t("storage.lastRuns", {
+                      cleanup: retention.last_cleanup ? relativeTime(retention.last_cleanup, i18n) : t("storage.never"),
+                      compaction: retention.last_compaction ? relativeTime(retention.last_compaction, i18n) : t("storage.never"),
+                    })}
+                  </p>
+                )}
+              </div>
+              <Switch
+                checked={settings.data?.autoCleanup ?? true}
+                disabled={!settings.data || autoCleanup.isPending}
+                onChange={(on) => autoCleanup.mutate(on)}
+                label={t("storage.autoCleanup")}
+              />
+            </div>
           </div>
         </Card>
       </section>

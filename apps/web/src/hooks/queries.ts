@@ -62,7 +62,10 @@ export const keys = {
 };
 
 export function useStorage() {
-  return useQuery({ queryKey: keys.storage, queryFn: () => api<{ storage: StorageUsage }>("/storage").then((r) => r.storage) });
+  return useQuery({
+    queryKey: keys.storage,
+    queryFn: () => api<{ storage: StorageUsage; retention: { last_cleanup: string | null; last_compaction: string | null } }>("/storage"),
+  });
 }
 
 export function useTrash() {

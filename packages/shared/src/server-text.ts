@@ -55,6 +55,21 @@ const PT_BR: Catalog = {
   "The archive is full. Delete archived items in Settings → Privacy first.": "O arquivo está cheio. Exclua itens arquivados em Configurações → Privacidade antes.",
   "Talorys already has a current memory with the same text.": "O Talorys já tem uma memória atual com o mesmo texto.",
 
+  "Weekly cleanup": "Limpeza semanal",
+  "Automatic cleanup": "Limpeza automática",
+  "Automatic cleanup starts in 7 days: finished tasks older than 90 days go to the archive, empty notes to the trash, and repeated memories saved by the agent are combined. You can turn it off in Settings → Privacy.": "A limpeza automática começa em 7 dias: as tarefas concluídas há mais de 90 dias vão para o arquivo, as notas vazias vão para a lixeira e as memórias repetidas salvas pelo agente são combinadas. Você pode desligá-la em Configurações → Privacidade.",
+  "Automatic cleanup paused": "Limpeza automática pausada",
+  "The archive is full. Delete archived items in Settings → Privacy so the cleanup can continue.": "O arquivo está cheio. Exclua itens arquivados em Configurações → Privacidade para a limpeza continuar.",
+  "Weekly cleanup: {changes}": "Limpeza semanal: {changes}",
+  "{count} finished task(s) archived": "{count} tarefa(s) concluída(s) arquivada(s)",
+  "{count} empty note(s) moved to the trash": "{count} nota(s) vazia(s) movida(s) para a lixeira",
+  "{count} old chat message(s) compacted into their summaries": "{count} mensagem(ns) antiga(s) do chat compactada(s) nos resumos das conversas",
+  "{count} note(s) unchanged for 6 months: consider deleting the ones you no longer need": "{count} nota(s) sem alteração há 6 meses: considere excluir as que não usa mais",
+  "Archived and deleted items can be restored in Settings → Privacy": "Itens arquivados e excluídos podem ser restaurados em Configurações → Privacidade",
+  "Memories combined": "Memórias combinadas",
+  "Memory compaction: combined {count} repeated memory(ies)": "Compactação de memórias: {count} memória(s) repetida(s) combinada(s)",
+  "Talorys combined {count} repeated memory(ies), keeping the newest of each. The older copies stay in the trash for 30 days (Settings → Privacy).": "O Talorys combinou {count} memória(s) repetida(s), mantendo a mais recente de cada uma. As cópias mais antigas ficam na lixeira por 30 dias (Configurações → Privacidade).",
+
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
   "Incorrect code.": "Código incorreto.",
