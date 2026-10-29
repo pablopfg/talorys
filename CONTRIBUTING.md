@@ -22,7 +22,7 @@ For anything larger than a bug fix, please open an issue first to discuss it.
 
 ## Development setup
 
-Requires Node.js 22+.
+Requires Node.js 24+. Development and CI use the active LTS, Node.js 26, pinned in `.nvmrc` (run `nvm use`).
 
 ```bash
 npm install

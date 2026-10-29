@@ -2,6 +2,8 @@ import type { TalorysAgent } from "./agent/talorys-agent";
 
 export interface Env {
   AI?: Ai;
+  /** The built web UI, in the one-Worker deploy only (wrangler.standalone.jsonc). */
+  ASSETS?: Fetcher;
   TalorysAgent: DurableObjectNamespace<TalorysAgent>;
   /** PBKDF2 hash of the owner password, set by the installer as a Worker secret. */
   OWNER_PASSWORD_HASH?: string;

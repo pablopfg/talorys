@@ -163,6 +163,7 @@ export class AgentRunner {
         timezone: settings.timezone,
         now: new Date(),
         autoMemory: settings.autoMemory,
+        customInstructions: settings.customInstructions,
         memories,
         conversationSummary: summary,
         ...(items ? { items } : {}),
@@ -201,6 +202,7 @@ export class AgentRunner {
             timezone: settings.timezone,
             now: new Date(),
             autoMemory: settings.autoMemory,
+            customInstructions: settings.customInstructions,
             memories,
             conversationSummary: summary,
             ...(items ? { items } : {}),
@@ -301,6 +303,7 @@ export class AgentRunner {
       timezone: settings.timezone,
       now: new Date(),
       autoMemory: false,
+      customInstructions: settings.customInstructions,
       memories: s.memoryHistory.promptMemories(
         this.ext ? await this.ext.selectMemories(prompt) : selectRelevantMemories(s.memories, prompt),
         memoryTokenBudget(settings.limits),

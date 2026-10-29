@@ -49,7 +49,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci --no-audit --no-fund
       # Blocks on high and critical advisories in what ships (audit finding SUP-03).
@@ -92,7 +92,8 @@ jobs:
       # No npm cache here: a cache entry is shared state, and this job holds the token.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
+          package-manager-cache: false
       # Wrangler and esbuild come from the lockfile; no install script runs in this job.
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -149,6 +150,51 @@ jobs:
           done
           echo "::error::$URL/api/health did not answer 200. Check the Worker secrets, or roll back (docs/deploy-github-actions.md)."
           exit 1
+      # With a custom domain: plain HTTP must be moved to HTTPS, and the *.workers.dev address
+      # must not answer at all. The account's workers.dev subdomain is masked in the log.
+      - name: Check HTTPS and the workers.dev address
+        if: vars.TALORYS_CUSTOM_DOMAIN != ''
+        env:
+          DOMAIN: ${{ vars.TALORYS_CUSTOM_DOMAIN }}
+          WORKER: ${{ vars.TALORYS_WORKER_NAME }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          domain="${DOMAIN,,}"
+          worker="$(printf '%s' "$WORKER" | tr -d '[:space:]')"
+          read -r status location < <(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 "http://$domain/" || echo "000 -")
+          echo "http://$domain/ -> HTTP $status $location"
+          # The Worker (or the zone's Always Use HTTPS) answers 301; with Access in front, its
+          # sign-in redirect is fine too, as long as nothing is served over plain HTTP.
+          case "$status" in 301|302|303|307|308) ;; *) echo "::error::http://$domain/ answered $status instead of a redirect to HTTPS."; exit 1 ;; esac
+          case "$location" in https://*) ;; *) echo "::error::http://$domain/ does not redirect to an https:// address."; exit 1 ;; esac
+
+          # Ask Cloudflare itself: the Worker answers 404 on other hosts anyway, so a probe of the
+          # workers.dev address alone would pass even with workers.dev on. The token goes in on
+          # stdin, never on the command line.
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers"
+          auth() { printf 'Authorization: Bearer %s\n' "$CLOUDFLARE_API_TOKEN"; }
+          state="$(auth | curl -sS --max-time 15 -H @- "$api/scripts/$worker/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result??{};process.stdout.write(typeof r.enabled==="boolean"?`${r.enabled} ${r.previews_enabled===true}`:"")}catch{}})' || true)"
+          case "$state" in
+            "false false") echo "workers.dev and preview URLs: off" ;;
+            "") echo "::warning::Could not read the workers.dev setting of the Worker; check by hand that it is off (Worker → Settings → Domains & Routes)." ;;
+            *) echo "::error::workers.dev or preview URLs are on for this Worker ($state). They must be off when a custom domain is set."; exit 1 ;;
+          esac
+
+          # Second check, from outside: the workers.dev address must not serve anything.
+          sub="$(auth | curl -sS --max-time 15 -H @- "$api/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result?.subdomain;process.stdout.write(/^[a-z0-9-]{1,63}$/.test(r??"")?r:"")}catch{}})' || true)"
+          [ -n "$sub" ] || exit 0
+          echo "::add-mask::$sub"
+          for path in / /api/health; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$worker.$sub.workers.dev$path" || true)"
+            echo "workers.dev$path -> HTTP $status"
+            case "$status" in
+              2*|3*) echo "::error::The workers.dev address still answers $path. It must be off when a custom domain is set."; exit 1 ;;
+              000) echo "::warning::Could not reach the workers.dev address to check $path." ;;
+            esac
+          done
       - name: Summary
         env:
           URL: ${{ steps.url.outputs.url }}

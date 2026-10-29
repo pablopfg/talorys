@@ -10,7 +10,7 @@ npx create-talorys@latest
 
 | Step | Implementation |
 | --- | --- |
-| Check Node.js ≥ 22, templates, bundled Wrangler | `requirements.ts`, `scaffold.ts` |
+| Check Node.js ≥ 24, templates, bundled Wrangler | `requirements.ts`, `scaffold.ts` |
 | Detect global `wrangler` / `cf` (informational) | `requirements.ts` |
 | Verify login or open browser OAuth (`wrangler login`) | `install.ts › ensureAuthenticated` |
 | Choose account (`wrangler whoami --json`) | `install.ts › chooseAccount` |
@@ -61,8 +61,12 @@ To publish this build automatically on every merge into `main`, see
 [Automatic deploy from GitHub](deploy-github-actions.md).
 
 `apps/agent/wrangler.standalone.jsonc` deploys the agent Worker with the web UI
-as static assets, so one Worker serves both. Use it with tools that deploy a
-single Worker:
+as static assets, so one Worker serves both. The Worker runs before every asset
+(`run_worker_first`), so the UI gets the same gates as the API: plain HTTP is
+moved to HTTPS (a request with a body is refused instead), hosts outside
+`TALORYS_ALLOWED_HOSTS` get 404, Cloudflare Access is checked, and the
+security headers from `apps/web/public/_headers` are added. Use it with tools
+that deploy a single Worker:
 
 ```bash
 npm run build -w @talorys/web

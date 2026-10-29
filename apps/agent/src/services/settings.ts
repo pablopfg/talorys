@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: Settings = {
   temperature: 0.4,
   limits: { ...DEFAULT_LIMITS },
   autoMemory: true,
+  customInstructions: "",
   demoMode: false,
   memoryHistory: { ...DEFAULT_MEMORY_HISTORY },
   // Off until the owner turns it on: it asks the public npm registry about create-talorys.

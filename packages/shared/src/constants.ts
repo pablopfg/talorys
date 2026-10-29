@@ -36,6 +36,20 @@ export const DEFAULT_LIMITS = {
   maxAiRequestsPerDay: 200,
 } as const;
 
+/**
+ * Voice input in chat. Each clip is one Workers AI call billed by audio minute, so the clip size
+ * and the day's audio are capped apart from `maxAiRequestsPerDay`: dictating in short clips must
+ * not spend the chat budget, and an hour of audio stays well inside the free allocation.
+ */
+export const TRANSCRIPTION_LIMITS = {
+  /** Longest clip the browser sends, in seconds. */
+  maxClipSeconds: 60,
+  /** Largest clip accepted, in bytes before base64 (about a minute of Safari's AAC). */
+  maxClipBytes: 2 * 1024 * 1024,
+  /** Audio transcribed per day, in seconds. */
+  maxSecondsPerDay: 60 * 60,
+} as const;
+
 /** Memory history defaults: rule-based conflict detection on, AI conflict check off. */
 export const DEFAULT_MEMORY_HISTORY = {
   conflictReview: true,

@@ -16,7 +16,11 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Brazilian Portuguese, now the default language.** Every screen, notification, digest, push message and API error is translated. New installations start in Português (Brasil); pick another language in Settings → Language, or set the `TALORYS_DEFAULT_LANGUAGE` Worker variable. With "Browser default", browsers set to any Portuguese variant get it too, and unsupported browser languages fall back to the default. CI fails when new text has no translation.
 
+- **Entrada por voz no chat.** Toque no microfone ao lado da caixa de mensagem, fale (até 1 minuto) e toque em ✓: o áudio é transcrito pelo Whisper (`@cf/openai/whisper-large-v3-turbo`) no Workers AI da sua conta e o texto aparece na caixa para você revisar antes de enviar. O áudio não é guardado, a transcrição usa o idioma do app e não conta no limite diário de pedidos de IA: ela tem um teto próprio de 60 minutos de áudio por dia (cerca de 2.800 neurons, por volta de 28% da cota gratuita diária). O uso aparece em Configurações → IA. O `Permissions-Policy` agora permite o microfone só para o próprio site.
+
 - **Ferramentas MCP nas rotinas agendadas.** Uma ferramenta configurada para executar sem perguntar também pode ser liberada para as rotinas de IA agendadas (Configurações → Integrações → *Usar também em automações agendadas*). Vem desligado, e ferramentas que pedem aprovação nunca são usadas pelas rotinas.
+
+- **Instruções personalizadas do agente.** Em Configurações → IA, um campo de até 2.000 caracteres diz ao assistente como falar com você (tom, formato, contexto). As instruções valem no chat e nas rotinas agendadas e entram no prompt logo abaixo das regras de segurança, que sempre prevalecem: não dão novas permissões nem dispensam aprovações. Definir ou trocar o texto pede a senha digitada há pouco (limpar não pede), e um backup importado nunca altera esse campo.
 
 ### Alterado
 
@@ -24,9 +28,11 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - Os limites diários de IA agora viram à meia-noite do seu fuso horário, e não à meia-noite UTC (21h em Brasília). As ferramentas usadas numa resposta que falhou também passam a contar no uso do dia.
 - A verificação de atualizações começa desligada em instalações novas. Ligue em Configurações → Sobre.
+- **Node.js 26 (LTS ativo) no desenvolvimento, no CI e no deploy.** A versão fica em `.nvmrc` (`nvm use`) e todos os workflows a leem de lá. As actions `checkout`, `setup-node` e as do GitHub Pages foram atualizadas para versões que rodam no Node.js 24 do runner, já que o Node.js 20 das actions saiu de suporte.
 
 ### Segurança
 
+- **HTTPS em tudo, sem depender da configuração da zona.** No deploy pelo GitHub (Worker único), o Worker passa a rodar antes de todo arquivo da interface: uma página pedida por `http://` é movida para `https://` (301), um envio por HTTP (como um login) ou uma chamada à API com credencial é recusado em vez de redirecionado, e a interface ganha os mesmos portões da API: só responde no domínio configurado (404 no `*.workers.dev` e em qualquer outro host), passa pelo Cloudflare Access quando ele está ligado e sai sempre com HSTS e os cabeçalhos de segurança. Depois de cada deploy com domínio próprio, o workflow confere que `http://` redireciona e que o `workers.dev` e as URLs de preview estão desligados (pela API da Cloudflare e de fora). Veja [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
 - **Senhas fortes, sempre.** Senhas novas precisam de 15 caracteres, e palavras comuns (como "senha" ou "flamengo", também escritas com @ ou 0), sequências como 1234 ou qwerty, repetições, o seu e-mail e o nome do agente não contam para esse mínimo. A senha nova também é conferida no Have I Been Pwned por k-anonimato (só 5 caracteres de um hash saem do servidor); se a conferência não responder, a troca é recusada. Quem entrar com uma senha que não segue essas regras só consegue trocá-la antes de usar o resto do app.
 - **E-mail e senha no login (opcional).** Com o segredo `OWNER_EMAIL`, a tela de login pede também o e-mail. O servidor confere os dois sempre, no mesmo tempo, e responde só "E-mail ou senha incorretos.", sem dizer qual errou.
 - **Pepper na senha.** O hash da senha passa a usar um segundo segredo, `PASSWORD_PEPPER`, guardado fora do banco: um vazamento do banco não basta para testar senhas.
@@ -71,11 +77,16 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - A busca por significado feita com um token de acesso usa no máximo metade do limite diário de embeddings, então um script ou token vazado não desliga a busca por significado do seu chat.
 - Se o Durable Object falhar ao iniciar, a API responde com o erro genérico em JSON, nunca com o stack trace do Agents SDK.
 
+### Incompatível
+
+- **O instalador e o projeto exigem Node.js 24 ou mais novo.** O Node.js 22 entrou em manutenção e perde o suporte em abril de 2027. Quem roda `npx create-talorys` com uma versão anterior recebe a mensagem pedindo para atualizar; instale o LTS atual em https://nodejs.org.
+
 ### Upgrading
 
 - Instalações novas usam o fuso horário America/Sao_Paulo quando o instalador não consegue detectar o da máquina, e a sessão passa a durar 30 minutos sem uso e 6 horas no máximo. Quem já ajustou esses tempos em Configurações mantém os seus.
 - Se a sua senha atual tiver menos de 15 caracteres ou for previsível, o próximo login leva direto à troca de senha. `npx create-talorys@latest reset-password` também grava a senha nova junto com o `PASSWORD_PEPPER`.
 - A migração 14 adiciona `confirmed_at` em `tal_sessions` e `expires_at` em `tal_remote_tokens`. Sessões abertas antes dela pedem a senha na primeira ação sensível. O download do backup em Configurações agora é um botão: scripts que baixavam `GET /api/export` com o cookie precisam de um login recente.
+- A migração 16 adiciona `transcription_seconds` em `tal_usage_daily`, para o teto diário da entrada por voz. Nenhum segredo novo; a transcrição usa o binding `AI` que já existe.
 - Migration 13 adds a `scheduled` column on `tal_mcp_tools`; existing tools stay out of scheduled routines.
 - Migration 12 adds the `tal_mcp_servers` and `tal_mcp_tools` tables and a `result` column on pending actions. `npx create-talorys@latest update` adds the new `MCP_CREDENTIAL_KEY` secret; without it, only MCP servers without authentication can be added. Backups include MCP server names and URLs (never tokens); imported servers arrive turned off.
 - Migration 11 adds the `tal_task_plan_drafts` table. Existing data is untouched. Plan drafts are not included in backups, and plan cards in imported conversations are dropped, like approval cards.

@@ -101,8 +101,13 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
 - `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
   `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS
   (`max-age=63072000; includeSubDomains`; serve Talorys on a subdomain, not the
-  bare domain) and a
-  restrictive `Permissions-Policy`.
+  bare domain) and a restrictive `Permissions-Policy` (camera, geolocation and
+  payment off; the microphone only for the app's own origin, for chat voice
+  input).
+- Voice input sends one recorded clip (at most 60 s and 2 MB) to `POST
+  /api/transcribe`, which needs the owner session and is not open to remote
+  access tokens. The audio goes only to Workers AI and is never stored;
+  transcription has its own daily cap of audio minutes.
 - API responses carry their own `Content-Security-Policy: default-src 'none';
   frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer
   opened directly can't load anything or be framed.
@@ -240,6 +245,16 @@ does on its own:
 - Dependabot proposes updates daily, after a cooldown of 3 to 14 days, so a
   compromised release is usually pulled before it reaches a PR. Security
   updates skip the cooldown.
+- With npm 11 (bundled with Node.js 26, from `.nvmrc`), no dependency install
+  script runs: npm blocks them by default, and the `allowScripts` field in the
+  root `package.json` records the ones in the tree as denied (`esbuild`,
+  `workerd`, `core-js-pure`). Their binaries come from platform packages in the
+  lockfile. The deploy job also installs with
+  `--ignore-scripts`. Review any new package that `npm install-scripts ls`
+  lists before approving it.
+- Development, CI and deploy use the Node.js version in `.nvmrc` (the active
+  LTS). The installer accepts the oldest supported LTS in `engines` and is
+  tested on it in CI.
 
 ## Update check
 

@@ -10,7 +10,7 @@
     "packages/create-talorys"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "node scripts/dev-setup.mjs && node scripts/ensure-dist.mjs && concurrently -k -n agent,pages,web -c cyan,magenta,green \"npm:dev:agent\" \"npm:dev:pages\" \"npm:dev:web\"",
@@ -41,5 +41,10 @@
     "tsup": {
       "esbuild": "0.28.1"
     }
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "workerd": false,
+    "core-js-pure": false
   }
 }

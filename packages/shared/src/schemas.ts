@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES } from "./constants";
+import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
 
@@ -290,6 +290,13 @@ export const chatRequestSchema = z.object({
   retry: z.boolean().optional(),
 });
 
+export const transcribeRequestSchema = z.object({
+  /** A recorded clip (WebM/Opus, Ogg or MP4/AAC, as the browser records it) as base64, at most TRANSCRIPTION_LIMITS.maxClipBytes once decoded. */
+  audio: z.string().min(1).max(Math.ceil(TRANSCRIPTION_LIMITS.maxClipBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, "Audio must be base64."),
+  /** Text already dictated, so a clip that continues a sentence keeps its spelling and context. */
+  context: z.string().max(1000).optional(),
+});
+
 export const automationCreateSchema = z.object({
   name: shortText(200),
   kind: z.enum(AUTOMATION_KINDS),
@@ -332,6 +339,11 @@ export const sessionTimeoutsSchema = z.object({
 });
 export type SessionTimeouts = z.infer<typeof sessionTimeoutsSchema>;
 
+/** Longest owner-written instructions added to the agent's prompt (characters). */
+export const MAX_CUSTOM_INSTRUCTIONS = 2000;
+/** Owner-written instructions for tone and style; they sit below the agent's safety rules and can't override them. */
+export const customInstructionsSchema = z.string().trim().max(MAX_CUSTOM_INSTRUCTIONS);
+
 /** UI language. "system" follows the browser and falls back to DEFAULT_LANGUAGE. */
 export const languagePreferenceSchema = z.enum(["system", ...LANGUAGES]);
 
@@ -348,6 +360,8 @@ export const settingsSchema = z.object({
   temperature: z.number().min(0).max(1.5),
   limits: limitsSchema,
   autoMemory: z.boolean(),
+  /** Reads a value the current limit rejects (saved before a rollback) as empty, so it can't reset every other setting. */
+  customInstructions: customInstructionsSchema.catch(""),
   /** Documented demo mode: uses the deterministic mock provider instead of Workers AI. */
   demoMode: z.boolean(),
   memoryHistory: memoryHistorySettingsSchema,
@@ -362,6 +376,7 @@ export const settingsUpdateSchema = settingsSchema
   .extend({
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
+    customInstructions: customInstructionsSchema.optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
     session: sessionTimeoutsSchema.partial().optional(),
@@ -480,6 +495,8 @@ export interface UsageCounters {
   scheduled_ai_runs: number;
   ai_errors: number;
   embedding_requests: number;
+  /** Seconds of chat voice input transcribed. */
+  transcription_seconds: number;
   /** Priced-call subtotal, before free allocation; null when nothing could be priced. */
   neurons_estimate: number | null;
   cost_usd_estimate: number | null;
