@@ -42,7 +42,8 @@ export type TrashActor = "owner" | "remote" | "system";
 export const TRASH_LIMITS: Record<TrashActor, { items: number; bytes: number }> = {
   owner: { items: 10_000, bytes: 256 * 1024 ** 2 },
   remote: { items: 2_000, bytes: 64 * 1024 ** 2 },
-  system: { items: 20_000, bytes: 256 * 1024 ** 2 },
+  // A year of archived tasks (up to 500 a week) plus combined memories.
+  system: { items: 50_000, bytes: 256 * 1024 ** 2 },
 };
 
 export type TrashKind = "memory" | "task" | "note";

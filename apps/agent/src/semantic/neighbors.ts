@@ -22,6 +22,43 @@ export interface NeighborOptions {
 }
 
 /**
+ * For each memory, the memories whose stored vector is at least `minCosine` from its own, best
+ * first, for the memory compaction. Uses only vectors already stored for the current text (the
+ * vector map is read once for the whole batch): it never embeds, so it costs no AI. Null when
+ * semantic recall is off or has no embedder.
+ */
+export async function storedDuplicates(services: Services, env: Env, memories: Memory[], minCosine: number): Promise<Map<string, string[]> | null> {
+  const config = cachedSemanticConfig(services);
+  if (!config?.enabled) return null;
+  const db = services.db;
+  ensureSemanticSchema(db);
+  const { embedder } = createSemanticContext(services, env, config);
+  if (!embedder) return null;
+  const vectors = cachedVectors(db, embedder.model, embedder.dims);
+  /** Whether `id`'s stored vector was made from its current text (a stale one says nothing). */
+  const current = async (memory: Memory) => vectorMetaFor(db, memory.id)?.content_hash === (await contentHash(embeddingText(memory)));
+  const out = new Map<string, string[]>();
+  for (const memory of memories) {
+    const own = vectors.get(memory.id);
+    if (!own || !(await current(memory))) continue;
+    const scored: { id: string; cosine: number }[] = [];
+    for (const [id, vector] of vectors) {
+      if (id === memory.id || vector.length !== own.length) continue;
+      const cosine = dot(own, vector);
+      if (cosine >= minCosine) scored.push({ id, cosine });
+    }
+    scored.sort((a, b) => b.cosine - a.cosine);
+    const ids: string[] = [];
+    for (const n of scored) {
+      const candidate = services.memories.get(n.id);
+      if (candidate && (await current(candidate))) ids.push(n.id);
+    }
+    if (ids.length) out.set(memory.id, ids);
+  }
+  return out;
+}
+
+/**
  * Current, older memories by cosine to `memory`, best first, for the memory-history AI check:
  * at most `opts.limit`, each at or above `opts.minCosine`. Only memories whose stored vector
  * matches their current text are scored; the rest wait for the background index. The saved

@@ -142,6 +142,8 @@ describe("local model consumption", () => {
       // Migration 24 (sentinel routines).
       db.run("ALTER TABLE tal_automations DROP COLUMN sentinel");
       db.run("ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge");
+      // Migration 30 (cleanup).
+      db.run("ALTER TABLE tal_conversations DROP COLUMN summary_from");
       // Migration 27 (calendar routines).
       db.run("ALTER TABLE tal_automations DROP COLUMN calendar_gate");
       for (const col of ["notice_minutes", "notice_text"]) db.run(`ALTER TABLE tal_google_calendars DROP COLUMN ${col}`);

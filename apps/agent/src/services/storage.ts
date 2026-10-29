@@ -120,7 +120,7 @@ export class StorageService {
    * first. An access token, or Talorys itself, is refused instead: a leaked token can never push
    * what it deleted (or the owner's own deletes) out of the trash, nor fill the database through it.
    */
-  keep(kind: TrashKind, row: object, title: string, opts: { reason?: TrashReason; actor?: "owner" | "remote" } = {}): TrashItem {
+  keep(kind: TrashKind, row: object, title: string, opts: { reason?: TrashReason; actor?: TrashActor } = {}): TrashItem {
     const reason = opts.reason ?? "deleted";
     const actor: TrashActor = reason === "deleted" ? (opts.actor ?? "owner") : "system";
     const ts = now();

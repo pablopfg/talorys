@@ -79,7 +79,7 @@ export class NoteRepository {
   }
 
   /** Moves the note to the trash. `actor` is who asked. */
-  delete(id: string, opts: { actor?: "owner" | "remote" } = {}): void {
+  delete(id: string, opts: { actor?: "owner" | "remote" | "system" } = {}): void {
     const note = this.require(id);
     this.db.transaction(() => {
       this.storage?.keep("note", note, note.title, opts);

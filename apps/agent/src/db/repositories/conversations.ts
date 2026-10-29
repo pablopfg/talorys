@@ -18,6 +18,8 @@ interface MessageRow {
 export interface ConversationRecord extends Conversation {
   summary: string | null;
   summary_upto: string | null;
+  /** First message the summary covers with no gap up to summary_upto (null: not known). */
+  summary_from?: string | null;
 }
 
 /** Decodes stored tool activity, dropping malformed entries (e.g. from an imported backup). */
@@ -100,8 +102,20 @@ export class ConversationRepository {
     this.db.run(`UPDATE tal_conversations SET updated_at = ? WHERE id = ?`, now(), id);
   }
 
-  setSummary(id: string, summary: string, upto: string): void {
-    this.db.run(`UPDATE tal_conversations SET summary = ?, summary_upto = ? WHERE id = ?`, summary, upto, id);
+  /**
+   * Saves a summary of `covered` (oldest first), which extends the previous summary. The summary
+   * holds every message from summary_from on only when nothing lies between the previous
+   * summary_upto and the first covered message; otherwise coverage restarts at that message.
+   */
+  setSummary(id: string, summary: string, covered: { first: string; last: string }): void {
+    const current = this.get(id);
+    const prevUpto = current?.summary_upto ?? null;
+    const gap = this.db.one(
+      `SELECT 1 AS x FROM tal_messages WHERE conversation_id = ? AND created_at < ? AND created_at > ? LIMIT 1`,
+      id, covered.first, prevUpto ?? "",
+    );
+    const from = !gap && current?.summary_from ? current.summary_from : covered.first;
+    this.db.run(`UPDATE tal_conversations SET summary = ?, summary_upto = ?, summary_from = ? WHERE id = ?`, summary, covered.last, from, id);
   }
 
   delete(id: string): void {

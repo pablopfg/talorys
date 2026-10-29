@@ -421,6 +421,7 @@ describe("migration from the previous schema", () => {
       for (const idx of ["tal_memories_status", "tal_memories_superseded_by"]) db.run(`DROP INDEX IF EXISTS ${idx}`);
       db.run(`DROP TABLE IF EXISTS tal_memory_reviews`);
       db.run(`DROP TABLE tal_model_usage_daily`);
+      db.run("DROP INDEX IF EXISTS idx_tal_memories_status_created");
       for (const col of ["status", "superseded_by", "valid_from", "valid_until"]) db.run(`ALTER TABLE tal_memories DROP COLUMN ${col}`);
       // ...and what later migrations added.
       for (const col of ["target_version", "payload", "preview", "result"]) db.run(`ALTER TABLE tal_pending_actions DROP COLUMN ${col}`);
@@ -445,6 +446,8 @@ describe("migration from the previous schema", () => {
       db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
       // Migration 25 (passkeys).
       db.run(`ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge`);
+      // Migration 30 (cleanup).
+      db.run("ALTER TABLE tal_conversations DROP COLUMN summary_from");
       // Migration 27 (calendar routines).
       db.run(`ALTER TABLE tal_automations DROP COLUMN calendar_gate`);
       for (const col of ["notice_minutes", "notice_text"]) db.run(`ALTER TABLE tal_google_calendars DROP COLUMN ${col}`);

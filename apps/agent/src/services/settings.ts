@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   memoryHistory: { ...DEFAULT_MEMORY_HISTORY },
   // Off until the owner turns it on: it asks the public npm registry about create-talorys.
   updateCheck: false,
+  autoCleanup: true,
   session: { ...DEFAULT_SESSION_TIMEOUTS },
 };
 
