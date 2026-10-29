@@ -45,7 +45,7 @@ test.describe("Push notifications", () => {
     await expect(page.getByText(/Notifications are blocked for this site/)).toBeVisible();
     await expect(toggle).toBeDisabled();
     await expect(page.getByText("E2E laptop")).toBeVisible();
-    await expect(page.getByText(/^1 of 3 devices registered\. A device that does not open Talorys for 7 days is removed/)).toBeVisible();
+    await expect(page.getByText(/^1 of 3 devices registered\. A device that does not open Axis for 7 days is removed/)).toBeVisible();
     await expect(page.getByText(/added .* · last opened /)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send test" })).toBeEnabled();
 

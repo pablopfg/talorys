@@ -43,8 +43,8 @@ const SAFE_MESSAGES: Record<McpConnectionError["kind"], string> = {
   oauth: "Signing in to this server failed. Try again, or check that it supports OAuth sign-in for new apps (dynamic client registration).",
   unavailable: "The MCP server is temporarily unavailable.",
   timeout: "The MCP server took too long to respond.",
-  blocked: "Talorys blocked a request the MCP server asked for.",
-  protocol: "The MCP server sent a response Talorys couldn't use.",
+  blocked: "Axis blocked a request the MCP server asked for.",
+  protocol: "The MCP server sent a response Axis couldn't use.",
 };
 
 function statusOf(error: unknown): number | undefined {
@@ -107,7 +107,7 @@ export function limitBody(res: Response, max: number, maxMs: number = MCP_LIMITS
 
 /**
  * How a session authenticates. OAuth tokens are added by the SDK from the provider; `allowOrigin`
- * vets the authorization server's origin before Talorys talks to it.
+ * vets the authorization server's origin before Axis talks to it.
  */
 export type SessionAuth =
   | { kind: "none" }
@@ -115,7 +115,7 @@ export type SessionAuth =
   | { kind: "oauth"; provider: OAuthClientProvider; allowOrigin: (url: URL) => Promise<void> };
 
 /**
- * The only way MCP traffic leaves Talorys. Requests go to the configured origin, except OAuth
+ * The only way MCP traffic leaves Axis. Requests go to the configured origin, except OAuth
  * discovery, registration and token requests, which may reach an authorization server that passed
  * the same public-address checks. The bearer token is attached here and only for the MCP origin;
  * an OAuth access token never travels to another origin either. Redirects are refused instead of
@@ -130,7 +130,7 @@ export function guardedFetch(endpoint: URL, auth: SessionAuth, base: typeof fetc
     const headers = new Headers(request.headers);
     headers.delete("cookie");
     if (!sameOrigin) {
-      if (auth.kind !== "oauth") throw new McpConnectionError("blocked", "The MCP server tried to send Talorys to a different address.");
+      if (auth.kind !== "oauth") throw new McpConnectionError("blocked", "The MCP server tried to send Axis to a different address.");
       await auth.allowOrigin(url);
       if (/^(bearer|dpop) /i.test(headers.get("authorization") ?? "")) headers.delete("authorization");
     } else {

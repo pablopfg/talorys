@@ -368,5 +368,5 @@ export class AgentRunner {
 }
 
 function aiLimitReached(max: number): AppError {
-  return new AppError("AI_LIMIT_REACHED", `Talorys reached its daily limit of ${max} AI requests (adjustable in Settings → AI).`);
+  return new AppError("AI_LIMIT_REACHED", `Axis reached its daily limit of ${max} AI requests (adjustable in Settings → AI).`);
 }

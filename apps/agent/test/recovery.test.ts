@@ -176,7 +176,7 @@ describe("using the link", () => {
     await inAgent(async (agent) => {
       const box = mailbox();
       const auth = service(agent, await hashPassword(PASSWORD), { recovery: box.recovery });
-      const { secret } = await auth.mfa.beginSetup("Talorys");
+      const { secret } = await auth.mfa.beginSetup("Axis");
       const recoveryCodes = (await auth.mfa.enable(await totpCode(secret, totpStep())))!;
       await auth.requestRecovery(OWNER, clientKey(freshIp()));
       const token = tokenOf(box.links[0]!);
@@ -214,7 +214,7 @@ describe("using the link", () => {
     await inAgent(async (agent) => {
       const box = mailbox();
       const auth = service(agent, await hashPassword(PASSWORD), { recovery: box.recovery });
-      const { secret } = await auth.mfa.beginSetup("Talorys");
+      const { secret } = await auth.mfa.beginSetup("Axis");
       await auth.mfa.enable(await totpCode(secret, totpStep()));
       await auth.requestRecovery(OWNER, clientKey(freshIp()));
       const token = tokenOf(box.links[0]!);

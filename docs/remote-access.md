@@ -1,6 +1,6 @@
 # Acesso remoto
 
-Clientes automatizados podem chamar a sua instalação privada do Talorys com um
+Clientes automatizados podem chamar a sua instalação privada do Axis com um
 **token de acesso pessoal** (PAT). Os tokens têm nome e escopo (`read` ou
 `write`), aparecem uma única vez na criação, ficam guardados só como hash e são
 revogados nas Configurações.
@@ -18,7 +18,7 @@ da sessão completa do dono.
 
 1. Abra **Configurações → Segurança → Acesso remoto**.
 2. Ligue o **Acesso remoto** (desligado por padrão). Se você entrou há mais de 15
-   minutos, o Talorys pede a sua senha antes; criar um token pede do mesmo jeito.
+   minutos, o Axis pede a sua senha antes; criar um token pede do mesmo jeito.
 3. Informe um nome (1 a 64 caracteres), deixe o escopo em **`read`**, a menos
    que precise de escrita, e escolha **Gerar token**.
 4. **Copie o token na hora.** Ele começa com `tal_` e aparece uma única vez.

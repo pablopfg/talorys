@@ -76,7 +76,7 @@ export function AppShell() {
   useKeyboardOpenFlag();
   const location = useLocation();
   const unread = notifications.data?.unread ?? 0;
-  const agentName = settings.data?.agentName ?? "Talorys";
+  const agentName = settings.data?.agentName ?? "Axis";
   const isChat = location.pathname.startsWith("/chat");
 
   const bell = (
@@ -102,7 +102,7 @@ export function AppShell() {
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <Logo />
-            <span className="truncate text-[15px] font-semibold tracking-tight">{agentName}</span>
+            <span className="truncate font-display text-base font-bold tracking-tight">{agentName}</span>
           </div>
           {bell}
         </div>
@@ -114,7 +114,7 @@ export function AppShell() {
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive ? "bg-surface text-fg shadow-sm ring-1 ring-border" : "text-fg-muted hover:bg-muted hover:text-fg",
+                  isActive ? "bg-accent-soft text-accent" : "text-fg-muted hover:bg-muted hover:text-fg",
                 )
               }
             >
@@ -129,7 +129,7 @@ export function AppShell() {
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive ? "bg-surface text-fg shadow-sm ring-1 ring-border" : "text-fg-muted hover:bg-muted hover:text-fg",
+                isActive ? "bg-accent-soft text-accent" : "text-fg-muted hover:bg-muted hover:text-fg",
               )
             }
           >
@@ -151,7 +151,7 @@ export function AppShell() {
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface/80 px-4 backdrop-blur md:hidden">
           <div className="flex items-center gap-2">
             <Logo className="h-6 w-6" />
-            <span className="font-semibold tracking-tight">{agentName}</span>
+            <span className="font-display font-bold tracking-tight">{agentName}</span>
           </div>
           <div className="flex items-center">
             {bell}

@@ -2,7 +2,7 @@
 
 A busca semântica é um módulo opcional que encontra memórias pelo significado,
 além de pela palavra-chave. Ela vem desligada. Enquanto estiver desligada, o
-Talorys se comporta exatamente como o projeto original: mesmas ferramentas,
+Axis se comporta exatamente como o Talorys original: mesmas ferramentas,
 mesmo prompt de sistema, mesmas respostas de memória e nenhuma tabela
 `tal_semantic_*`.
 

@@ -32,7 +32,7 @@ const statusOf = (reason: string) => {
 };
 
 /**
- * The Cloudflare Workflow behind Talorys' Workflows menu. It does the network work with
+ * The Cloudflare Workflow behind Axis' Workflows menu. It does the network work with
  * durable steps and retries, then hands what it found to the agent, which keeps the memory
  * between runs and raises the alerts. It never sees the owner's data or secrets.
  */

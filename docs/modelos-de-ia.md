@@ -6,11 +6,11 @@ em **Configurações → IA → Modelo**. Quando ele falha antes de responder, o
 
 | Provedor | Custo | Onde configurar |
 | --- | --- | --- |
-| Workers AI (padrão) | Plano gratuito da Cloudflare, dentro dos limites diários do Talorys | Nada a fazer: usa o binding `AI` do Worker |
+| Workers AI (padrão) | Plano gratuito da Cloudflare, dentro dos limites diários do Axis | Nada a fazer: usa o binding `AI` do Worker |
 | Anthropic | **Pago**, cobrado pela Anthropic na sua conta | Segredo `ANTHROPIC_API_KEY` no Worker |
 | OpenAI | **Pago**, cobrado pela OpenAI na sua conta | Segredo `OPENAI_API_KEY` no Worker |
 
-> ⚠️ **Anthropic e OpenAI geram cobrança.** O Talorys limita o gasto estimado
+> ⚠️ **Anthropic e OpenAI geram cobrança.** O Axis limita o gasto estimado
 > por dia (padrão US$ 2, máximo US$ 50) em **Configurações → IA → Limites de geração e
 > execução → IA paga por dia (US$)**. A estimativa usa a contagem de tokens que o provedor
 > devolve e o preço de tabela; a fatura de verdade é a do provedor. Configure
@@ -84,7 +84,7 @@ como fallback.
   não passam juntas do teto.
 - Com um modelo pago ligado, trocar o fuso horário pede a senha recente: o dia
   do teto segue o seu fuso.
-- Os limites de pedidos e de tokens do Talorys continuam valendo para todos os
+- Os limites de pedidos e de tokens do Axis continuam valendo para todos os
   provedores.
 - O gasto estimado aparece em **Configurações → IA → Uso**.
 - As chamadas pagas não são repetidas automaticamente: cada nova tentativa

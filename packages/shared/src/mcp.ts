@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-/** How Talorys authenticates to a remote MCP server: none, a static bearer token, or OAuth sign-in. */
+/** How Axis authenticates to a remote MCP server: none, a static bearer token, or OAuth sign-in. */
 export const MCP_AUTH_TYPES = ["none", "bearer", "oauth"] as const;
 export type McpAuthType = (typeof MCP_AUTH_TYPES)[number];
 
-/** The Talorys page an OAuth authorization server sends the browser back to. */
+/** The Axis page an OAuth authorization server sends the browser back to. */
 export const MCP_OAUTH_CALLBACK_PATH = "/settings/mcp-oauth";
 
 /**
@@ -45,7 +45,7 @@ export interface McpServerInfo {
   updated_at: string;
 }
 
-/** What the server says about a tool. Advisory only: Talorys never trusts these for permissions. */
+/** What the server says about a tool. Advisory only: Axis never trusts these for permissions. */
 export interface McpToolHints {
   readOnly?: boolean;
   destructive?: boolean;

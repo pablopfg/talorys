@@ -1,6 +1,6 @@
 # Segurança
 
-O Talorys é de um único usuário. O modelo de ameaças supõe que a internet
+O Axis é de um único usuário. O modelo de ameaças supõe que a internet
 consegue chegar à sua URL `pages.dev`; só o dono deve conseguir ler ou alterar
 os dados.
 
@@ -309,7 +309,7 @@ Object:
   `https://challenges.cloudflare.com` para o widget do Turnstile, `frame-src`
   só com essa origem, `connect-src 'self'`, `frame-ancestors 'none'`),
   `X-Frame-Options: DENY`, `nosniff`, HSTS
-  (`max-age=63072000; includeSubDomains`; sirva o Talorys num subdomínio, não
+  (`max-age=63072000; includeSubDomains`; sirva o Axis num subdomínio, não
   no domínio raiz) e uma `Permissions-Policy` restritiva (câmera, localização e
   pagamento desligados; o microfone só para a própria origem do app, para a
   entrada de voz no chat).
@@ -343,7 +343,7 @@ Object:
   enxurrada de avisos de rotina não os empurre para fora do registro.
 - Os avisos por e-mail usam o binding `send_email` do Cloudflare Email Routing,
   restrito a um remetente (`allowed_sender_addresses`) e capaz de entregar só
-  para endereços verificados na conta. O Talorys envia para um endereço (o
+  para endereços verificados na conta. O Axis envia para um endereço (o
   segredo `ALERT_EMAIL_TO` ou `OWNER_EMAIL`, nunca no repositório), aceita só
   endereços simples, tira as quebras de linha do assunto, envia só texto puro e
   limita o e-mail a 10 mensagens em 24 horas (contadas antes de cada envio,
@@ -352,12 +352,12 @@ Object:
   senha digitada há pouco e sai no máximo duas vezes por dia, então uma sessão
   roubada não consegue esgotar o limite antes de agir. Só a primeira tentativa
   de um aviso vai por e-mail. Os logs trazem o código do erro, nunca os
-  endereços. Todo e-mail de segurança diz que o Talorys nunca pede a senha nem
+  endereços. Todo e-mail de segurança diz que o Axis nunca pede a senha nem
   códigos por e-mail.
 - A prioridade aprendida nunca mexe nos alertas de segurança: eles não têm
   perfil, são sempre críticos, não podem ser fixados, e rebaixar um (pelo app,
   pela API ou pelo Telegram) é recusado. O aprendizado não consegue tornar
-  nenhum aviso crítico, e os eventos de fora do Talorys ficam no máximo em alta.
+  nenhum aviso crítico, e os eventos de fora do Axis ficam no máximo em alta.
   As correções do dono chegam ao modelo só como um bloco de dados (com as tags
   neutralizadas), nunca como instruções.
 - Os vigias (a cada 15 minutos) são verificações determinísticas em SQL, sem IA
@@ -382,7 +382,7 @@ Object:
   origem do app.
 - O corpo das notificações mostra todo link, em qualquer forma de Markdown, como
   código simples ao lado do rótulo: um lembrete, resumo ou rotina não consegue
-  plantar um link clicável que o dono tome como sendo do próprio Talorys.
+  plantar um link clicável que o dono tome como sendo do próprio Axis.
 - Não existem segredos nem bindings no código do navegador (o build confere
   isso).
 
@@ -440,8 +440,8 @@ Object:
   em link, mesmo entre crases. Por isso, todo título e texto de aviso enviado ao
   Telegram ou por e-mail tem `http` escrito como `hxxp`, `tg:` e `mailto:` como
   `tg[:]` e `mailto[:]`, `www.` como `www[.]` e cada ponto de um host como
-  `[.]`; só o botão **Abrir o Talorys** e o rodapé do e-mail, do próprio
-  Talorys, continuam clicáveis.
+  `[.]`; só o botão **Abrir o Axis** e o rodapé do e-mail, do próprio
+  Axis, continuam clicáveis.
 - O nome do agente abre todo prompt de sistema: renomeá-lo exige a senha
   recente, um backup não consegue mudá-lo, e ele sempre entra numa linha só.
 - Limites por requisição: chamadas de ferramenta, limites por ferramenta,
@@ -478,8 +478,8 @@ Object:
   desarmados (`hxxps://` entre crases), para que nem o app, nem o Telegram, nem
   um cliente de e-mail os torne clicáveis: um token vazado não consegue enviar
   um link de login convincente. Uma origem com o nome do app ou do agente
-  (`Talorys`) aparece como `remote`, então um evento não consegue se passar por
-  um aviso do próprio Talorys.
+  (`Axis`) aparece como `remote`, então um evento não consegue se passar por
+  um aviso do próprio Axis.
 
 ## Notificações push
 
@@ -501,7 +501,7 @@ Object:
 - As inscrições são segredos de cada dispositivo: nunca entram nos backups. Os
   endpoints que o serviço de push informa como inexistentes (404/410) são
   apagados na hora, e um que falha 10 vezes seguidas é descartado.
-- Um dispositivo que não abriu o Talorys com sessão por 7 dias é removido
+- Um dispositivo que não abriu o Axis com sessão por 7 dias é removido
   (conferido a cada 15 minutos, mesmo com os vigias desligados), então um
   celular perdido ou esquecido deixa de receber os avisos do dono sozinho. Um
   navegador com sessão informa o próprio endpoint para `POST /api/push/seen` no
@@ -519,7 +519,7 @@ Object:
 ## Backups
 
 Um arquivo de backup é uma entrada não confiável; importar um não consegue
-mudar o que o Talorys faz por conta própria:
+mudar o que o Axis faz por conta própria:
 
 - As automações novas chegam pausadas, e as existentes nunca são reescritas nem
   religadas (um backup só pode pausá-las).
@@ -554,7 +554,7 @@ mudar o que o Talorys faz por conta própria:
 
 ## Limites de armazenamento e lixeira
 
-O banco de cada instalação tem limites por tipo de dado, que mantêm o Talorys
+O banco de cada instalação tem limites por tipo de dado, que mantêm o Axis
 bem dentro do plano gratuito da Cloudflare (5 GB de Durable Objects por conta),
 mesmo com um token de escrita vazado ou importações repetidas:
 
@@ -580,7 +580,7 @@ mesmo com um token de escrita vazado ou importações repetidas:
   mesmo que você nunca abra a lixeira (a limpeza roda a cada 15 minutos).
 - A lixeira tem um espaço separado para cada origem, contado em itens e em
   bytes: o dono (10.000 itens, 256 MB), os tokens de acesso (2.000 itens,
-  64 MB) e o próprio Talorys, que arquiva e combina itens (20.000 itens,
+  64 MB) e o próprio Axis, que arquiva e combina itens (20.000 itens,
   256 MB). Quando o espaço do dono acaba, os itens mais antigos dele saem
   primeiro. Quando o espaço dos tokens acaba, a exclusão por token é recusada
   (e não acontece). Assim, um token vazado nunca empurra para fora da lixeira o
@@ -609,7 +609,7 @@ rodadas curtas, e não usa IA:
   - as notas vazias (sem texto e sem título próprio) e paradas há mais de 7
     dias vão para a lixeira;
   - as mensagens do chat com mais de 6 meses que o resumo da conversa cobre
-    por completo são removidas de vez. O Talorys anota, a cada resumo, desde
+    por completo são removidas de vez. O Axis anota, a cada resumo, desde
     quando ele cobre a conversa sem lacunas, e só remove mensagens nesse
     trecho. O agente continua lendo o resumo. Uma conversa sem resumo, um
     resumo anterior a esta versão e as mensagens importadas nunca perdem nada.

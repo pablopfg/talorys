@@ -54,7 +54,7 @@ export function readManifest(dir: string): Manifest | null {
   const names = /^[a-z][a-z0-9]{3,15}$/.test(data.installation_id) ? resourceNames(data.installation_id) : null;
   if (!names || data.worker_name !== names.workerName || data.pages_project_name !== names.pagesProjectName) {
     throw new CliError(
-      `${path} names resources Talorys did not create.`,
+      `${path} names resources Axis did not create.`,
       "Restore the file, or move it away to start a fresh installation.",
     );
   }

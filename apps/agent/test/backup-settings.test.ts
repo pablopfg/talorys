@@ -44,6 +44,25 @@ describe("portable backup settings", () => {
     }
   });
 
+  it("reads the former default name (Talorys) as the current default, and keeps a name the owner chose", async () => {
+    const c = await loggedIn();
+    const before = (await c.json("/api/settings")).settings;
+    try {
+      await inAgent((agent) => {
+        agent.services.settings.setJson("app.settings", { ...before, agentName: "Talorys" });
+      });
+      expect((await c.json("/api/settings")).settings.agentName).toBe("Axis");
+      await inAgent((agent) => {
+        agent.services.settings.setJson("app.settings", { ...before, agentName: "Talorys Jr" });
+      });
+      expect((await c.json("/api/settings")).settings.agentName).toBe("Talorys Jr");
+    } finally {
+      await inAgent((agent) => {
+        agent.services.settings.setJson("app.settings", before);
+      });
+    }
+  });
+
   it("imports a backup that names an unknown language and keeps the current one", async () => {
     const c = await loggedIn();
     const before = (await c.json("/api/settings")).settings;

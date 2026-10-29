@@ -25,7 +25,7 @@ describe("sentinel replies", () => {
   });
 
   it("asks only sentinel runs for the quiet answer", () => {
-    const base = { agentName: "Talorys", timezone: "UTC", now: new Date(), autoMemory: false, memories: [] };
+    const base = { agentName: "Axis", timezone: "UTC", now: new Date(), autoMemory: false, memories: [] };
     expect(buildSystemPrompt({ ...base, scheduled: true, sentinel: true })).toContain(SENTINEL_RUN_PROMPT);
     expect(SENTINEL_RUN_PROMPT).toContain(`exactly ${SENTINEL_NOTHING}`);
     expect(buildSystemPrompt({ ...base, scheduled: true })).not.toContain(SENTINEL_RUN_PROMPT);

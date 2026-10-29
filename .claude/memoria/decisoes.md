@@ -15,8 +15,13 @@ dados pessoais, domínio ou segredos: o repositório é público).
   fallback, com teto diário em US$ (`DEFAULT_LIMITS.maxPaidAiUsdPerDay` em
   `packages/shared/src/constants.ts`). Chaves só como Worker secrets
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Veja `docs/modelos-de-ia.md`.
-- **Rebrand para Axis (2026-10-29):** planejado, em PRs próprios. Até lá o
-  código continua Talorys; não renomeie identificadores por conta própria.
+- **Rebrand para Axis (2026-10-29):** feito com a identidade Prisma (íris
+  `#5b5bd6` para ação, ciano para o que o agente fez, cinza-azulado Radix,
+  fontes Funnel Display e Funnel Sans servidas pelo próprio app). Os nomes
+  internos (`@talorys/*`, `create-talorys`, `TalorysAgent`, `tal_*`,
+  `TALORYS_*`, cookies e chaves) continuam; não os renomeie por conta própria.
+  O nome padrão do agente "Talorys" salvo em instalações antigas é lido como
+  o padrão atual.
 - **Workflows (2026-10-29):** o menu Workflows usa Cloudflare Workflows (plano
   gratuito) e começou só com o monitor de sites. Veja `docs/workflows.md`.
 

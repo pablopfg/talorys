@@ -40,7 +40,7 @@ export class AutomationService {
     private readonly settings: SettingsService,
     private readonly activity: ActivityLog,
     private readonly scheduler: Scheduler,
-    /** Whether Talorys may read this Google calendar (the owner opened it). */
+    /** Whether Axis may read this Google calendar (the owner opened it). */
     private readonly calendarOpen: (calendarId: string) => boolean = () => false,
   ) {}
 
@@ -114,7 +114,7 @@ export class AutomationService {
     return next;
   }
 
-  /** A gate names a calendar Talorys may read: one the owner opened in Settings → Integrations. */
+  /** A gate names a calendar Axis may read: one the owner opened in Settings → Integrations. */
   private checkGate(calendarId: string): void {
     if (!this.calendarOpen(calendarId)) throw new ValidationError("Choose a Google calendar that is open in Settings → Integrations.");
   }

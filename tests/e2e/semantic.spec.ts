@@ -56,7 +56,7 @@ test.describe("Semantic recall", () => {
 
     await page.getByRole("link", { name: "Memory" }).first().click();
     await page.getByRole("button", { name: "Add memory" }).click();
-    await page.getByLabel("What should Talorys remember?").fill(content);
+    await page.getByLabel("What should Axis remember?").fill(content);
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(content).first()).toBeVisible();
 

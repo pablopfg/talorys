@@ -4,7 +4,7 @@ import { type Database, now } from "../db/database";
 import { ValidationError } from "../api/errors";
 
 export const DEFAULT_SETTINGS: Settings = {
-  agentName: "Talorys",
+  agentName: "Axis",
   timezone: DEFAULT_TIMEZONE,
   theme: "system",
   language: DEFAULT_LANGUAGE,
@@ -27,6 +27,19 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const SETTINGS_KEY = "app.settings";
 
+/**
+ * Saving any setting stores the whole object, so installs from before the rebrand keep the old
+ * default name ("Talorys") even if the owner never chose it. That exact value falls back to the
+ * current default (or the installer's name); any name the owner typed is kept as is.
+ */
+const LEGACY_DEFAULT_AGENT_NAMES = new Set(["Talorys"]);
+
+function withoutLegacyDefaults(stored: Partial<Settings>): Partial<Settings> {
+  if (stored.agentName === undefined || !LEGACY_DEFAULT_AGENT_NAMES.has(stored.agentName)) return stored;
+  const { agentName: _legacy, ...rest } = stored;
+  return rest;
+}
+
 /** Application settings plus small internal key/value records, stored in tal_settings. */
 export class SettingsService {
   constructor(
@@ -36,7 +49,7 @@ export class SettingsService {
   ) {}
 
   get(): Settings {
-    const stored = this.getJson<Partial<Settings>>(SETTINGS_KEY) ?? {};
+    const stored = withoutLegacyDefaults(this.getJson<Partial<Settings>>(SETTINGS_KEY) ?? {});
     const merged = {
       ...DEFAULT_SETTINGS,
       ...this.defaults,

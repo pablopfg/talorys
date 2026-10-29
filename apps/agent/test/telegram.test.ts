@@ -61,7 +61,7 @@ const voiceTelegram = (bytes = 16_000, replies: Record<string, (params: Record<s
     { "voice/file_1.oga": () => new Response(new Uint8Array(bytes).fill(7)) },
   );
 const groupMessage = (text: string, from = OWNER, chat: Record<string, unknown> = {}): TgUpdate =>
-  update({ message: { message_id: 1, from: { id: from }, chat: { id: GROUP, type: "supergroup", title: "Talorys alerts", ...chat }, text } });
+  update({ message: { message_id: 1, from: { id: from }, chat: { id: GROUP, type: "supergroup", title: "Axis alerts", ...chat }, text } });
 
 /** Connects (fake Telegram) and returns the link code. */
 async function connect(agent: TalorysAgent, fake = fakeTelegram()): Promise<string> {
@@ -166,11 +166,11 @@ describe("linking", () => {
       await t.handle(groupMessage(`/start ${code}`, STRANGER));
       expect(t.status().group).toBeNull();
       await t.handle(groupMessage(`/start@talorys_test_bot ${code}`));
-      expect(t.status()).toMatchObject({ chat: true, group: "Talorys alerts", topics: false });
+      expect(t.status()).toMatchObject({ chat: true, group: "Axis alerts", topics: false });
       expect(t.target()).toBe(GROUP);
       // The code is spent once the group is linked.
       expect(agent.services.settings.getJson("telegram.code")).toBeNull();
-      expect(fake.sent().map((c) => c.params.text)).toContain("This group now receives Talorys alerts.");
+      expect(fake.sent().map((c) => c.params.text)).toContain("This group now receives Axis alerts.");
     });
   });
 
@@ -238,7 +238,7 @@ describe("linking", () => {
       const replies = fake.sent().slice(before);
       expect(replies).toHaveLength(1);
       expect(replies[0]!.params).toMatchObject({ chat_id: OWNER });
-      expect(replies[0]!.params.text).toMatch(/^Write or send a voice message to talk to Talorys/);
+      expect(replies[0]!.params.text).toMatch(/^Write or send a voice message to talk to Axis/);
     });
   });
 
@@ -283,10 +283,10 @@ describe("alerts on Telegram", () => {
       expect(msg).toMatchObject({ chat_id: GROUP, parse_mode: "HTML", disable_notification: true, link_preview_options: { is_disabled: true } });
       expect(msg.text).toContain("<b>Pay &lt;rent&gt;</b>");
       expect(msg.text).not.toContain("Today");
-      expect(msg.text).toContain("Open Talorys to read it.");
+      expect(msg.text).toContain("Open Axis to read it.");
       expect(msg.text).toContain("Reminders · Normal priority");
-      // Normal alerts get only "Change priority" and "Open Talorys".
-      expect(msg.reply_markup.inline_keyboard).toEqual([[{ text: "Change priority", callback_data: `c:${n.id}` }], [{ text: "Open Talorys", url: BASE }]]);
+      // Normal alerts get only "Change priority" and "Open Axis".
+      expect(msg.reply_markup.inline_keyboard).toEqual([[{ text: "Change priority", callback_data: `c:${n.id}` }], [{ text: "Open Axis", url: BASE }]]);
       const row = agent.services.db.one<{ status: string; reached: number }>(`SELECT status, reached FROM tal_alert_deliveries WHERE notification_id = ? AND channel = 'telegram'`, n.id);
       expect(row).toEqual({ status: "sent", reached: 1 });
 
@@ -310,7 +310,7 @@ describe("alerts on Telegram", () => {
       const msg = fake.sent().at(-1)!.params;
       expect(msg.text).toContain("<b>Log in at evil[.]com</b>");
       expect(msg.text).toContain("Go to `hxxps://evil[.]example/login` or www[.]evil[.]com");
-      expect(msg.reply_markup.inline_keyboard.at(-1)).toEqual([{ text: "Open Talorys", url: BASE }]);
+      expect(msg.reply_markup.inline_keyboard.at(-1)).toEqual([{ text: "Open Axis", url: BASE }]);
     });
   });
 
@@ -481,7 +481,7 @@ describe("buttons", () => {
       ]);
       await agent.services.telegram.handle(press(`p:high:${n.id}`));
       expect(agent.services.notifications.get(n.id)).toMatchObject({ priority: "high", priority_reason: "corrected" });
-      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.params.text).toBe("Priority changed to High. Talorys learns from this.");
+      expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.params.text).toBe("Priority changed to High. Axis learns from this.");
       // Back on the alert's own buttons, now with the ones of a high alert.
       expect(edits().at(-1)!.params.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Done", callback_data: `n:done:${n.id}` });
       await agent.services.telegram.handle(press(`k:${n.id}`));
@@ -530,7 +530,7 @@ describe("buttons", () => {
       expect(agent.services.notifications.get(n.id)).toMatchObject({ escalation: "muted", read_at: null });
       await agent.services.telegram.handle(press(`n:mute:${n.id}`));
       expect(fake.calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.params.text)).toEqual([
-        "Muted. Talorys stops insisting on this alert.",
+        "Muted. Axis stops insisting on this alert.",
         "This alert was already handled.",
       ]);
       // A normal alert has no Done, Snooze or Mute; only Change priority.
@@ -647,8 +647,8 @@ describe("conversation in the private chat", () => {
       // Approvals are given in the app: the reply says so and links the conversation.
       await agent.services.telegram.handle(privateMessage("delete task Buy coffee beans"));
       const last = fake.sent().at(-1)!.params;
-      expect(last.text).toBe("Something here needs your confirmation. Open Talorys to review it.");
-      expect(last.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Open in Talorys", url: `${BASE}/chat/${agent.services.telegram.status().conversation_id}` });
+      expect(last.text).toBe("Something here needs your confirmation. Open Axis to review it.");
+      expect(last.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Open in Axis", url: `${BASE}/chat/${agent.services.telegram.status().conversation_id}` });
       expect(agent.services.tasks.list({ status: "open", limit: 500 }).length).toBe(before + 1);
     });
   });
@@ -677,10 +677,10 @@ describe("conversation in the private chat", () => {
       const first = t.handle(privateMessage("a fairly long message so the reply takes a while to stream"));
       await t.handle(privateMessage("again"));
       await first;
-      expect(fake.sent().map((c) => c.params.text)).toContain("Talorys is still answering your last message. Wait for it, then write again.");
+      expect(fake.sent().map((c) => c.params.text)).toContain("Axis is still answering your last message. Wait for it, then write again.");
 
       await t.handle(update({ message: { message_id: 5, from: { id: OWNER }, chat: { id: OWNER, type: "private" } } }));
-      expect(fake.sent().at(-1)!.params.text).toBe("Talorys reads text and voice messages here.");
+      expect(fake.sent().at(-1)!.params.text).toBe("Axis reads text and voice messages here.");
 
       t.setConversation(false);
       const before = agent.services.conversations.list().length;
@@ -827,7 +827,7 @@ describe("voice messages in the private chat", () => {
       await linkChat(agent, fake);
       agent.services.usage.increment({ transcription_seconds: TRANSCRIPTION_LIMITS.maxSecondsPerDay - 30 });
       await agent.services.telegram.handle(voiceMessage({ duration: 60 }));
-      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys reached its daily limit of 60 minutes of voice input.");
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Axis reached its daily limit of 60 minutes of voice input.");
       expect(agent.services.telegram.status().conversation_id).toBeNull();
       // A shorter message still fits.
       await agent.services.telegram.handle(voiceMessage({ duration: 20 }));
@@ -841,13 +841,13 @@ describe("voice messages in the private chat", () => {
       const t = agent.services.telegram;
       await linkChat(agent, fake);
       await t.handle(voiceMessage({}));
-      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys couldn't transcribe this voice message. Try again, or write it.");
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Axis couldn't transcribe this voice message. Try again, or write it.");
 
       const voice = voiceTelegram();
       useFake(agent, voice);
       const spy = vi.spyOn(agent, "transcribeClip").mockResolvedValueOnce({ text: "   ", seconds: 2 });
       await t.handle(voiceMessage({}));
-      expect(voice.sent().at(-1)!.params.text).toBe("Talorys couldn't make out any words in this voice message. Try again, or write it.");
+      expect(voice.sent().at(-1)!.params.text).toBe("Axis couldn't make out any words in this voice message. Try again, or write it.");
       spy.mockRestore();
 
       agent.transcribing = true;
@@ -881,7 +881,7 @@ describe("voice messages in the private chat", () => {
       const first = t.handle(voiceMessage({}));
       await vi.waitFor(() => expect(fake.calls.some((c) => c.method === "download")).toBe(true));
       await t.handle(privateMessage("meanwhile"));
-      expect(fake.sent().at(-1)!.params.text).toBe("Talorys is still answering your last message. Wait for it, then write again.");
+      expect(fake.sent().at(-1)!.params.text).toBe("Axis is still answering your last message. Wait for it, then write again.");
       release();
       await first;
       expect(fake.sent().map((c) => c.params.text)).toContain("🎙️ Demo transcription of 4 s of audio.");
@@ -898,7 +898,7 @@ describe("voice messages in the private chat", () => {
       expect(agent.services.usage.transcriptionSecondsToday()).toBe(100);
       agent.services.usage.increment({ transcription_seconds: TRANSCRIPTION_LIMITS.maxSecondsPerDay - 100 - 50 });
       await agent.services.telegram.handle(voiceMessage({ duration: undefined }, "audio"));
-      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Talorys reached its daily limit of 60 minutes of voice input.");
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ Axis reached its daily limit of 60 minutes of voice input.");
       expect(agent.services.usage.transcriptionSecondsToday()).toBe(TRANSCRIPTION_LIMITS.maxSecondsPerDay - 50);
     });
   });
@@ -922,7 +922,7 @@ describe("voice messages in the private chat", () => {
       const first = t.handle(voiceMessage({}));
       await vi.waitFor(() => expect(echoing).toBe(true));
       await t.handle(privateMessage("in between"));
-      expect(fake.sent().at(-1)!.params.text).toBe("Talorys is still answering your last message. Wait for it, then write again.");
+      expect(fake.sent().at(-1)!.params.text).toBe("Axis is still answering your last message. Wait for it, then write again.");
       release();
       await first;
       const conversationId = t.status().conversation_id!;

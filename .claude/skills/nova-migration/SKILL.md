@@ -1,6 +1,6 @@
 ---
 name: nova-migration
-description: Passo a passo para acrescentar uma migration ao SQLite do Durable Object do Talorys sem quebrar instalações existentes. Use sempre que precisar de tabela, coluna ou índice novo.
+description: Passo a passo para acrescentar uma migration ao SQLite do Durable Object do Axis sem quebrar instalações existentes. Use sempre que precisar de tabela, coluna ou índice novo.
 ---
 
 # Nova migration

@@ -43,11 +43,11 @@ describe("events from outside systems", () => {
     });
   });
 
-  it("can't pass for Talorys, nor carry an address without http", async () => {
+  it("can't pass for Axis, nor carry an address without http", async () => {
     const b = bearer(await mint("events"));
     const res = await b.call("/api/remote/events", {
       method: "POST",
-      body: { title: "Password changed", body: "Check www.evil.com and evil.example/verify", source: "Talorys-Security" },
+      body: { title: "Password changed", body: "Check www.evil.com and evil.example/verify", source: "Axis-Security" },
     });
     expect(res.status).toBe(201);
     const result = (await res.json()) as { event: { id: string } };
@@ -55,6 +55,16 @@ describe("events from outside systems", () => {
       const n = agent.services.notifications.get(result.event.id)!;
       expect(n.title).toBe("remote: Password changed");
       expect(n.body).toBe("Check `www[.]evil[.]com` and evil[.]example/verify");
+    });
+  });
+
+  it("can't pass for the app under its former name either", async () => {
+    const b = bearer(await mint("events"));
+    const res = await b.call("/api/remote/events", { method: "POST", body: { title: "Password changed", source: "talorys_Security" } });
+    expect(res.status).toBe(201);
+    const result = (await res.json()) as { event: { id: string } };
+    await inAgent((agent) => {
+      expect(agent.services.notifications.get(result.event.id)!.title).toBe("remote: Password changed");
     });
   });
 

@@ -12,7 +12,7 @@ function fakeAssets() {
     fetch: vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
       if (path.startsWith("/assets/")) return new Response("console.log(1)", { headers: { "content-type": "text/javascript" } });
-      return new Response("<!doctype html><title>Talorys</title>", { headers: { "content-type": "text/html; charset=utf-8" } });
+      return new Response("<!doctype html><title>Axis</title>", { headers: { "content-type": "text/html; charset=utf-8" } });
     }),
   } as unknown as Fetcher;
 }

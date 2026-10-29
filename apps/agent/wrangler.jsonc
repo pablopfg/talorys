@@ -1,4 +1,4 @@
-// Local development configuration for the Talorys agent Worker.
+// Local development configuration for the Axis agent Worker.
 // The installer generates the production equivalent with unique names.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",

@@ -1,6 +1,6 @@
 /**
  * Cloudflare Turnstile, the "not a robot" check the sign-in form shows only when a sign-in looks
- * risky (see AuthService.humanCheckRequired). Free, and it sends no cookie of its own to Talorys.
+ * risky (see AuthService.humanCheckRequired). Free, and it sends no cookie of its own to Axis.
  *
  * The browser solves the widget and sends its token with the password; the Worker confirms it
  * with siteverify before anything else. A token works once, for about five minutes.

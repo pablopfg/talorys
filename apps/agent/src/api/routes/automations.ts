@@ -156,5 +156,5 @@ automationRoutes.put("/alerts/profiles/:id", async (c) => {
   return c.json({ profile: c.env.agent.services.alerts.pinProfile(c.req.param("id"), pinned) });
 });
 
-/** Forgets what Talorys learned about a kind of alert. */
+/** Forgets what Axis learned about a kind of alert. */
 automationRoutes.delete("/alerts/profiles/:id", (c) => c.json({ profile: c.env.agent.services.alerts.resetProfile(c.req.param("id")) }));

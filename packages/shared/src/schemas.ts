@@ -405,7 +405,7 @@ export const settingsSchema = z.object({
   /** Documented demo mode: uses the deterministic mock provider instead of Workers AI. */
   demoMode: z.boolean(),
   memoryHistory: memoryHistorySettingsSchema,
-  /** Check the npm registry once a day for a newer Talorys release. */
+  /** Check the npm registry once a day for a newer Axis release. */
   updateCheck: z.boolean(),
   /** The weekly cleanup and the memory compaction every 15 days (Settings → Privacy). */
   autoCleanup: z.boolean().catch(true),

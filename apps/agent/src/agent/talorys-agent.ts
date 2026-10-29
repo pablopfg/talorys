@@ -97,7 +97,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
               try {
                 this.deleteWorkflow(runId);
               } catch {
-                // Only the platform's tracking row; the run history is Talorys' own table.
+                // Only the platform's tracking row; the run history is Axis' own table.
               }
             },
           },
@@ -187,7 +187,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   }
 
   /**
-   * Talorys has no sub-agents. Without this, the SDK forwards any `/sub/{class}/{name}/...`
+   * Axis has no sub-agents. Without this, the SDK forwards any `/sub/{class}/{name}/...`
    * request to a fresh facet with its own empty database, bypassing login rate limits.
    */
   override async onBeforeSubAgent(): Promise<Response> {
@@ -263,7 +263,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     const max = TRANSCRIPTION_LIMITS.maxSecondsPerDay;
     const today = s.usage.transcriptionSecondsToday();
     if (today >= max || (opts.seconds !== undefined && today + opts.seconds > max)) {
-      throw new AppError("AI_LIMIT_REACHED", `Talorys reached its daily limit of ${max / 60} minutes of voice input.`);
+      throw new AppError("AI_LIMIT_REACHED", `Axis reached its daily limit of ${max / 60} minutes of voice input.`);
     }
     if (this.transcribing) throw new AppError("CONFLICT", "A recording is already being transcribed.");
     this.transcribing = true;

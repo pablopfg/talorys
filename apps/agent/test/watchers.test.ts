@@ -206,7 +206,7 @@ describe("system watchers", () => {
     });
   });
 
-  it(`removes push devices that have not opened Talorys for ${PUSH_INACTIVE_DAYS} days, even with the watchers off`, async () => {
+  it(`removes push devices that have not opened Axis for ${PUSH_INACTIVE_DAYS} days, even with the watchers off`, async () => {
     await inAgent(async (agent) => {
       const s = agent.services;
       s.db.run(`DELETE FROM tal_push_subscriptions`);
@@ -227,10 +227,10 @@ describe("system watchers", () => {
       expect(s.push.subscriptions.devices().map((d) => d.id)).toEqual([kept.id]);
       const [alert] = alerts(agent);
       expect(alert).toMatchObject({ title: "Push device removed for inactivity", category: "system" });
-      expect(alert!.body).toContain(`had not opened Talorys for ${PUSH_INACTIVE_DAYS} days`);
+      expect(alert!.body).toContain(`had not opened Axis for ${PUSH_INACTIVE_DAYS} days`);
       // The label is the owner's (or a browser's) text: links in it never become clickable.
       expect(alert!.body).toContain("“Lost `https://evil.example` phone”");
-      expect(localizeServerText(alert!.body, "pt-BR")).toContain(`não abria o Talorys havia ${PUSH_INACTIVE_DAYS} dias`);
+      expect(localizeServerText(alert!.body, "pt-BR")).toContain(`não abria o Axis havia ${PUSH_INACTIVE_DAYS} dias`);
       expect(s.activity.list(10).some((a) => a.type === "push.expired")).toBe(true);
 
       // Opening the app keeps a device: the next round removes nothing.
@@ -351,7 +351,7 @@ describe("daily summary", () => {
       expect(fetchFn).toHaveBeenCalledTimes(1);
       const n = s.notifications.list().find((x) => x.title === "Update available")!;
       expect(n).toMatchObject({ priority: "low", category: "system" });
-      expect(n.body).toMatch(/^Talorys 99\.0\.0 is available \(you have /);
+      expect(n.body).toMatch(/^Axis 99\.0\.0 is available \(you have /);
       // Outside the summary's time, no call to npm.
       await runWatchers(s, new Date(FRIDAY_0730.getTime() + 15 * MIN), fetchFn);
       expect(fetchFn).toHaveBeenCalledTimes(1);

@@ -69,7 +69,7 @@ export function RecoverPage() {
       <div className="w-full max-w-[360px] animate-slide-up">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo className="h-12 w-12" />
-          <h1 className="mt-5 text-2xl font-semibold tracking-tight">{t("recover.title")}</h1>
+          <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight">{t("recover.title")}</h1>
         </div>
         {done ? (
           <div className="space-y-4">

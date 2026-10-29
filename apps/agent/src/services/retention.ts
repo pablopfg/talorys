@@ -339,7 +339,7 @@ export class RetentionService {
       this.activity.record("retention.compaction", `Memory compaction: combined ${combined} repeated memory(ies)`);
       this.alerts.raise({
         title: "Memories combined",
-        body: `Talorys combined ${combined} repeated memory(ies), keeping the newest of each. The older copies stay in the trash for 30 days (Settings → Privacy).`,
+        body: `Axis combined ${combined} repeated memory(ies), keeping the newest of each. The older copies stay in the trash for 30 days (Settings → Privacy).`,
         category: "system",
         priority: "low",
         dedupeKey: "retention-compaction",

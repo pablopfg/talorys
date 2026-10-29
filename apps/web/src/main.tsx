@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
+import "@fontsource-variable/funnel-sans/wght.css";
+import "@fontsource-variable/funnel-display/wght.css";
 import "./styles/index.css";
 import { initTheme } from "./lib/theme";
 import { initLanguage } from "./lib/i18n";

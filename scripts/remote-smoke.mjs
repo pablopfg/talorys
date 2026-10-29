@@ -1,4 +1,4 @@
-// Checks machine access to a Talorys install with a personal access token.
+// Checks machine access to an Axis install with a personal access token.
 // Usage: TALORYS_URL=<origin> TALORYS_TOKEN=<token> node scripts/remote-smoke.mjs [--read-only] [--expect-revoked]
 // Prints one `ok <step>` or `FAIL <step>: <status>` line per step and never the token.
 const USAGE = "usage: TALORYS_URL=<origin> TALORYS_TOKEN=<token> node scripts/remote-smoke.mjs [--read-only] [--expect-revoked]";

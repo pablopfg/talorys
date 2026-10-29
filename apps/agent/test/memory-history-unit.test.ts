@@ -139,7 +139,7 @@ describe("temporal labels", () => {
     const vw = mem("I own a Volkswagen.", { status: "historical", superseded_by: tesla.id });
     const lookup = (id: string) => (id === tesla.id ? tesla : null);
     const prompt = buildSystemPrompt({
-      agentName: "Talorys",
+      agentName: "Axis",
       timezone: "UTC",
       now: new Date(),
       autoMemory: true,

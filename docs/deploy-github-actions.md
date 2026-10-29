@@ -4,7 +4,7 @@
 > [instalacao-cloudflare.md](instalacao-cloudflare.md). Este documento detalha
 > o deploy pelo GitHub Actions e o modelo de segurança dele.
 
-Cada merge na `main` publica o Talorys na Cloudflare pelo GitHub Actions
+Cada merge na `main` publica o Axis na Cloudflare pelo GitHub Actions
 (`.github/workflows/deploy.yml`). O que vai ao ar é o **Worker único**
 (`apps/agent/wrangler.standalone.jsonc`): o mesmo Worker serve a interface e a
 API, sem projeto Pages e sem `*.pages.dev`.
@@ -62,10 +62,10 @@ Reserve uns 30 minutos. A ordem importa: siga os passos na sequência.
 - **Conta na Cloudflare** (o plano gratuito basta).
 - **Domínio próprio na Cloudflare** (recomendado): o domínio precisa estar
   adicionado à sua conta, com os nameservers da Cloudflare (Websites → *Add a
-  domain*). Defina o subdomínio do Talorys (por exemplo
+  domain*). Defina o subdomínio do Axis (por exemplo
   `assistente.exemplo.com.br`). Ele vai **só** na variável do ambiente (passo
   3), nunca no repositório, que é público.
-  Sem domínio, o Talorys fica em `https://<nome-do-worker>.<sua-conta>.workers.dev`.
+  Sem domínio, o Axis fica em `https://<nome-do-worker>.<sua-conta>.workers.dev`.
 - **Regras de branch aplicadas** no GitHub (passo 4).
 - Um **gerenciador de senhas** (Bitwarden, 1Password, o do navegador) para
   gerar e guardar a senha de acesso e o segredo de sessão.
@@ -108,7 +108,7 @@ agem antes de a requisição chegar ao Worker. Na zona do domínio, em
 - **Edge Certificates → Automatic HTTPS Rewrites:** ligado.
 
 Não ligue o **HSTS** da zona com *includeSubDomains* nem *Preload* se outros
-subdomínios do domínio ainda usam HTTP: o HSTS do Talorys vale só para o
+subdomínios do domínio ainda usam HTTP: o HSTS do Axis vale só para o
 endereço dele (e os subdomínios dele).
 
 ### 3. Criar o ambiente `production` no GitHub
@@ -133,11 +133,11 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
 | `TALORYS_VAPID_SUBJECT` | não | `mailto:voce@exemplo.com.br` | Contato que os serviços de push (Google, Apple, Mozilla) podem usar. Sem ela, vai o endereço do app. Não crie também um segredo `VAPID_SUBJECT` no Worker. |
 | `TALORYS_ALERT_EMAIL_FROM` | não | `talorys@exemplo.com.br` | Remetente dos avisos por e-mail, num domínio com o Cloudflare Email Routing ligado. Com ela, o deploy acrescenta o binding `send_email` (só esse remetente) e a variável `ALERT_EMAIL_FROM`. Veja [alerts.md](alerts.md#configurar-o-e-mail). |
-| `TALORYS_TURNSTILE_SITE_KEY` | não | `0x4AAAAAAA...` | *Site Key* do widget do Turnstile (passo 7). O Talorys só pede a verificação contra robôs quando um login parece arriscado, e só depois que o segredo `TURNSTILE_SECRET_KEY` também existir. |
+| `TALORYS_TURNSTILE_SITE_KEY` | não | `0x4AAAAAAA...` | *Site Key* do widget do Turnstile (passo 7). O Axis só pede a verificação contra robôs quando um login parece arriscado, e só depois que o segredo `TURNSTILE_SECRET_KEY` também existir. |
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
-Com o domínio próprio (ou o `TALORYS_PUBLIC_URL`), o Talorys (interface e API)
+Com o domínio próprio (ou o `TALORYS_PUBLIC_URL`), o Axis (interface e API)
 responde **só** nesse endereço. Qualquer outro host recebe 404.
 
 #### E o endereço `*.workers.dev`?
@@ -189,7 +189,7 @@ de novo.
 
 | Segredo | Obrigatório | Valor |
 | --- | --- | --- |
-| `OWNER_PASSWORD` | sim | A senha de acesso ao Talorys. Gere no gerenciador de senhas (20+ caracteres) e guarde lá. |
+| `OWNER_PASSWORD` | sim | A senha de acesso ao Axis. Gere no gerenciador de senhas (20+ caracteres) e guarde lá. |
 | `SESSION_SECRET` | sim | 48+ caracteres aleatórios, gerados no gerenciador de senhas. Ninguém precisa digitá-lo. |
 | `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Para guardar tokens de servidores MCP e da Google Agenda. |
 | `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` | não | Cliente OAuth gratuito do Google Cloud, para a Google Agenda. Veja [google-calendar.md](google-calendar.md). |
@@ -236,7 +236,7 @@ histórico do shell).
 ### 6. (Recomendado) Cloudflare Access na frente
 
 O Access pede o seu e-mail (com um código enviado a ele) antes de a página do
-Talorys abrir. Quem não for você nem chega à tela de login. O Talorys confere a
+Axis abrir. Quem não for você nem chega à tela de login. O Axis confere a
 assinatura do Access em cada requisição, então um endereço esquecido fora do
 Access não serve de atalho. O plano Free do Zero Trust atende até 50 usuários;
 no cadastro, a Cloudflare pode pedir um meio de pagamento.
@@ -252,14 +252,14 @@ no cadastro, a Cloudflare pode pedir um meio de pagamento.
    - **Policy:** *Bypass*, incluindo **Everyone**.
    - Sem cookie nem token, essa rota responde só `{"ok": true}`.
    - Se você usa o Telegram, crie uma **terceira aplicação** igual, com o caminho
-     `api/telegram/webhook`. O Talorys continua exigindo o cabeçalho secreto do
+     `api/telegram/webhook`. O Axis continua exigindo o cabeçalho secreto do
      Telegram nessa rota (veja [alerts.md](alerts.md#configurar-o-telegram)).
 4. Na primeira aplicação, aba **Overview**, copie a **Application Audience
    (AUD) Tag**.
 5. No ambiente `production` do GitHub, crie as variáveis
    `TALORYS_ACCESS_TEAM_DOMAIN` e `TALORYS_ACCESS_AUD`. Depois rode o Deploy
    (Actions → **Deploy** → *Run workflow*).
-6. Abra o endereço: o Access pede o e-mail e o código, e só então o Talorys
+6. Abra o endereço: o Access pede o e-mail e o código, e só então o Axis
    pede a senha.
 
 > **Ordem importa.** Crie as variáveis só depois que o Access estiver
@@ -275,14 +275,14 @@ junto com o Bearer.
 ### 7. (Recomendado) Verificação contra robôs (Turnstile)
 
 O Turnstile é a verificação "não sou um robô" da Cloudflare, gratuita e sem
-quebra-cabeça na maior parte das vezes. O Talorys só a mostra quando um login
+quebra-cabeça na maior parte das vezes. O Axis só a mostra quando um login
 parece arriscado: a rede errou a senha nos últimos 15 minutos, ou há muitas
 falhas vindas de várias redes ao mesmo tempo e a rede não é uma das suas. No
 uso normal, o login continua só com a senha. Detalhes em
 [security.md](security.md#verificação-contra-robôs-turnstile).
 
 1. Painel da Cloudflare → **Turnstile** → **Add widget**:
-   - **Widget name:** `Talorys`.
+   - **Widget name:** `Axis`.
    - **Hostname:** o seu `TALORYS_CUSTOM_DOMAIN` (ou o endereço
      `*.workers.dev`, sem `https://`).
    - **Widget Mode:** *Managed*.
@@ -306,7 +306,7 @@ instantes" (os logins sem risco não dependem dela).
 - [ ] Com domínio próprio, `https://<worker>.<conta>.workers.dev` não responde.
 - [ ] A aba **Deployments** do repositório mostra o ambiente `production` verde.
 - [ ] Nenhum segredo aparece em Settings → Secrets → Actions → *Repository secrets*.
-- [ ] Com o Access: uma janela anônima pede o e-mail antes de mostrar o Talorys.
+- [ ] Com o Access: uma janela anônima pede o e-mail antes de mostrar o Axis.
 - [ ] Com o Turnstile: depois de uma senha errada, o login pede a verificação.
 
 ## Rotina

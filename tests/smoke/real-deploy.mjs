@@ -1,6 +1,6 @@
 // Optional end-to-end smoke test against a REAL Cloudflare account.
 //
-// Creates a new Talorys deployment with the locally built create-talorys CLI,
+// Creates a new Axis deployment with the locally built create-talorys CLI,
 // then exercises it over HTTPS: login, private API, task CRUD, and (optionally)
 // one streamed chat turn through Pages Function → service binding → Worker.
 //

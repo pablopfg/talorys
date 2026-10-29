@@ -438,7 +438,7 @@ export class AlertService {
     const learning = this.deps.learning;
     if (!learning?.get(id)) throw new NotFoundError("This alert profile no longer exists.");
     const next = learning.reset(id)!;
-    this.deps.activity?.record("alerts.profile", "Reset what Talorys learned about a kind of alert");
+    this.deps.activity?.record("alerts.profile", "Reset what Axis learned about a kind of alert");
     return next;
   }
 

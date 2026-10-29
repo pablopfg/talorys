@@ -1,6 +1,6 @@
 ---
 name: nova-ferramenta
-description: Passo a passo para criar uma ferramenta nova do agente do Talorys com schema, permissão, aprovação, tradução e testes. Use quando o agente precisar de uma capacidade nova.
+description: Passo a passo para criar uma ferramenta nova do agente do Axis com schema, permissão, aprovação, tradução e testes. Use quando o agente precisar de uma capacidade nova.
 ---
 
 # Nova ferramenta do agente

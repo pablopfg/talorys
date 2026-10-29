@@ -26,7 +26,7 @@ describe.skipIf(!hasTemplates)("generated project with real Wrangler (offline)",
       installationId: "abcd1234",
       version: "0.1.0",
       timezone: "Asia/Shanghai",
-      agentName: "Talorys",
+      agentName: "Axis",
     });
   });
   const wrangler = (args: string[], cwd: string) =>

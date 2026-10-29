@@ -726,7 +726,7 @@ function seed(s: Services, memories: GoldenCase["memories"], enabled: boolean) {
 
 /** The memory lines `buildSystemPrompt` renders for `memories`, as `- [category] content`. */
 function memoryBlock(memories: Memory[]): string[] {
-  const prompt = buildSystemPrompt({ agentName: "Talorys", timezone: "UTC", now: new Date(0), autoMemory: false, memories });
+  const prompt = buildSystemPrompt({ agentName: "Axis", timezone: "UTC", now: new Date(0), autoMemory: false, memories });
   return prompt.split("\n").filter((l) => l.startsWith("- ["));
 }
 

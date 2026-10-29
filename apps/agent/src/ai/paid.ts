@@ -77,7 +77,7 @@ export class PaidAIProvider implements AIProvider {
   }
 
   private ensureAllowed(): void {
-    if (!this.budget.allows()) throw new AppError("AI_LIMIT_REACHED", "Talorys reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.");
+    if (!this.budget.allows()) throw new AppError("AI_LIMIT_REACHED", "Axis reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.");
   }
 
   async generate(req: GenerateRequest) {

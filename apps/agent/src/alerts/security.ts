@@ -9,11 +9,11 @@ import type { Notification } from "@talorys/shared";
 export const SECURITY_EVENTS = {
   password_changed: {
     title: "Password changed",
-    body: "Your Talorys password was changed and the other sessions were signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide).",
+    body: "Your Axis password was changed and the other sessions were signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide).",
   },
   password_reset: {
     title: "Password reset by e-mail",
-    body: "Your Talorys password was reset with the link sent to your e-mail, and every session was signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide) and check your e-mail account.",
+    body: "Your Axis password was reset with the link sent to your e-mail, and every session was signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide) and check your e-mail account.",
   },
   remote_enabled: {
     title: "Remote access on",
@@ -25,7 +25,7 @@ export const SECURITY_EVENTS = {
   },
   telegram_chat: {
     title: "Telegram linked",
-    body: "A Telegram chat was linked to Talorys and will receive your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.",
+    body: "A Telegram chat was linked to Axis and will receive your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.",
   },
   telegram_group: {
     title: "Telegram group linked",
@@ -33,7 +33,7 @@ export const SECURITY_EVENTS = {
   },
   telegram_conversation: {
     title: "Telegram conversation on",
-    body: "The conversation with Talorys in the Telegram chat was turned on. If it wasn't you, turn it off in Settings → Alerts and change your password.",
+    body: "The conversation with Axis in the Telegram chat was turned on. If it wasn't you, turn it off in Settings → Alerts and change your password.",
   },
   telegram_unlinked: {
     title: "Telegram unlinked",
@@ -57,7 +57,7 @@ export const SECURITY_EVENTS = {
   },
   calendar_connected: {
     title: "Google Calendar connected",
-    body: "A Google account's calendars were connected to Talorys. If it wasn't you, disconnect it in Settings → Integrations, remove Talorys from your Google account's third-party access and change your password.",
+    body: "A Google account's calendars were connected to Axis. If it wasn't you, disconnect it in Settings → Integrations, remove Axis from your Google account's third-party access and change your password.",
   },
   mcp_added: {
     title: "MCP server added",
@@ -73,7 +73,7 @@ export const SECURITY_EVENTS = {
   },
   data_imported: {
     title: "Backup imported",
-    body: "A backup was imported into Talorys. If it wasn't you, change your password now and check your data.",
+    body: "A backup was imported into Axis. If it wasn't you, change your password now and check your data.",
   },
 } as const;
 

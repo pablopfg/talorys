@@ -98,7 +98,7 @@ export class AlertLearning {
       priority = "normal";
       reason = "default";
     }
-    // Rule: what comes from outside Talorys is never louder than high.
+    // Rule: what comes from outside Axis is never louder than high.
     if (category === "event" && priorityRank(priority) > priorityRank("high")) {
       priority = "high";
       reason = "rule";

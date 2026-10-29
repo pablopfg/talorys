@@ -12,7 +12,7 @@ interface Env {
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   if (!env.AGENT) {
     return Response.json(
-      { error: { code: "NOT_CONFIGURED", message: "The backend service binding is missing. Re-run the Talorys installer." } },
+      { error: { code: "NOT_CONFIGURED", message: "The backend service binding is missing. Re-run the Axis installer." } },
       { status: 503 },
     );
   }
@@ -23,7 +23,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     console.error("Backend unreachable", error);
     return Response.json(
-      { error: { code: "INTERNAL_ERROR", message: "The Talorys backend is unreachable. Please try again shortly." } },
+      { error: { code: "INTERNAL_ERROR", message: "The Axis backend is unreachable. Please try again shortly." } },
       { status: 502 },
     );
   }

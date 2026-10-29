@@ -30,7 +30,7 @@ export const ARCHIVE_RETENTION_DAYS = 365;
 
 /**
  * Who sent an item to the trash: the owner (or an agent action the owner approved), an access
- * token, or Talorys itself (archiving and compaction).
+ * token, or Axis itself (archiving and compaction).
  */
 export type TrashActor = "owner" | "remote" | "system";
 

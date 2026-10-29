@@ -29,7 +29,7 @@
 
 - **Armazenamento**: SQLite do Durable Object via `ctx.storage.sql`, encapsulado
   por `db/database.ts` e por repositórios por entidade em `db/repositories/`. As
-  tabelas do Talorys têm o prefixo `tal_` e nunca tocam nas tabelas
+  tabelas do Axis têm o prefixo `tal_` e nunca tocam nas tabelas
   `cf_agents_*` do SDK.
 - **Migrations**: `db/migrations.ts`, versionadas e só de acréscimo, cada uma
   aplicada numa transação junto com o aumento de versão. Rodam sob demanda no

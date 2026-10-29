@@ -74,7 +74,7 @@ describe("notice before the first event", () => {
       patient("p2", "2026-11-03T15:00:00Z", "2026-11-03T16:00:00Z"),
       patient("p1", "2026-11-03T13:00:00Z", "2026-11-03T14:00:00Z"),
     );
-    // The fake Google returns them in insertion order; Talorys asks for startTime order, so sort like Google would.
+    // The fake Google returns them in insertion order; Axis asks for startTime order, so sort like Google would.
     f.state.events.sort((a, b) => (a.start.dateTime ?? "").localeCompare(b.start.dateTime ?? ""));
     const planned: { at: Date; payload: NoticePayload }[] = [];
     const schedule = async (at: Date, payload: NoticePayload) => {

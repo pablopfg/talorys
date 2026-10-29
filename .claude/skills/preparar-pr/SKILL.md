@@ -1,6 +1,6 @@
 ---
 name: preparar-pr
-description: Prepara o pull request do Talorys para a develop - título em Conventional Commits, entrada no CHANGELOG, descrição em pt-BR pelo modelo do repositório. Use quando o trabalho estiver pronto para PR.
+description: Prepara o pull request do Axis para a develop - título em Conventional Commits, entrada no CHANGELOG, descrição em pt-BR pelo modelo do repositório. Use quando o trabalho estiver pronto para PR.
 disable-model-invocation: true
 ---
 

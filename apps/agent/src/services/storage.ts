@@ -80,7 +80,7 @@ export class StorageService {
     const bytes = this.db.size();
     if (bytes !== null && bytes >= this.maxBytes) {
       // The Durable Object's file shrinks as rows are deleted, so freeing space lifts this.
-      throw new AppError("STORAGE_LIMIT_REACHED", "Talorys storage is full. Empty the trash or delete old conversations, notes or memories to add more.");
+      throw new AppError("STORAGE_LIMIT_REACHED", "Axis storage is full. Empty the trash or delete old conversations, notes or memories to add more.");
     }
   }
 
@@ -117,7 +117,7 @@ export class StorageService {
    * else TRASH_RETENTION_DAYS. Archiving and compaction always count as `system`.
    *
    * Each actor has its own room (TRASH_LIMITS). Past the owner's, the owner's oldest entries go
-   * first. An access token, or Talorys itself, is refused instead: a leaked token can never push
+   * first. An access token, or Axis itself, is refused instead: a leaked token can never push
    * what it deleted (or the owner's own deletes) out of the trash, nor fill the database through it.
    */
   keep(kind: TrashKind, row: object, title: string, opts: { reason?: TrashReason; actor?: TrashActor } = {}): TrashItem {
@@ -198,14 +198,14 @@ export class StorageService {
     }
     if (entry.kind === "memory" && typeof payload.content === "string" &&
       this.db.one(`SELECT 1 AS x FROM tal_memories WHERE lower(content) = lower(?) AND status != 'historical'`, payload.content.trim())) {
-      throw new AppError("CONFLICT", "Talorys already has a current memory with the same text.");
+      throw new AppError("CONFLICT", "Axis already has a current memory with the same text.");
     }
     this.assertRoom(target.kind);
     const values = target.columns.map((c) => {
       const v = payload[c];
       return typeof v === "string" || typeof v === "number" ? v : null;
     });
-    // Every stored copy has these; anything else was not written by Talorys.
+    // Every stored copy has these; anything else was not written by Axis.
     if (target.columns.some((c, i) => REQUIRED.has(c) && values[i] === null)) throw new AppError("CONFLICT", "This item can't be restored.");
     const at = (column: string) => target.columns.indexOf(column);
     if (at("project_id") >= 0 && values[at("project_id")] && !this.db.one(`SELECT 1 AS x FROM tal_projects WHERE id = ?`, values[at("project_id")])) {

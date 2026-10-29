@@ -227,7 +227,7 @@ describe("settings, usage, export and import", () => {
     expect((await c.call("/api/settings", { method: "PATCH", body: { limits: { maxToolCalls: 9999 } } })).status).toBe(400);
     const { settings } = await c.json("/api/settings", { method: "PATCH", body: { agentName: "Ada", timezone: "Europe/Paris" } });
     expect(settings).toMatchObject({ agentName: "Ada", timezone: "Europe/Paris", model: "@cf/zai-org/glm-4.7-flash" });
-    await c.json("/api/settings", { method: "PATCH", body: { agentName: "Talorys", timezone: "UTC" } });
+    await c.json("/api/settings", { method: "PATCH", body: { agentName: "Axis", timezone: "UTC" } });
   });
 
   it("stores the UI language and returns it with the session", async () => {

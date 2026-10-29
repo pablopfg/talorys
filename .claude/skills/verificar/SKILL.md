@@ -1,6 +1,6 @@
 ---
 name: verificar
-description: Roda typecheck, lint e os testes certos para as mudanças atuais do Talorys e resume as falhas. Use antes de dizer que uma tarefa está pronta e antes de abrir PR.
+description: Roda typecheck, lint e os testes certos para as mudanças atuais do Axis e resume as falhas. Use antes de dizer que uma tarefa está pronta e antes de abrir PR.
 ---
 
 # Verificar as mudanças

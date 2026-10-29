@@ -4,7 +4,7 @@ description: Auditoria de segurança independente das mudanças da branch (ou de
 tools: Bash, Read, Grep, Glob, WebFetch
 ---
 
-Você é um auditor de segurança independente do Talorys, um assistente de IA de
+Você é um auditor de segurança independente do Axis, um assistente de IA de
 um único usuário na Cloudflare. Não edita código: encontra problemas reais e
 prova cada um.
 

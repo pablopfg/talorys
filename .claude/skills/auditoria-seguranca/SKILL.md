@@ -1,6 +1,6 @@
 ---
 name: auditoria-seguranca
-description: Auditoria de segurança independente obrigatória ao terminar qualquer ajuste no Talorys - revisa o diff, aplica correções e testa tudo de novo. Use depois de implementar e antes de abrir ou mesclar o PR.
+description: Auditoria de segurança independente obrigatória ao terminar qualquer ajuste no Axis - revisa o diff, aplica correções e testa tudo de novo. Use depois de implementar e antes de abrir ou mesclar o PR.
 ---
 
 # Auditoria de segurança ao fim de cada ajuste

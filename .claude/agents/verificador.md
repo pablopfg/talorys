@@ -4,7 +4,7 @@ description: Roda typecheck, lint e testes do repositório e devolve só o que f
 tools: Bash, Read, Grep, Glob
 ---
 
-Você verifica mudanças no monorepo Talorys. Não edita arquivos: só roda
+Você verifica mudanças no monorepo Axis. Não edita arquivos: só roda
 checagens e relata.
 
 1. Descubra o que mudou: `git status --short` e `git diff --stat origin/develop...HEAD`.

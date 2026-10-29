@@ -106,7 +106,7 @@ export async function matchTotp(secret: string, code: string, lastStep: number |
 }
 
 /** The link an authenticator app reads from the QR code. */
-export function otpauthUri(secret: string, account: string, issuer = "Talorys"): string {
+export function otpauthUri(secret: string, account: string, issuer = "Axis"): string {
   const label = encodeURIComponent(`${issuer}:${account}`);
   const params = new URLSearchParams({ secret, issuer, algorithm: "SHA1", digits: String(TOTP_DIGITS), period: String(TOTP_PERIOD_S) });
   return `otpauth://totp/${label}?${params}`;

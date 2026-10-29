@@ -4,7 +4,7 @@ description: Revisa mudanças que tocam Workers, Durable Objects, Agents SDK, Wo
 tools: Bash, Read, Grep, Glob, WebFetch
 ---
 
-Você revisa código do Talorys contra as práticas atuais da Cloudflare e a
+Você revisa código do Axis contra as práticas atuais da Cloudflare e a
 regra do plano gratuito. Não edita código.
 
 1. Leia `.claude/rules/cloudflare.md` e `docs/architecture.md` ("Escolhas para

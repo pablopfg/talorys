@@ -7,12 +7,12 @@ import { raiseSecurityAlert } from "../alerts/security";
 
 /** Owner sessions only: the remote allowlist already refuses these paths to access tokens, this refuses them again. */
 const ownerOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "MCP servers can only be managed from the Talorys app.");
+  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "MCP servers can only be managed from the Axis app.");
   return next();
 };
 
 /**
- * The Talorys address the owner is using, for OAuth sign-in to return to. On these POST and PATCH
+ * The Axis address the owner is using, for OAuth sign-in to return to. On these POST and PATCH
  * routes the CSRF check has already refused an Origin that isn't this app's.
  */
 const appOrigin = (c: Context<AppEnv>) => c.req.header("origin") ?? new URL(c.req.url).origin;

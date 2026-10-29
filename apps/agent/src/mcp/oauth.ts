@@ -7,11 +7,11 @@ import type {
 } from "@modelcontextprotocol/client";
 import { TALORYS_VERSION } from "@talorys/shared";
 
-/** How long the owner has to finish signing in after Talorys sends them to the authorization server. */
+/** How long the owner has to finish signing in after Axis sends them to the authorization server. */
 export const OAUTH_STATE_TTL_MS = 10 * 60_000;
 
 /**
- * Everything Talorys keeps for one server's OAuth connection. It is stored only as AES-GCM
+ * Everything Axis keeps for one server's OAuth connection. It is stored only as AES-GCM
  * ciphertext in the server's `credential` column, like a bearer token, and never leaves the backend
  * except `authorize_url`, which the owner needs to sign in.
  */
@@ -49,7 +49,7 @@ export function sameSecret(a: string, b: string): boolean {
 }
 
 /**
- * The MCP SDK's OAuth client hooks, backed by the encrypted record. Talorys registers as a public
+ * The MCP SDK's OAuth client hooks, backed by the encrypted record. Axis registers as a public
  * client (dynamic client registration, PKCE, no client secret). `redirectToAuthorization` only
  * records the URL: the owner opens it from Settings, never the agent.
  */
@@ -63,7 +63,7 @@ export class TalorysOAuthProvider implements OAuthClientProvider {
 
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: "Talorys",
+      client_name: "Axis",
       client_uri: "https://github.com/rociiu/talorys",
       software_id: "talorys",
       software_version: TALORYS_VERSION,

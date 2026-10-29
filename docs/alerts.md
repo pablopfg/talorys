@@ -1,8 +1,8 @@
 # Central de avisos
 
-A central de avisos decide **como** o Talorys fala com você quando algo precisa da sua
+A central de avisos decide **como** o Axis fala com você quando algo precisa da sua
 atenção: qual a prioridade do aviso, por quais canais ele sai do app e quantas mensagens
-cada canal pode mandar. Tudo o que o Talorys avisa (lembretes, resumos, rotinas de IA,
+cada canal pode mandar. Tudo o que o Axis avisa (lembretes, resumos, rotinas de IA,
 alertas de segurança e de sistema) passa por ela.
 
 O app sempre recebe todos os avisos, na central de notificações (o sino no topo). Os
@@ -14,7 +14,7 @@ canais são os caminhos **fora** do app:
 | **Telegram** | O seu grupo de avisos no Telegram (ou o chat privado com o bot, enquanto nenhum grupo estiver vinculado) |
 | **E-mail** | O seu e-mail, pelo Cloudflare Email Routing (opcional). Recebe sempre os alertas de segurança e os críticos; veja [E-mail](#e-mail) |
 
-Este documento é atualizado a cada entrega do plano "Talorys proativo".
+Este documento é atualizado a cada entrega do plano "Axis proativo".
 
 ## Onde configurar
 
@@ -31,20 +31,20 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 
 | Prioridade | Sai do app? | Conta no limite do canal? | Usada por padrão em |
 | --- | --- | --- | --- |
-| Baixa | Não, fica só no app | — | Automações marcadas como **Baixa** e tipos de aviso que o Talorys [aprendeu](#prioridade-que-aprende) a deixar mais baixos |
+| Baixa | Não, fica só no app | — | Automações marcadas como **Baixa** e tipos de aviso que o Axis [aprendeu](#prioridade-que-aprende) a deixar mais baixos |
 | Normal | Sim, nos canais da categoria | Sim | Lembretes, resumos, rotinas, avisos de sistema |
 | Alta | Sim, e **insiste** até você confirmar (veja [Insistência](#insistência)) | Sim (as novas tentativas, não) | Lembretes e automações marcados como **Alta** (lembretes insistentes) |
 | Crítica | Sim, **por todos os canais**, mesmo com a categoria desligada, e **insiste** | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
 
 Você pode **corrigir a prioridade de qualquer notificação** na própria central (o seletor
 **Corrigir** embaixo de cada aviso) ou no Telegram (botão **Corrigir prioridade**). O
-Talorys aprende com essas correções e com o que você faz com os avisos; veja
+Axis aprende com essas correções e com o que você faz com os avisos; veja
 [Prioridade que aprende](#prioridade-que-aprende). Alertas de segurança são sempre
 críticos: a correção não aparece neles e a API recusa baixá-los.
 
 ## Prioridade que aprende
 
-O Talorys ajusta sozinho a prioridade de cada **tipo de aviso** a partir do seu uso, sem
+O Axis ajusta sozinho a prioridade de cada **tipo de aviso** a partir do seu uso, sem
 gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a mais cara:
 
 1. **Regras fixas**, que nada muda:
@@ -95,7 +95,7 @@ gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a m
   pediu ("Mais alta que o normal: aprendido com o que você faz com estes avisos", "A
   prioridade que você fixou", "Regra fixa", "Você alterou esta prioridade"). No Telegram,
   a explicação vai no rodapé do aviso.
-- Em **Configurações → Avisos → O que o Talorys aprendeu** ficam os perfis que já têm
+- Em **Configurações → Avisos → O que o Axis aprendeu** ficam os perfis que já têm
   sinais ou mudaram, com o efeito atual ("1 nível acima", "Fixada em Baixa"), quantos
   sinais desde a última mudança e quando mudou. Para cada um:
   - **Fixar** numa prioridade (Baixa, Normal ou Alta): o perfil para de aprender e todo
@@ -104,7 +104,7 @@ gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a m
   - **Zerar** esquece tudo o que o perfil aprendeu, inclusive as correções.
 - Cada mudança de nível fica no **Registro de atividade** ("Prioridade aprendida: …"), e o
   [resumo do dia](#vigias-e-resumo-do-dia) de sexta-feira conta o que mudou na semana.
-- O aprendizado não entra no backup: depois de restaurar, o Talorys aprende de novo.
+- O aprendizado não entra no backup: depois de restaurar, o Axis aprende de novo.
 
 **No Telegram:** todo aviso, menos os de segurança, traz o botão **Corrigir prioridade**.
 Ele troca os botões por **Baixa**, **Normal** e **Alta** (a atual com ✓) e **Voltar**.
@@ -120,7 +120,7 @@ botões.
 | Resumos | Resumo agendado de tarefas |
 | Rotinas | Resultado de rotinas de IA (inclusive a ferramenta `notify_owner`) |
 | Tarefas | Prazos e tarefas atrasadas (vigias) |
-| Sistema | Rotina pulada por falta de orçamento de IA e outros avisos do próprio Talorys |
+| Sistema | Rotina pulada por falta de orçamento de IA e outros avisos do próprio Axis |
 | Segurança | Login de aparelho ou país novo, verificação em duas etapas ligada ou desligada, muitas tentativas de login, código de recuperação usado |
 | Eventos | Eventos enviados pelas suas automações (n8n, scripts, monitores). Veja [Eventos do n8n e de outras automações](#eventos-do-n8n-e-de-outras-automações) |
 
@@ -194,7 +194,7 @@ em duas etapas, por exemplo, confirme o aviso no Telegram para ele parar.
 - **Adiar 1 h** de um aviso insistente cria um lembrete único também insistente: ele volta
   daqui a uma hora e começa a escada de novo.
 - Cada tentativa é um alarme do Durable Object. Se o Worker reiniciar e um alarme se
-  perder, o Talorys retoma na próxima vez que acordar, um passo de cada vez (nunca dispara
+  perder, o Axis retoma na próxima vez que acordar, um passo de cada vez (nunca dispara
   várias tentativas de uma vez).
 - No push, os botões aparecem nos navegadores que mostram ações em notificações. O
   Chrome e o Edge mostram 2 (**Feito** e **Adiar 1 h**; **Silenciar** fica no Telegram e
@@ -214,7 +214,7 @@ em duas etapas, por exemplo, confirme o aviso no Telegram para ele parar.
 
 ## Vigias e resumo do dia
 
-A cada **15 minutos** o Talorys roda os vigias: checagens sem IA (custo zero) que só
+A cada **15 minutos** o Axis roda os vigias: checagens sem IA (custo zero) que só
 geram um aviso quando algo precisa de você. Um vigia que não encontrou nada não manda
 "tudo certo". A chave de repetição de cada aviso impede que o mesmo aviso saia de novo.
 
@@ -228,7 +228,7 @@ geram um aviso quando algo precisa de você. Um vigia que não encontrou nada n�
 | Servidor MCP precisa de atenção | Servidor ligado que perdeu o login ou está com erro | Normal | 1 vez por dia |
 | Orçamento de IA quase no fim / esgotado | 80% / 100% dos pedidos de IA do dia | Normal / **Alta** | 1 vez por dia |
 | Notificações push não estão chegando | Todo aparelho inscrito falhou 3 vezes seguidas | Normal | 1 vez por semana |
-| Aparelho removido do push por inatividade | Um aparelho ficou 7 dias sem abrir o Talorys e foi removido (roda mesmo com os vigias desligados) | Normal | 1 vez por aparelho removido |
+| Aparelho removido do push por inatividade | Um aparelho ficou 7 dias sem abrir o Axis e foi removido (roda mesmo com os vigias desligados) | Normal | 1 vez por aparelho removido |
 | Hora de fazer um backup | Nenhuma exportação há 30 dias (contando do primeiro dia do vigia, se nunca houve) | Baixa | A cada 30 dias |
 | Atualização disponível | Versão nova publicada (só com a checagem de atualização ligada em Configurações) | Baixa | Uma vez por versão |
 
@@ -268,7 +268,7 @@ continua existindo para quem quiser outro horário ou outra frequência.
 ## Telegram
 
 O bot do Telegram é o canal principal fora do app. Ele **envia** avisos, entende os
-**botões** embaixo deles e, no chat privado, **conversa** com o Talorys como o chat do app.
+**botões** embaixo deles e, no chat privado, **conversa** com o Axis como o chat do app.
 Mandar áudio chega na próxima entrega.
 
 ### Como funciona
@@ -276,12 +276,12 @@ Mandar áudio chega na próxima entrega.
 - **Grupo de avisos.** Quando um grupo está vinculado, todo aviso vai para ele. Sem grupo,
   vai para o chat privado com o bot.
 - **Discreto por padrão.** No Telegram, cada aviso mostra o ícone da prioridade, o título,
-  a categoria e a prioridade; o texto fica no app ("Abra o Talorys para ler."). Ligue
+  a categoria e a prioridade; o texto fica no app ("Abra o Axis para ler."). Ligue
   **Texto completo** nas categorias que você quer ler direto no Telegram. Atenção: com o
   padrão, um lembrete aparece no grupo só com o nome dele; para ver a mensagem do
   lembrete no grupo, ligue **Texto completo** em **Lembretes**.
 - **Som.** Avisos de prioridade baixa e normal chegam em silêncio; alta e crítica tocam.
-- **Botões.** Todo aviso tem **Abrir o Talorys**. Avisos de prioridade alta e crítica
+- **Botões.** Todo aviso tem **Abrir o Axis**. Avisos de prioridade alta e crítica
   também têm **Feito** (marca como lido no app), **Adiar 1 h** (cria um lembrete único
   para daqui a uma hora, com o mesmo título e texto, e marca o aviso como lido) e
   **Silenciar este aviso** (para a [insistência](#insistência) sem marcar como lido). Depois de
@@ -290,7 +290,7 @@ Mandar áudio chega na próxima entrega.
   pode mostrar o texto completo no Telegram (ou é um lembrete); senão ele diz que o texto
   está na central de notificações.
 - **Tópicos.** Se o grupo tiver **tópicos** ligados e o bot for **administrador** com a
-  permissão *Gerenciar tópicos*, o Talorys cria um tópico por categoria (Lembretes,
+  permissão *Gerenciar tópicos*, o Axis cria um tópico por categoria (Lembretes,
   Rotinas, Segurança…) na primeira vez que precisar. Sem a permissão, tudo vai para o
   tópico geral. Se você apagar um tópico, o aviso vai para o geral e o tópico é criado de
   novo no próximo aviso daquela categoria.
@@ -312,11 +312,11 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
   o link **Abrir a conversa**.
 - **Confirmações só no app.** Ações que pedem aprovação (apagar uma tarefa, ferramentas MCP
   que perguntam antes) e planos de tarefas **nunca** são confirmados pelo Telegram. A
-  resposta avisa "Algo aqui precisa da sua confirmação" com o botão **Abrir no Talorys**.
+  resposta avisa "Algo aqui precisa da sua confirmação" com o botão **Abrir no Axis**.
   Assim, quem tomar a sua conta do Telegram não consegue apagar nada.
-- **Uma de cada vez.** Enquanto o Talorys responde, uma nova mensagem recebe "O Talorys
+- **Uma de cada vez.** Enquanto o Axis responde, uma nova mensagem recebe "O Axis
   ainda está respondendo sua última mensagem". Uma resposta que passa de 3 minutos é
-  interrompida e chega com o aviso "O Talorys demorou demais para responder"; se você
+  interrompida e chega com o aviso "O Axis demorou demais para responder"; se você
   tocar em **Parar** no app, o que já foi escrito chega com "A resposta foi interrompida".
   O bot mostra "digitando…" no primeiro minuto.
 - **Formatação.** Negrito, itálico, código e listas aparecem formatados; links ficam como
@@ -324,10 +324,10 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
   várias mensagens.
 - **Comandos:** `/new` (conversa nova) e `/help` (o que o bot faz).
 - **Mensagens de voz.** Grave um áudio no chat privado (ou envie um arquivo de áudio) e o
-  Talorys transcreve com o mesmo Whisper da entrada por voz do app. Ele mostra o texto que
+  Axis transcreve com o mesmo Whisper da entrada por voz do app. Ele mostra o texto que
   entendeu (🎙️ …) e responde como se você tivesse escrito. Detalhes em
   [Mensagens de voz](#mensagens-de-voz).
-- **Liga e desliga** em **Configurações → Avisos → Telegram → Conversar com o Talorys pelo
+- **Liga e desliga** em **Configurações → Avisos → Telegram → Conversar com o Axis pelo
   chat**. Ela é ligada ao tocar em **Conectar** (que já pede a senha); quem vinculou o bot
   antes desta versão encontra a conversa desligada e liga quando quiser. Ligar pede a senha.
   Desligado, o bot só envia avisos.
@@ -339,20 +339,20 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
   download é interrompido na hora.
 - **Mesmo limite do app.** A voz pelo Telegram divide com a entrada por voz do app o teto de
   **60 minutos de áudio por dia** (`TRANSCRIPTION_LIMITS.maxSecondsPerDay`). Uma mensagem
-  que passaria do teto é recusada com "O Talorys atingiu o limite diário de 60 minutos de
+  que passaria do teto é recusada com "O Axis atingiu o limite diário de 60 minutos de
   entrada por voz", e uma mais curta ainda cabe. Conta a maior duração entre a que o
   Telegram informa e a que o modelo mede; um arquivo de áudio sem duração tem a duração
   estimada pelo tamanho (cerca de 4 KB por segundo, até 5 minutos), já conferida contra o
   teto antes da transcrição.
 - **Uma de cada vez.** Enquanto um áudio é transcrito ou respondido, outra mensagem recebe
-  "O Talorys ainda está respondendo sua última mensagem". Uma transcrição já em andamento
+  "O Axis ainda está respondendo sua última mensagem". Uma transcrição já em andamento
   no app também faz o Telegram esperar ("Uma gravação já está sendo transcrita").
 - **Idioma.** O reconhecimento usa o idioma das Configurações (português, inglês ou coreano).
 - **Privacidade.** O áudio é baixado do Telegram, vai só para o Workers AI e nunca é
   guardado. Fica gravado só o texto, na conversa, como uma mensagem escrita.
 - **Custo.** Cada minuto de áudio gasta cerca de 46,6 Neurons do Workers AI (60 minutos ≈
   2.800 Neurons, dentro dos 10.000 diários gratuitos). Áudio sem nenhuma palavra recebe
-  "O Talorys não entendeu nenhuma palavra" e não vira mensagem para o agente.
+  "O Axis não entendeu nenhuma palavra" e não vira mensagem para o agente.
 - **Desligado.** Com a conversa desligada, o bot nem baixa o áudio.
 
 ### Configurar o Telegram
@@ -379,17 +379,17 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
    mais uma aplicação no Zero Trust, como a do health check:
    - **Application domain:** o seu domínio, com o caminho `api/telegram/webhook`.
    - **Policy:** *Bypass*, incluindo **Everyone**.
-   O Talorys continua exigindo o cabeçalho secreto do Telegram nessa rota (veja
+   O Axis continua exigindo o cabeçalho secreto do Telegram nessa rota (veja
    [Segurança do Telegram](#segurança-do-telegram)); sem ele a resposta é 403.
 5. **Conecte.** Em **Configurações → Avisos → Telegram**, toque em **Conectar** (pode
-   pedir a senha de novo). O Talorys registra o webhook do bot neste endereço e mostra
+   pedir a senha de novo). O Axis registra o webhook do bot neste endereço e mostra
    um código de 8 caracteres, válido por 10 minutos.
 6. **Vincule o chat.** Toque em **Abrir o chat com o bot** e depois em **Iniciar**. O bot
    responde que está vinculado e o cartão mostra *Chat privado: Vinculado*.
-7. **Vincule o grupo.** Crie um grupo (por exemplo "Talorys · avisos"), de preferência
+7. **Vincule o grupo.** Crie um grupo (por exemplo "Axis · avisos"), de preferência
    com **tópicos** ligados. Volte ao cartão e toque em **Adicionar o bot a um grupo**,
    escolha o grupo e confirme. O bot avisa "Este grupo agora recebe os avisos do
-   Talorys." Para tópicos por categoria, torne o bot administrador com *Gerenciar
+   Axis." Para tópicos por categoria, torne o bot administrador com *Gerenciar
    tópicos*.
 8. **Teste.** Toque em **Enviar teste**. A mensagem chega no grupo (ou no chat, sem
    grupo).
@@ -398,7 +398,7 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
 Se o código expirar antes de você terminar, toque em **Reconectar** para gerar outro. O
 mesmo botão serve depois de trocar de endereço (domínio) ou de `SESSION_SECRET`.
 
-**Desvincular** apaga o chat, o grupo e o webhook do lado do Talorys. O token continua
+**Desvincular** apaga o chat, o grupo e o webhook do lado do Axis. O token continua
 no Worker; para desligar o bot de vez, apague o segredo
 (`npx wrangler secret delete TELEGRAM_BOT_TOKEN`) ou revogue o token no @BotFather
 (`/revoke`).
@@ -498,10 +498,10 @@ sem chave de API.
   aparece como *limite do canal atingido* e o aviso continua no app, no push e no Telegram.
 - O **e-mail de teste** pede a senha digitada há pouco e sai no máximo **2 vezes por dia**.
 - O e-mail é discreto como o Telegram: sem **Texto completo** na categoria, leva o título,
-  a categoria, a prioridade e "Abra o Talorys para ler". Todo alerta de segurança termina
-  com "O Talorys nunca pede sua senha ou códigos por e-mail", para você reconhecer golpes
+  a categoria, a prioridade e "Abra o Axis para ler". Todo alerta de segurança termina
+  com "O Axis nunca pede sua senha ou códigos por e-mail", para você reconhecer golpes
   que imitam esses avisos.
-- O assunto é `Talorys: <título>`, no idioma do app, sem quebras de linha.
+- O assunto é `Axis: <título>`, no idioma do app, sem quebras de linha.
 - Só texto simples, sem HTML, sem links rastreados e sem anexos. O link no fim é o
   endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe. Endereços no
   título e no texto (de lembretes, rotinas ou eventos) chegam desarmados (`hxxps://`,
@@ -514,7 +514,7 @@ sem chave de API.
 
 **Custo:** gratuito. A Cloudflare cobra pelo envio só para destinatários quaisquer (Email
 Sending, plano Workers Paid). Enviar para um endereço **verificado** no Email Routing da sua
-conta é gratuito em todos os planos, e o Talorys só envia para o seu endereço verificado.
+conta é gratuito em todos os planos, e o Axis só envia para o seu endereço verificado.
 
 ### Configurar o e-mail
 
@@ -607,7 +607,7 @@ rotina de IA.
 
 ## Eventos do n8n e de outras automações
 
-Um fluxo do n8n (ou qualquer script ou monitor) pode mandar um aviso para o Talorys: o
+Um fluxo do n8n (ou qualquer script ou monitor) pode mandar um aviso para o Axis: o
 backup falhou, o site caiu, o pagamento entrou. Cada evento vira um aviso na categoria
 **Eventos**, passa pela central como os outros (rotas, limites, insistência, prioridade que
 aprende) e aparece no app.
@@ -630,14 +630,14 @@ aprende) e aparece no app.
 - **Repetição.** Com `id`, o mesmo `source` + `id` dentro de 24 horas é descartado (resposta
   200 com `duplicate: true`).
 - **Texto desarmado.** O título começa pela origem (`n8n: Backup falhou`), para que um evento
-  não se passe por um aviso do próprio Talorys (uma origem que contém `Talorys` ou o nome do
-  agente, como `Talorys-Security`, aparece como `remote`), e fica numa linha só (até 120 caracteres enviados); corpo até
+  não se passe por um aviso do próprio Axis (uma origem que contém `Axis` ou o nome do
+  agente, como `Axis-Security`, aparece como `remote`), e fica numa linha só (até 120 caracteres enviados); corpo até
   1.000. Links viram texto não clicável em todos os canais: `https://exemplo.com/x` vira
   `` `hxxps://exemplo[.]com/x` ``, e `www.` e domínios soltos também perdem o ponto (o Telegram
   e os clientes de e-mail não transformam isso em link). O corpo inteiro da requisição tem no
   máximo 2 KB.
 - **Prioridade que aprende por origem e tipo.** Cada par `source` + `kind` (por exemplo
-  `n8n · backup-falhou`) é um perfil em **O que o Talorys aprendeu**, até 50 pares; depois
+  `n8n · backup-falhou`) é um perfil em **O que o Axis aprendeu**, até 50 pares; depois
   disso, os pares novos dividem o perfil **Outros eventos**, para não apagar o que os seus
   outros avisos aprenderam.
 
@@ -659,7 +659,7 @@ revogado, vencido ou acesso remoto desligado.
 
 ### Configurar no n8n
 
-1. No Talorys, abra **Configurações → Segurança → Acesso remoto**, ligue o acesso remoto
+1. No Axis, abra **Configurações → Segurança → Acesso remoto**, ligue o acesso remoto
    (pede a senha recente), escreva um nome como `n8n`, escolha o escopo **events** e toque
    em **Gerar token**. Copie o token na hora: ele não aparece de novo. Criar o token gera o
    alerta de segurança "Token de acesso criado".
@@ -737,7 +737,7 @@ texto do aviso. Cada linha fica **90 dias**, com teto de 2.000 linhas.
 Sem as chaves VAPID, sem o token do Telegram ou sem o e-mail, tudo funciona e aquele canal
 aparece no histórico como *canal não configurado*. O seu endereço de e-mail fica só em
 segredo do Worker, nunca no repositório. O ID do chat, do grupo e da sua conta do Telegram
-ficam só no banco do Talorys, nunca no repositório nem em variáveis.
+ficam só no banco do Axis, nunca no repositório nem em variáveis.
 
 ## Instalação e configuração
 
@@ -765,7 +765,7 @@ Para o Telegram, siga [Configurar o Telegram](#configurar-o-telegram). Para o pu
 depois do deploy:
 
 1. Abra **Configurações → Avisos** e ligue o push neste aparelho (no iPhone, primeiro
-   adicione o Talorys à Tela de Início).
+   adicione o Axis à Tela de Início).
 2. Em **Para onde vão os avisos**, desligue as categorias que você não quer receber fora
    do app.
 3. Ajuste os limites se precisar e toque em **Salvar**.
@@ -777,16 +777,16 @@ depois do deploy:
   responde "No máximo 3 dispositivos podem receber notificações. Remova um primeiro.":
   remova um na lista de **Configurações → Avisos → Notificações push**.
 - **Aparelho parado sai sozinho.** Por segurança, um aparelho que fica **7 dias ou mais sem
-  abrir o Talorys com login** é removido do push, para que um celular perdido ou esquecido
+  abrir o Axis com login** é removido do push, para que um celular perdido ou esquecido
   pare de receber os seus avisos. A checagem roda a cada 15 minutos, mesmo com os vigias
   desligados. Cada remoção fica no registro de atividade e gera o aviso "Aparelho removido do
   push por inatividade" pelos canais que restam (outros aparelhos, Telegram, e-mail se ligado
   para Sistema, e a central).
-- **O que conta como acesso:** abrir o Talorys com login naquele navegador. O app avisa o
+- **O que conta como acesso:** abrir o Axis com login naquele navegador. O app avisa o
   servidor ao abrir e depois no máximo uma vez por hora enquanto fica aberto
   (`POST /api/push/seen`). Ligar ou renovar o push também conta. Receber notificações, não.
-- Na prática: **abra o Talorys em cada aparelho pelo menos a cada 7 dias** para continuar
-  recebendo push nele. Para voltar a receber num aparelho removido, abra o Talorys nele e
+- Na prática: **abra o Axis em cada aparelho pelo menos a cada 7 dias** para continuar
+  recebendo push nele. Para voltar a receber num aparelho removido, abra o Axis nele e
   ligue o push de novo (pede a senha recente, como todo aparelho novo, e gera o alerta "Novo
   aparelho no push").
 - Se todos os aparelhos saírem de uma vez e o Telegram e o e-mail não estiverem ligados, o

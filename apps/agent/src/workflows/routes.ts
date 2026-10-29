@@ -6,7 +6,7 @@ import { body, requireRecentAuth } from "../api/middleware";
 
 /** Owner sessions only: access tokens (n8n, scripts) never see or change workflows. */
 const ownerOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "Workflows can only be managed from the Talorys app.");
+  if (c.get("remote") || !c.get("sessionId")) throw new AppError("FORBIDDEN", "Workflows can only be managed from the Axis app.");
   return next();
 };
 

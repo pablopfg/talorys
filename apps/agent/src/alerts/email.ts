@@ -2,7 +2,7 @@ import { type AlertCategory, type AlertPriority, EMAIL_ALERTS, localizeServerTex
 import type { SettingsService } from "../services/settings";
 import { clip, unlinkForChannels } from "../services/text";
 
-/** The part of Cloudflare's send_email binding Talorys uses (the structured send). */
+/** The part of Cloudflare's send_email binding Axis uses (the structured send). */
 export interface EmailSender {
   send(message: { from: string; to: string; subject: string; text: string }): Promise<unknown>;
 }
@@ -103,7 +103,7 @@ export class EmailAlerts {
   /** A test message from Settings → Alerts. Resolves to true when Cloudflare accepted it. */
   async test(): Promise<boolean> {
     const text = [
-      this.text("This is a test e-mail from Talorys. E-mail alerts work."),
+      this.text("This is a test e-mail from Axis. E-mail alerts work."),
       "",
       ...this.footer(),
     ].join("\n");
@@ -130,12 +130,12 @@ export class EmailAlerts {
 
   private async recovery(link: string): Promise<boolean> {
     const text = [
-      this.text("Someone asked to reset your Talorys password. To choose a new one, open this link within 30 minutes:"),
+      this.text("Someone asked to reset your Axis password. To choose a new one, open this link within 30 minutes:"),
       "",
       link,
       "",
       this.text("The link works once. If it wasn't you, ignore this e-mail: your password stays the same."),
-      this.text("Talorys never asks for your password or codes by e-mail."),
+      this.text("Axis never asks for your password or codes by e-mail."),
     ].join("\n");
     return (await this.send("recovery", this.subject("Reset your password"), text)) > 0;
   }
@@ -149,21 +149,21 @@ export class EmailAlerts {
   alertText(n: Notification, fullText: boolean): string {
     // Mail clients link any address they see; only the footer's own link stays clickable.
     const lines = [clip(unlinkForChannels(clip(this.text(n.title), 200)), 200), ""];
-    lines.push(fullText ? clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY) : this.text("Open Talorys to read it."));
+    lines.push(fullText ? clip(unlinkForChannels(clip(this.text(n.body), MAX_BODY)), MAX_BODY) : this.text("Open Axis to read it."));
     lines.push("", `${this.text(CATEGORY_TEXT[n.category])} · ${this.text(PRIORITY_TEXT[n.priority])}`);
     // Phishing copies alerts like these: the real ones never ask for anything.
-    if (n.category === "security") lines.push(this.text("Talorys never asks for your password or codes by e-mail."));
+    if (n.category === "security") lines.push(this.text("Axis never asks for your password or codes by e-mail."));
     lines.push("", ...this.footer());
     return lines.join("\n");
   }
 
   private subject(title: string): string {
-    return clip(oneLine(`Talorys: ${unlinkForChannels(this.text(title))}`), MAX_SUBJECT);
+    return clip(oneLine(`Axis: ${unlinkForChannels(this.text(title))}`), MAX_SUBJECT);
   }
 
   private footer(): string[] {
     const lines: string[] = [];
-    if (this.config.appUrl) lines.push(`${this.text("Open Talorys:")} ${this.config.appUrl}`);
+    if (this.config.appUrl) lines.push(`${this.text("Open Axis:")} ${this.config.appUrl}`);
     lines.push(this.text("Choose which alerts reach your e-mail in Settings → Alerts."));
     return lines;
   }

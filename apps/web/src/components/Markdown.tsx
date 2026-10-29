@@ -51,7 +51,7 @@ const components: Components = {
 };
 
 /**
- * For text the owner didn't write and may trust as Talorys' own (notifications from reminders and
+ * For text the owner didn't write and may trust as Axis' own (notifications from reminders and
  * routines): every link, in any Markdown form, shows its address as plain code and can't be clicked.
  */
 export const plainLinkComponents: Components = {

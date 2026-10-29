@@ -1,13 +1,13 @@
 # Servidores MCP remotos
 
-O Talorys consegue usar ferramentas de servidores remotos do
+O Axis consegue usar ferramentas de servidores remotos do
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP): um serviço de
 busca, o seu gerenciador de tarefas ou um servidor que você mesmo hospeda. Você
 adiciona um servidor em **Configurações → Integrações**, escolhe quais
-ferramentas dele o Talorys pode usar, e o agente passa a poder chamá-las no
+ferramentas dele o Axis pode usar, e o agente passa a poder chamá-las no
 chat.
 
-É opcional. Sem servidores configurados nada muda, e o Talorys não faz nenhuma
+É opcional. Sem servidores configurados nada muda, e o Axis não faz nenhuma
 requisição a mais. Adicionar ou remover um servidor nunca exige um novo deploy.
 
 ## O que ele faz e o que não faz
@@ -29,7 +29,7 @@ requisição a mais. Adicionar ou remover um servidor nunca exige um novo deploy
 2. Informe um nome, a URL MCP do servidor (por exemplo,
    `https://exemplo.com/mcp`) e como ele autentica: um token Bearer ou OAuth,
    para entrar com a sua conta.
-3. Escolha **Conectar**. O Talorys confere a URL, conecta e lista as ferramentas
+3. Escolha **Conectar**. O Axis confere a URL, conecta e lista as ferramentas
    do servidor. Se não conseguir conectar, o servidor fica salvo com o motivo, e
    você pode corrigir o token ou tocar em reconectar.
 
@@ -42,7 +42,7 @@ ferramentas que quiser e escolha como cada uma roda:
 | **Executar sem perguntar** (só leitura) | O agente chama a ferramenta diretamente. Escolha isto só para ferramentas que apenas leem dados. |
 
 "Executar sem perguntar" é uma decisão de confiança no servidor. Os servidores
-podem marcar uma ferramenta como só leitura ou destrutiva; o Talorys mostra
+podem marcar uma ferramenta como só leitura ou destrutiva; o Axis mostra
 essas marcas, mas nunca depende delas, porque não consegue verificar o que uma
 ferramenta realmente faz.
 
@@ -52,18 +52,18 @@ IA. Desligue as ferramentas que você não usa.
 
 ## Privacidade
 
-O Talorys normalmente mantém os seus dados dentro da sua conta da Cloudflare.
+O Axis normalmente mantém os seus dados dentro da sua conta da Cloudflare.
 **As ferramentas MCP são a exceção:** chamar uma ferramenta envia os argumentos
 dela para aquele servidor, que é operado por terceiros ou por você, e o
 resultado volta para a conversa.
 
-- Só os argumentos da chamada são enviados. O Talorys nunca envia por conta
+- Só os argumentos da chamada são enviados. O Axis nunca envia por conta
   própria as suas memórias, notas, histórico de conversas ou outros dados para um
   servidor MCP. O modelo é instruído a incluir só o que o pedido precisa, mas o
   que ele puser nos argumentos sai da sua conta, então revise os cartões de
   aprovação.
 - As URLs dos servidores e os nomes das ferramentas aparecem no registro de
-  atividade do Talorys. Argumentos, resultados e credenciais, não.
+  atividade do Axis. Argumentos, resultados e credenciais, não.
 - Resultados e descrições de ferramentas são tratados como texto de terceiros
   não confiável: o modelo é instruído a nunca seguir instruções que estejam
   neles, e eles não conseguem mudar aprovações nem permissões.
@@ -118,7 +118,7 @@ resultado volta para a conversa.
   `https://*.workers.dev` ou o domínio de um n8n hospedado: eles também admitem
   o servidor de qualquer outro cliente ali.
 - **Ferramentas alteradas.** Quando um servidor muda a descrição, as entradas ou
-  as marcas de uma ferramenta, o Talorys para de usá-la até você ligá-la de novo
+  as marcas de uma ferramenta, o Axis para de usá-la até você ligá-la de novo
   (para uma ferramenta "Executar sem perguntar", com a senha digitada há pouco).
   As ferramentas que o servidor deixa de listar ficam marcadas como não mais
   oferecidas.
@@ -130,7 +130,7 @@ resultado volta para a conversa.
   modelo vê no máximo 8.000 caracteres de um resultado. Ferramentas com schemas
   de entrada grandes demais, aninhados demais ou não suportados aparecem na
   lista, mas não podem ser ligadas. Expressões regulares num schema (`pattern`,
-  `patternProperties`) não são executadas pelo Talorys; o servidor as valida.
+  `patternProperties`) não são executadas pelo Axis; o servidor as valida.
 - **Sem tráfego em segundo plano.** As sessões são abertas sob demanda e
   mantidas em memória por até dois minutos. Não há polling, nem stream de
   eventos de longa duração, nem laço de reconexão automática.
@@ -143,9 +143,9 @@ não conseguem alcançar dispositivos da rede da sua casa ou do seu escritório.
 
 ## Chamadas aprovadas e resultados incertos
 
-Um serviço externo pode não conseguir desfazer o que fez, e o Talorys não
+Um serviço externo pode não conseguir desfazer o que fez, e o Axis não
 consegue garantir que uma chamada aconteceu exatamente uma vez. Se a conexão
-falhar ou expirar depois que uma chamada aprovada foi enviada, o Talorys a
+falhar ou expirar depois que uma chamada aprovada foi enviada, o Axis a
 informa como falha e avisa que ela **pode ou não ter rodado**: confira o serviço
 antes de pedir de novo. Chamadas aprovadas nunca são repetidas automaticamente.
 Chamadas configuradas para executar sem perguntar são repetidas uma vez, só
@@ -158,7 +158,7 @@ quando uma sessão reutilizada se mostrou vencida.
   ligadas.
 - Servidores importados chegam **desligados**, sem token e sem ferramentas. Ligue
   um, adicione o token ou entre de novo e escolha as ferramentas outra vez.
-- Atualizar o Talorys mantém os seus servidores, tokens e escolhas de
+- Atualizar o Axis mantém os seus servidores, tokens e escolhas de
   ferramentas (eles ficam no banco SQLite do Durable Object).
 
 ## Configuração
@@ -200,8 +200,8 @@ do turno.
 | Isto não parece um servidor MCP Streamable HTTP | A URL responde, mas não como um servidor MCP. Servidores que só suportam o transporte SSE antigo não funcionam. |
 | Este servidor exige autenticação | Adicione ou substitua o token Bearer em **Gerenciar**. |
 | O servidor MCP respondeu com um redirecionamento | Use a URL final do servidor. |
-| Este endereço está em uma rede privada ou local | O Talorys só se conecta a servidores públicos. Para testar um servidor local, use o desenvolvimento local (abaixo). |
-| O servidor não retornou nenhuma ferramenta compatível | As ferramentas dele têm schemas de entrada que o Talorys não consegue validar. Cada uma mostra o motivo. |
+| Este endereço está em uma rede privada ou local | O Axis só se conecta a servidores públicos. Para testar um servidor local, use o desenvolvimento local (abaixo). |
+| O servidor não retornou nenhuma ferramenta compatível | As ferramentas dele têm schemas de entrada que o Axis não consegue validar. Cada uma mostra o motivo. |
 | Alterada, revise novamente | O servidor mudou a ferramenta. Leia a descrição e ligue-a de novo. |
 | O armazenamento de credenciais não está configurado | Rode `npx create-talorys@latest update` ou defina `MCP_CREDENTIAL_KEY` à mão. |
 | Entre para concluir a conexão com este servidor | Escolha **Entrar** e aprove o acesso na página do servidor. O link vale por 10 minutos; escolha reconectar para receber um novo. |
@@ -212,7 +212,7 @@ do turno.
 
 Com `TALORYS_ENV=development` (como o `npm run dev` configura), URLs
 `http://localhost`, `http://127.0.0.1` e `http://[::1]` são permitidas, então
-você pode apontar o Talorys para um servidor MCP rodando na sua máquina. No modo
+você pode apontar o Axis para um servidor MCP rodando na sua máquina. No modo
 de IA simulada (mock), uma mensagem de chat
 `call mcp_<id da ferramenta> {"arg": "valor"}` chama diretamente uma ferramenta ligada. O id da ferramenta
 aparece na lista de ferramentas do servidor.
@@ -222,13 +222,13 @@ aparece na lista de ferramentas do servidor.
 Escolha **OAuth (login)** como método de autenticação nos servidores que deixam
 você entrar com a sua conta em vez de colar um token.
 
-1. Quando você escolhe **Conectar**, o Talorys pergunta ao servidor como entrar
+1. Quando você escolhe **Conectar**, o Axis pergunta ao servidor como entrar
    (metadados OAuth de recurso protegido e de servidor de autorização), se
    registra como app no servidor de autorização (registro dinâmico de cliente) e
    abre a página de login do servidor.
 2. Aprove o acesso lá. O servidor de autorização manda você de volta para o
-   Talorys (`/settings/mcp-oauth`), que conclui o login e conecta.
-3. O Talorys renova o token de acesso sozinho. Se o servidor revogar o acesso ou
+   Axis (`/settings/mcp-oauth`), que conclui o login e conecta.
+3. O Axis renova o token de acesso sozinho. Se o servidor revogar o acesso ou
    o token de atualização expirar, o servidor mostra **Precisa de autenticação**
    e um botão **Entrar**.
 
@@ -238,9 +238,9 @@ Como isso fica seguro:
   segredo de cliente é guardado. O pedido indica o servidor MCP como o recurso
   (RFC 8707).
 - **O state** é aleatório, vinculado ao servidor, de uso único e expira em 10
-  minutos. A página de retorno o envia com a sua sessão do Talorys e o cabeçalho
+  minutos. A página de retorno o envia com a sua sessão do Axis e o cabeçalho
   CSRF, então um login só pode ser concluído no seu próprio navegador com
-  sessão aberta. (O redirecionamento de volta para o Talorys é entre sites, então
+  sessão aberta. (O redirecionamento de volta para o Axis é entre sites, então
   o cookie de sessão não vai junto; a página de retorno faz a requisição.)
 - **Os tokens, o registro do app e o verificador PKCE** ficam guardados cifrados
   com `MCP_CREDENTIAL_KEY`, como os tokens Bearer. Eles nunca são devolvidos pela

@@ -65,7 +65,7 @@ export async function runChecks(baseUrl: string, fetchFn: FetchLike, deadline = 
     const res = await get(`${url}/`);
     const body = await res.text();
     if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
-    if (!body.includes("<title>Talorys</title>")) throw new Error("Unexpected page content");
+    if (!body.includes("<title>Axis</title>")) throw new Error("Unexpected page content");
     return "200 OK";
   });
   await check("Authentication endpoint reachable", async (get) => {

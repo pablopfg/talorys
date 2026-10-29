@@ -271,7 +271,7 @@ export function clientId(c: Context<AppEnv>): string {
   const ip = c.req.header("cf-connecting-ip");
   if (ip) return clientKey(ip);
   // Elsewhere every such request would share one rate-limit bucket, so refuse it instead.
-  if (!isDevelopment(c)) throw new AppError("NOT_CONFIGURED", "The client address is missing. Reach Talorys through its Cloudflare URL.");
+  if (!isDevelopment(c)) throw new AppError("NOT_CONFIGURED", "The client address is missing. Reach Axis through its Cloudflare URL.");
   return "local";
 }
 

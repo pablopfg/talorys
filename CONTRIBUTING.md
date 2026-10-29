@@ -1,16 +1,16 @@
-# Como contribuir com o Talorys
+# Como contribuir com o Axis
 
 Obrigado pelo interesse! Relatos de bugs, correções na documentação e pull
 requests focados são todos bem-vindos.
 
 ## Princípios
 
-O Talorys é um agente **de um único usuário e auto-hospedado** que precisa
+O Axis é um agente **de um único usuário e auto-hospedado** que precisa
 caber no plano gratuito da Cloudflare. As mudanças devem manter estas
 propriedades:
 
 - Sem telemetria, analytics ou chamadas a serviços operados pelos
-  desenvolvedores do Talorys.
+  desenvolvedores do Axis.
 - Nenhum serviço pago da Cloudflare ligado automaticamente, e nenhuma troca
   automática para um modelo pago.
 - Segredos, tokens de API e bindings de IA/armazenamento nunca chegam ao código

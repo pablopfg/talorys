@@ -69,7 +69,7 @@ interface CalendarRow {
   notice_text: string | null;
 }
 
-/** An event as Talorys itself reads it (notices, the daily summary, routine gates). */
+/** An event as Axis itself reads it (notices, the daily summary, routine gates). */
 export interface CalendarEvent {
   title: string;
   /** Start instant in ms for a timed event; null for an all-day one. */

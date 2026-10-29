@@ -75,7 +75,7 @@ export class McpService {
   }
 
   /**
-   * TALORYS_MCP_ALLOWED_ORIGINS: the only servers Talorys may connect to (for example your own n8n).
+   * TALORYS_MCP_ALLOWED_ORIGINS: the only servers Axis may connect to (for example your own n8n).
    * Checked when a server is added or changed and again before every connection and call, so
    * narrowing the list stops servers already added.
    */
@@ -151,7 +151,7 @@ export class McpService {
   }
 
   /**
-   * `origin` is the Talorys address the owner is using (from the request), so an OAuth sign-in can
+   * `origin` is the Axis address the owner is using (from the request), so an OAuth sign-in can
    * return to it. It is only needed when connecting an OAuth server.
    */
   async create(input: { name: string; url: string; auth_type: McpAuthType; token?: string }, origin?: string): Promise<McpServerInfo> {
@@ -538,6 +538,6 @@ function connectFailure(error: McpConnectionError, server: StoredServer): string
     case "unavailable":
       return "Could not connect to the MCP server. Check the URL, or try again later.";
     case "protocol":
-      return error.message === "The MCP server sent a response Talorys couldn't use." ? "Could not connect: this doesn't look like a Streamable HTTP MCP server." : error.message;
+      return error.message === "The MCP server sent a response Axis couldn't use." ? "Could not connect: this doesn't look like a Streamable HTTP MCP server." : error.message;
   }
 }

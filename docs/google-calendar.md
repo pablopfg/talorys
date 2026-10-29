@@ -1,6 +1,6 @@
 # Google Agenda
 
-O Talorys consegue ler as suas agendas do Google e propor eventos. Você conecta
+O Axis consegue ler as suas agendas do Google e propor eventos. Você conecta
 uma conta Google em **Configurações → Integrações → Google Agenda** e escolhe,
 agenda por agenda, o que o agente pode fazer:
 
@@ -10,7 +10,7 @@ agenda por agenda, o que o agente pode fazer:
 | **Só leitura** | Listar e buscar os eventos, no chat e nas automações agendadas. |
 | **Ler e propor alterações** | Também propor criar, mover, renomear e excluir eventos. Cada alteração espera um cartão de aprovação no chat. |
 
-É opcional e gratuito. Sem nada configurado, o Talorys não faz nenhuma
+É opcional e gratuito. Sem nada configurado, o Axis não faz nenhuma
 requisição ao Google.
 
 ## O que ela faz e o que não faz
@@ -31,15 +31,15 @@ requisição ao Google.
 
 ### Recomendado: agenda de trabalho como só leitura
 
-Para o Talorys ver uma agenda de trabalho (a de um consultório, por exemplo)
+Para o Axis ver uma agenda de trabalho (a de um consultório, por exemplo)
 sem nenhuma chance de alterá-la, compartilhe essa agenda no Google Agenda com a
 sua própria conta como **Ver todos os detalhes do evento** e depois escolha
-**Só leitura** no Talorys. Aí o próprio Google recusa qualquer alteração, aconteça
-o que acontecer no Talorys.
+**Só leitura** no Axis. Aí o próprio Google recusa qualquer alteração, aconteça
+o que acontecer no Axis.
 
 ## Rotinas do dia com a agenda
 
-O Talorys também lê as agendas abertas por conta própria, sem a IA:
+O Axis também lê as agendas abertas por conta própria, sem a IA:
 
 - **Resumo do dia.** O resumo (**Configurações → Avisos**) lista os eventos de
   hoje de todas as agendas abertas, em ordem de horário.
@@ -85,20 +85,20 @@ resumo:
    toda semana. Como só você usa, a verificação do Google não é necessária: na
    página de consentimento, escolha **Advanced → Go to (nome do app)**.
 4. Crie um **OAuth client ID** do tipo **Web application** com este URI de
-   redirecionamento autorizado (o endereço do seu Talorys):
+   redirecionamento autorizado (o endereço do seu Axis):
    `https://talorys.exemplo.com.br/settings/google-calendar`
 5. Adicione o ID e o segredo do cliente como os segredos `GOOGLE_CLIENT_ID` e
    `GOOGLE_CLIENT_SECRET` do Worker. `MCP_CREDENTIAL_KEY` também precisa estar
    definido: ele lacra os tokens do Google.
-6. No Talorys, abra **Configurações → Integrações → Google Agenda → Conectar
+6. No Axis, abra **Configurações → Integrações → Google Agenda → Conectar
    Google**, permita as duas permissões e escolha uma opção para cada agenda.
 
 ## Privacidade
 
-- O Talorys pede ao Google só a lista de agendas e os eventos delas. Ele não vê
+- O Axis pede ao Google só a lista de agendas e os eventos delas. Ele não vê
   o Gmail, o Drive, os contatos nem nada mais da conta.
 - Os eventos são lidos quando o agente precisa deles e não ficam guardados no
-  Talorys. O que o agente lê passa a fazer parte daquela conversa, como
+  Axis. O que o agente lê passa a fazer parte daquela conversa, como
   qualquer resultado de ferramenta.
 - Títulos, locais e descrições dos eventos são escritos por quem criou o
   evento, possivelmente um estranho que mandou um convite. Eles chegam ao
@@ -133,16 +133,16 @@ resumo:
 - **Desconectar** apaga os tokens e as opções das agendas e revoga o acesso no
   Google.
 
-Se suspeitar de uso indevido, desconecte no Talorys, remova também o Talorys em
+Se suspeitar de uso indevido, desconecte no Axis, remova também o Axis em
 <https://myaccount.google.com/connections> e depois troque a sua senha do
-Talorys.
+Axis.
 
 ## Solução de problemas
 
 | Mensagem | O que fazer |
 | --- | --- |
 | A Google Agenda não está configurada | Adicione `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `MCP_CREDENTIAL_KEY` ao Worker. |
-| `redirect_uri_mismatch` na página do Google | O URI de redirecionamento autorizado precisa ser exatamente o endereço do seu Talorys seguido de `/settings/google-calendar`. |
+| `redirect_uri_mismatch` na página do Google | O URI de redirecionamento autorizado precisa ser exatamente o endereço do seu Axis seguido de `/settings/google-calendar`. |
 | Permita as duas permissões | Na página do Google, marque as duas caixas e conecte de novo. |
 | O acesso ao Google foi revogado ou expirou | Conecte de novo. Se acontece toda semana, o app ainda está em **Testing**: publique-o. |
 | Falta uma agenda | Toque em **Atualizar lista** depois de compartilhar ou criar a agenda no Google. |
