@@ -46,6 +46,7 @@ export function UsageBreakdown({ counters, compact = false }: { counters: UsageC
     [suffix(t("usage.estNeurons")), formatEstimate(counters.neurons_estimate, locale)],
     cost,
     [t("usage.embeddingRequests"), counters.embedding_requests.toLocaleString(locale)],
+    [t("usage.voiceInput"), t("usage.voiceMinutes", { minutes: (counters.transcription_seconds / 60).toLocaleString(locale, { maximumFractionDigits: 1 }) })],
   ];
   if (counters.mock_calls > 0) rows.push([t("usage.mockCalls"), counters.mock_calls.toLocaleString(locale)]);
 
