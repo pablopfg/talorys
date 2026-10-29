@@ -491,6 +491,33 @@ export const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 19,
+    name: "alert center",
+    statements: [
+      // Notifications written before the alert center were all sent to every push device: normal.
+      `ALTER TABLE tal_notifications ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'`,
+      `ALTER TABLE tal_notifications ADD COLUMN category TEXT NOT NULL DEFAULT 'system'`,
+      // The same key within its cooldown is not raised again (e.g. one "task overdue" per day).
+      `ALTER TABLE tal_notifications ADD COLUMN dedupe_key TEXT`,
+      `CREATE INDEX IF NOT EXISTS tal_notifications_dedupe ON tal_notifications(dedupe_key, created_at)`,
+      // One row per alert and channel: what was sent, held back or failed. Metadata only, no body.
+      `CREATE TABLE IF NOT EXISTS tal_alert_deliveries (
+        id TEXT PRIMARY KEY,
+        notification_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        category TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT,
+        reached INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS tal_alert_deliveries_channel ON tal_alert_deliveries(channel, status, created_at)`,
+      `CREATE INDEX IF NOT EXISTS tal_alert_deliveries_created ON tal_alert_deliveries(created_at)`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

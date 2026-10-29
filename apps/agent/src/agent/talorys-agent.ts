@@ -140,7 +140,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     switch (a.kind) {
       case "reminder": {
         // Simple reminders never use AI. Their text may come from the agent, so links can't be clicked.
-        s.notifications.create({ title: "Reminder", body: defangLinks(a.message || a.name), automation_id: a.id });
+        s.alerts.raise({ title: "Reminder", body: defangLinks(a.message || a.name), automationId: a.id, category: "reminder" });
         return { status: "success", result: "Reminder delivered" };
       }
       case "task_digest": {
@@ -158,7 +158,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           `${open} open task(s) in total.`,
         ].filter(Boolean);
         if (a.message) parts.unshift(a.message);
-        s.notifications.create({ title: a.name, body: parts.join("\n\n"), automation_id: a.id });
+        s.alerts.raise({ title: a.name, body: parts.join("\n\n"), automationId: a.id, category: "digest" });
         return { status: "success", result: `${overdue.length} overdue, ${today.length} due today` };
       }
       case "agent_prompt": {
@@ -172,7 +172,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
           throw error;
         }
         // The reply is model-written: links in it stay visible but can't be clicked.
-        s.notifications.create({ title: a.name, body: defangLinks(text), automation_id: a.id });
+        s.alerts.raise({ title: a.name, body: defangLinks(text), automationId: a.id, category: "routine" });
         return { status: "success", result: text };
       }
     }
@@ -180,10 +180,14 @@ export class TalorysAgent extends Agent<Env, AgentState> {
 }
 
 function skipForBudget(s: Services, a: Automation): { status: "skipped"; result: string } {
-  s.notifications.create({
+  s.alerts.raise({
     title: a.name,
     body: "Skipped: the daily budget for scheduled AI runs was reached. Adjust it in Settings → AI.",
-    automation_id: a.id,
+    automationId: a.id,
+    category: "system",
+    // One per routine and day is enough; every later skip would only repeat it.
+    dedupeKey: `routine-budget:${a.id}`,
+    cooldownMinutes: 20 * 60,
   });
   return { status: "skipped", result: "Scheduled AI budget reached" };
 }

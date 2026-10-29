@@ -76,7 +76,8 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | ✅ | **Tarefas, notas e projetos** | Criar, ver, editar e apagar pela interface e pelo chat (_"Adicione uma tarefa para revisar meu projeto amanhã"_). Prazos de tarefas criados pelo chat recusam datas impossíveis no calendário, inclusive horários com fuso UTC explícito. |
 | 🗺️ | **Planejamento de tarefas com IA** | Descreva um objetivo (_"Planeje as tarefas para lançar meu app de iOS no mês que vem"_) e receba um plano em um cartão interativo. Revise, edite ou remova tarefas, escolha um projeto e confirme: nada é criado antes disso, e a confirmação cria tudo de uma vez, uma única vez. |
 | ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
-| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Geral**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Avisos**). Usa Web Push padrão, com criptografia de ponta a ponta. |
+| 📣 | **Central de avisos** | Todo aviso tem prioridade (baixa, normal, alta ou crítica, editável em cada notificação) e categoria. Você escolhe quais categorias saem do app, limita quantas mensagens cada canal manda por hora e por dia e vê o histórico de entregas com o motivo de cada aviso não enviado. Avisos repetidos são descartados. [Saiba mais](docs/alerts.md) |
 
 > [!TIP]
 > No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.

@@ -14,6 +14,8 @@ type Catalog = Record<string, string>;
 const PT_BR: Catalog = {
   // API and request errors
   "Not found": "Não encontrado",
+  "Notification not found": "Notificação não encontrada",
+  "Changed alert preferences": "Preferências de avisos alteradas",
   "Invalid input": "Dados inválidos",
   "Something went wrong.": "Algo deu errado.",
   "Something went wrong. Your data is safe; please try again.": "Algo deu errado. Seus dados estão seguros; tente novamente.",

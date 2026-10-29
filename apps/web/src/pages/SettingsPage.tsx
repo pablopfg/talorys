@@ -17,6 +17,7 @@ import { Download, ExternalLink, LogOut, Monitor, Moon, Sun, Upload } from "luci
 import { Badge, Button, Card, ConfirmDialog, ErrorNotice, Input, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
 import { SemanticRecallCard } from "../components/SemanticRecallCard";
 import { PushNotificationsCard } from "../components/PushNotificationsCard";
+import { AlertsCard } from "../components/AlertsCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
@@ -31,10 +32,11 @@ import { applyTheme } from "../lib/theme";
 import { cn, describeAgent, relativeTime } from "../lib/utils";
 import { applyLanguage, browserLanguage, LANGUAGE_NAMES, type PlainMessageKey, useI18n } from "../lib/i18n";
 
-const TABS = ["General", "AI", "Privacy", "Security", "Integrations", "About"] as const;
+const TABS = ["General", "Alerts", "AI", "Privacy", "Security", "Integrations", "About"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Record<Tab, PlainMessageKey> = {
   General: "settings.tabGeneral",
+  Alerts: "settings.tabAlerts",
   AI: "settings.tabAi",
   Privacy: "settings.tabPrivacy",
   Security: "settings.tabSecurity",
@@ -100,7 +102,8 @@ export default function SettingsPage() {
       ) : (
         <div className="space-y-8 animate-fade-in">
           {tab === "General" && <GeneralTab settings={settings} />}
-          {tab === "General" && <PushNotificationsCard />}
+          {tab === "Alerts" && <PushNotificationsCard />}
+          {tab === "Alerts" && <AlertsCard />}
           {tab === "AI" && <AiTab settings={settings} />}
           {tab === "Privacy" && <PrivacyTab />}
           {tab === "Security" && <SecurityTab settings={settings} />}

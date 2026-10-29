@@ -87,7 +87,9 @@ async function finishSignIn(c: Context<AppEnv>, client: ClientInfo, signed: Sign
     if (device) s.authLog.rememberDevice(device);
     // The alert says nothing about where from: it can show on a lock screen. The details are in the app.
     if (earlier && (!knownDevice || newCountry)) {
-      s.notifications.create({
+      s.alerts.raise({
+        category: "security",
+        priority: "critical",
         title: "New sign-in",
         body: "Someone signed in to Talorys from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.",
       });
@@ -278,10 +280,12 @@ async function afterMfaChange(c: Context<AppEnv>, kind: "mfa_enabled" | "mfa_dis
   s.authLog.record(kind, await clientInfo(c), { session: sessionId.slice(0, 16) });
   const on = kind === "mfa_enabled";
   s.activity.record(on ? "auth.mfa_enabled" : "auth.mfa_disabled", on ? "Two-step sign-in turned on" : "Two-step sign-in turned off");
-  s.notifications.create(
-    on
+  s.alerts.raise({
+    category: "security",
+    priority: "critical",
+    ...(on
       ? { title: "Two-step sign-in on", body: "Signing in now also asks for a code from your authenticator app. Other sessions were signed out." }
-      : { title: "Two-step sign-in off", body: "Signing in no longer asks for a code. If it wasn't you, change your password now and turn it back on in Settings → Security." },
-  );
+      : { title: "Two-step sign-in off", body: "Signing in no longer asks for a code. If it wasn't you, change your password now and turn it back on in Settings → Security." }),
+  });
   return { signed_out: signedOut };
 }

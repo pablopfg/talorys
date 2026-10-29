@@ -1,10 +1,13 @@
 import { BellOff, Trash2 } from "lucide-react";
-import { Button, Dialog, EmptyState, Spinner } from "./ui";
+import { ALERT_PRIORITIES, type AlertPriority } from "@talorys/shared";
+import { Badge, Button, Dialog, EmptyState, Spinner } from "./ui";
 import { Markdown } from "./Markdown";
 import { keys, useApiMutation, useNotifications } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, relativeTime } from "../lib/utils";
 import { useI18n } from "../lib/i18n";
+import { PRIORITY_LABELS, PRIORITY_TONES } from "../lib/alerts";
+import { CATEGORY_LABELS } from "./AlertsCard";
 
 /** In-app notification center for reminders and automation results. */
 export function NotificationCenter({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -15,6 +18,10 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
     invalidate: [keys.notifications],
   });
   const remove = useApiMutation((id: string) => api(`/notifications/${id}`, { method: "DELETE" }), { invalidate: [keys.notifications] });
+  const setPriority = useApiMutation(
+    (v: { id: string; priority: AlertPriority }) => api(`/notifications/${v.id}`, { method: "PATCH", body: { priority: v.priority } }),
+    { invalidate: [keys.notifications], success: t("alerts.priorityChanged") },
+  );
 
   return (
     <Dialog
@@ -50,6 +57,22 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
                 </div>
                 <div className="mt-1 text-sm text-fg-muted">
                   <Markdown content={serverText(n.body)} compact plainLinks />
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
+                  {(n.priority === "high" || n.priority === "critical") && <Badge tone={PRIORITY_TONES[n.priority]}>{t(PRIORITY_LABELS[n.priority])}</Badge>}
+                  <span>{t(CATEGORY_LABELS[n.category])}</span>
+                  <select
+                    className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-fg-muted"
+                    value={n.priority}
+                    aria-label={t("alerts.changePriority")}
+                    disabled={setPriority.isPending}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setPriority.mutate({ id: n.id, priority: e.target.value as AlertPriority })}
+                  >
+                    {ALERT_PRIORITIES.map((p) => (
+                      <option key={p} value={p}>{t(PRIORITY_LABELS[p])}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <button type="button"

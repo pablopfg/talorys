@@ -36,6 +36,7 @@ test.describe("Push notifications", () => {
     expect(added.status()).toBe(200);
 
     await page.getByRole("link", { name: "Settings" }).first().click();
+    await page.getByRole("tab", { name: "Alerts" }).click();
     await expect(page.getByRole("heading", { name: "Push notifications" })).toBeVisible();
     const toggle = page.getByRole("switch", { name: "Push notifications on this device" });
     await expect(toggle).toHaveAttribute("aria-checked", "false");

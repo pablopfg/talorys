@@ -4,6 +4,18 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ## Não lançado
 
+### Adicionado
+
+- **Central de avisos.** Todo aviso do Talorys (lembretes, resumos, rotinas, alertas de sistema e de segurança) agora tem prioridade (baixa, normal, alta ou crítica) e categoria, e passa por uma central que decide por onde ele sai do app. Em **Configurações → Avisos** (aba nova, que também passa a abrigar as notificações push) você escolhe quais categorias vão para o push, limita quantas mensagens cada canal manda por hora e por dia (padrão 6 e 30) e vê as 100 entregas mais recentes, com o motivo de cada aviso que não saiu. Avisos de prioridade baixa ficam só no app; lembretes, alertas de segurança e avisos críticos nunca são segurados pelos limites; segurança e críticos saem sempre por todos os canais (não dá para desligar); e repetições do mesmo aviso são descartadas. A prioridade de cada notificação pode ser corrigida na própria central. Veja [docs/alerts.md](docs/alerts.md).
+
+### Alterado
+
+- Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
+
+### Atualização
+
+- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Nenhuma variável ou segredo novo.
+
 ## 1.0.0 — 2026-10-29
 
 ### Adicionado

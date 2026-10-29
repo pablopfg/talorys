@@ -1,9 +1,9 @@
-import { automationCreateSchema, automationUpdateSchema } from "@talorys/shared";
+import { automationCreateSchema, alertPreferencesSchema, automationUpdateSchema, notificationPriorityUpdateSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Context } from "hono";
 import type { AppEnv } from "../app";
-import { AppError } from "../errors";
+import { AppError, NotFoundError } from "../errors";
 import { body, query } from "../middleware";
 
 export const automationRoutes = new Hono<AppEnv>();
@@ -86,4 +86,23 @@ automationRoutes.delete("/notifications/:id", (c) => {
   c.env.agent.services.notifications.delete(c.req.param("id"));
   c.env.agent.refreshUnread();
   return c.json({ deleted: true });
+});
+
+/** The owner corrects how loud a notification is. */
+automationRoutes.patch("/notifications/:id", async (c) => {
+  const { priority } = await body(c, notificationPriorityUpdateSchema);
+  const notification = c.env.agent.services.alerts.setPriority(c.req.param("id"), priority);
+  if (!notification) throw new NotFoundError("Notification not found");
+  return c.json({ notification });
+});
+
+// ---------- Alert center ----------
+
+automationRoutes.get("/alerts", (c) => c.json(c.env.agent.services.alerts.overview()));
+
+automationRoutes.put("/alerts/preferences", async (c) => {
+  const s = c.env.agent.services;
+  const preferences = s.alerts.updatePreferences(await body(c, alertPreferencesSchema, 8 * 1024));
+  s.activity.record("alerts.preferences", "Changed alert preferences");
+  return c.json({ preferences });
 });

@@ -18,6 +18,9 @@ import { PushService } from "../push/service";
 import { RemoteTokenService } from "../remote/tokens";
 import { TaskPlanService } from "./task-plans";
 import { McpService } from "../mcp/service";
+import { AlertService } from "../alerts/service";
+import { AlertDeliveryRepository } from "../alerts/repository";
+import { pushChannel } from "../alerts/channels";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
 export interface Services {
@@ -29,6 +32,7 @@ export interface Services {
   conversations: ConversationRepository;
   automationsRepo: AutomationRepository;
   notifications: NotificationRepository;
+  alerts: AlertService;
   pendingActions: PendingActionRepository;
   settings: SettingsService;
   usage: UsageService;
@@ -59,7 +63,8 @@ export function createServices(
   });
   const automationsRepo = new AutomationRepository(db);
   const push = new PushService(new PushSubscriptionRepository(db), env, background, () => settings.language());
-  const notifications = new NotificationRepository(db, (n) => push.notify(n));
+  const notifications = new NotificationRepository(db);
+  const alerts = new AlertService(notifications, new AlertDeliveryRepository(db), settings, { push: pushChannel(push) });
   const activity = new ActivityLog(db);
   const memories = new MemoryRepository(db);
   const usage = new UsageService(db, () => settings.get().timezone);
@@ -75,6 +80,7 @@ export function createServices(
     conversations: new ConversationRepository(db),
     automationsRepo,
     notifications,
+    alerts,
     pendingActions: new PendingActionRepository(db),
     settings,
     usage,
@@ -85,7 +91,7 @@ export function createServices(
       sessionSecret: env.SESSION_SECRET,
       pepper: env.PASSWORD_PEPPER,
       ownerEmail: env.OWNER_EMAIL,
-    }, (title, body) => notifications.create({ title, body }), (reason) => {
+    }, (title, body) => alerts.raise({ title, body, category: "security", priority: "critical" }), (reason) => {
       activity.record("auth.session_ended", reason === "idle" ? "Signed out: no use" : reason === "presence" ? "Signed out: no open tab" : "Signed out: maximum session length");
       authLog.record("session_ended", null, { reason });
     },

@@ -163,8 +163,8 @@ export const reminderTools = [
     execute: (i, ctx) => {
       // The model writes this, so it can't pose as another sender or carry clickable links.
       const title = clip(`${ctx.routineName ?? "Routine"} · ${i.title.replace(/\s+/g, " ").trim()}`, 200);
-      const n = ctx.services.notifications.create({ title, body: defangLinks(i.body) });
-      return { notified: n.id };
+      const n = ctx.services.alerts.raise({ title, body: defangLinks(i.body), category: "routine" });
+      return { notified: n?.id ?? null };
     },
   }),
 ];
