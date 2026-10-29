@@ -174,22 +174,3 @@ describe("new password rules", () => {
     expect((await c.call("/api/tasks")).status).toBe(200);
   });
 });
-
-describe("sign-in alerts", () => {
-  it("tells the owner about a sign-in from a network without one in 30 days, but not the first ever", async () => {
-    await inAgent(async (agent) => {
-      const alerts: string[] = [];
-      const auth = service(agent, { passwordHash: await hashPassword(PASSWORD) }, alerts);
-      const home = freshIp();
-      await auth.login(PASSWORD, home, "t");
-      expect(alerts).toEqual([]);
-      await auth.login(PASSWORD, home, "t");
-      expect(alerts).toEqual([]);
-      await auth.login(PASSWORD, freshIp(), "t");
-      expect(alerts).toEqual(["New sign-in"]);
-      // A failure from a new network says nothing.
-      await failure(auth.login("wrong-password-123456", freshIp(), "t"));
-      expect(alerts).toEqual(["New sign-in"]);
-    });
-  });
-});

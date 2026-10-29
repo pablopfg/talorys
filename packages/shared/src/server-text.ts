@@ -54,8 +54,11 @@ const PT_BR: Catalog = {
   "This password appeared in a known data breach. Choose another one.": "Esta senha apareceu em um vazamento de dados conhecido. Escolha outra.",
   "Incorrect email or password.": "E-mail ou senha incorretos.",
   "New sign-in": "Novo login",
-  "Someone signed in to Talorys from a network not used in the last 30 days. If it wasn't you, change your password and sign out the other sessions in Settings → Security.":
-    "Alguém entrou no Talorys por uma rede não usada nos últimos 30 dias. Se não foi você, troque a senha e encerre as outras sessões em Configurações → Segurança.",
+  "Someone signed in to Talorys from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.":
+    "Alguém entrou no Talorys por um aparelho ou país novo. Se não foi você, troque a senha agora e encerre as outras sessões. Detalhes em Configurações → Segurança → Atividade de acesso.",
+  "Sign-in activity exported": "Atividade de acesso exportada",
+  "Sign-in activity deleted": "Atividade de acesso apagada",
+  "Sign-in activity retention changed": "Prazo da atividade de acesso alterado",
   "Too predictable: common words, sequences like 1234 and your own details don't count. Add more unrelated words.":
     "Previsível demais: palavras comuns, sequências como 1234 e seus próprios dados não contam. Acrescente mais palavras sem relação entre si.",
   "Choose a password different from the current one.": "Escolha uma senha diferente da atual.",

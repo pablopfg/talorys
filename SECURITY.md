@@ -45,4 +45,13 @@ Out of scope:
 - exceeding free-tier quotas by the owner themselves
 - missing hardening with no demonstrated impact
 
+## Personal data in your installation
+
+Your Talorys records sign-in activity (IP address, approximate location from
+Cloudflare, user agent) in your own Durable Object, to protect your account.
+Details are kept 90 days by default, then only daily counts per country, and
+you can export or delete them in Settings → Security. Nothing is sent to the
+project or any third party. See
+[docs/security.md#sign-in-activity](docs/security.md#sign-in-activity).
+
 The design and threat model are described in [docs/security.md](docs/security.md).

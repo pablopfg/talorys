@@ -64,6 +64,53 @@ the owner on a new network can still sign in once. The owner gets a notification
 when this starts (at most every 6 hours). Responses include `Retry-After`.
 Password changes and password confirmation use the same limiter.
 
+## Sign-in activity
+
+Settings → Security → Sign-in activity lists every sign-in, failed attempt,
+blocked attempt, sign-out (by hand, automatic or from another session),
+password change and confirmation, and every refused access token. Each record
+holds the time, the client IP and its rate-limit network, the edge's country,
+region, city, ASN and data center, the host, the user agent (300 characters at
+most), whether the browser carried a known device cookie, and the first 16
+characters of the session's public id.
+
+- **Never stored:** passwords, codes, tokens, or the e-mail address typed in a
+  failed attempt.
+- **Location comes only from Cloudflare's edge.** The Worker entry point
+  removes any `x-talorys-client-geo` header the client sends and sets it from
+  `request.cf`; the API never trusts a location from the browser.
+- **Bounded.** Past 20 failures from one network in 15 minutes, further
+  failures fold into one row with a counter. A blocked network gets one row
+  per window, and its counter reaches storage at most once a minute, so
+  hammering a blocked login costs no extra writes. At most 50,000 detailed
+  rows are kept, 5,000 of them reserved for the owner's own events (sign-ins,
+  sign-outs, password changes): a flood of refusals pushes out older
+  refusals, never the record of who signed in. Text is stripped of control characters, and the CSV export escapes
+  cells a spreadsheet would run as a formula.
+- **Retention (LGPD).** Details with IP and user agent are kept 90 days by
+  default (30–180, in Settings), then reduced to daily counts per country and
+  kind, without IP or user agent, kept one year. The legal basis is the
+  controller's legitimate interest in the security of the account (LGPD
+  art. 7, IX, and art. 46). Expired rows are reduced at most an hour after
+  they expire, whenever the activity is written or read. The owner can export
+  the detailed records as CSV or delete everything. The 24-hour summary is
+  shown with the session; the detailed list, the export, deleting and any
+  change of retention ask for the password typed within the last 15 minutes,
+  so a stolen session cookie alone can't read the IPs or erase the record.
+- **Device cookie.** A sign-in sets `__Host-talorys_device` (random, 180
+  days, `HttpOnly; Secure; SameSite=Strict`). The server stores only its HMAC,
+  for at most 50 devices. It only tells a known browser from a new one: it
+  never authenticates, never skips a password or a second factor, and never
+  relaxes the rate limit.
+- **Alerts.** A sign-in from a new device or a new country, after the first
+  one, creates a notification (and a push). Its text is generic, so a locked
+  phone screen shows nothing about where or how.
+- **Not recorded:** requests refused at the Worker entry before the agent
+  (a host outside `TALORYS_ALLOWED_HOSTS`, a missing Cloudflare Access token).
+  Recording them would cost one Durable Object request each, so a flood of
+  junk traffic would spend the free tier; Cloudflare's own analytics and
+  Access logs cover those.
+
 ## CSRF
 
 Every non-GET request must carry `x-talorys-request: 1` (cross-site forms cannot

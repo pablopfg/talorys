@@ -61,7 +61,7 @@ describe("authentication boundary", () => {
     const c = client();
     const res = await c.call("/api/auth/login", { method: "POST", body: { password: password() } });
     expect(res.status).toBe(200);
-    const cookie = res.headers.get("set-cookie")!;
+    const cookie = res.headers.getSetCookie().find((s) => s.startsWith("__Host-talorys_session="))!;
     expect(cookie).toMatch(/^__Host-talorys_session=/);
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");

@@ -14,6 +14,14 @@ export const BACKUP_VERSION = 1;
 
 export const SESSION_COOKIE = "__Host-talorys_session";
 export const DEV_SESSION_COOKIE = "talorys_session";
+/** Marks a browser that completed a sign-in, for "new device" alerts. It never signs anyone in. */
+export const DEVICE_COOKIE = "__Host-talorys_device";
+export const DEV_DEVICE_COOKIE = "talorys_device";
+/**
+ * Set only by the Worker's entry point from Cloudflare's `request.cf` (any copy a client sends is
+ * dropped there): country, region, city, network operator and data center of the request.
+ */
+export const CLIENT_GEO_HEADER = "x-talorys-client-geo";
 
 /** Header sent by the SPA on every API call. Simple-request CSRF can't set custom headers. */
 export const CSRF_HEADER = "x-talorys-request";

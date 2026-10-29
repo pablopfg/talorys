@@ -1,5 +1,5 @@
 import { getAgentByName } from "agents";
-import { AGENT_INSTANCE_NAME } from "@talorys/shared";
+import { AGENT_INSTANCE_NAME, CLIENT_GEO_HEADER } from "@talorys/shared";
 import type { Env } from "./env";
 import { AppError, errorResponse } from "./api/errors";
 import { AccessMisconfigured, accessConfig, verifyAccessToken } from "./auth/access";
@@ -112,14 +112,34 @@ async function accessDenied(request: Request, url: URL, env: Env): Promise<Respo
 
 /**
  * The Agents SDK reads its own `x-agents-*` headers before the API router runs (a malformed one
- * answers with a raw stack trace), so a client must never be able to set them.
+ * answers with a raw stack trace), so a client must never be able to set them. The same goes for
+ * the client-location header: only this entry point writes it, from Cloudflare's `request.cf`.
  */
-function withoutInternalHeaders(request: Request): Request {
-  const internal = [...request.headers.keys()].filter((name) => name.startsWith("x-agents-"));
-  if (internal.length === 0) return request;
+export function withoutInternalHeaders(request: Request): Request {
+  const internal = [...request.headers.keys()].filter((name) => name.startsWith("x-agents-") || name === CLIENT_GEO_HEADER);
+  const geo = edgeGeo(request);
+  if (internal.length === 0 && !geo) return request;
   const headers = new Headers(request.headers);
   for (const name of internal) headers.delete(name);
+  if (geo) headers.set(CLIENT_GEO_HEADER, geo);
   return new Request(request, { headers });
+}
+
+/** Where the edge says the request came from, as JSON; null when there is no `request.cf` (local development). */
+function edgeGeo(request: Request): string | null {
+  const cf = (request as Request & { cf?: Record<string, unknown> }).cf;
+  const text = (value: unknown, max: number) => (typeof value === "string" && value ? value.slice(0, max) : undefined);
+  const country = text(cf?.country, 2) ?? text(request.headers.get("cf-ipcountry"), 2);
+  if (!cf && !country) return null;
+  // Header values must be ASCII; city names often are not ("São Paulo").
+  return encodeURIComponent(JSON.stringify({
+    country,
+    region: text(cf?.region, 100),
+    city: text(cf?.city, 100),
+    asn: typeof cf?.asn === "number" ? cf.asn : undefined,
+    asOrg: text(cf?.asOrganization, 120),
+    colo: text(cf?.colo, 8),
+  }));
 }
 
 /**

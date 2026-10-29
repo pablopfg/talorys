@@ -1,8 +1,9 @@
-import { ACTIVITY_HEADER, CSRF_HEADER, DEV_SESSION_COOKIE, SESSION_COOKIE } from "@talorys/shared";
+import { ACTIVITY_HEADER, CLIENT_GEO_HEADER, CSRF_HEADER, DEV_DEVICE_COOKIE, DEV_SESSION_COOKIE, DEVICE_COOKIE, SESSION_COOKIE } from "@talorys/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import type { z } from "zod";
 import type { AppEnv } from "./app";
 import { AppError, ValidationError } from "./errors";
+import { type ClientGeo, type ClientInfo, DEVICE_COOKIE_MAX_AGE_S, NO_GEO } from "../auth/auth-log";
 
 /** Routes reachable without a session. Nothing here can claim ownership or read owner data. */
 const PUBLIC_ROUTES = new Set(["GET /api/health", "POST /api/auth/login", "GET /api/auth/session"]);
@@ -76,9 +77,12 @@ export function sessionCookieName(c: Context<AppEnv>): string {
 }
 
 export function readSessionToken(c: Context<AppEnv>): string | null {
+  return readCookie(c, sessionCookieName(c));
+}
+
+function readCookie(c: Context<AppEnv>, name: string): string | null {
   const header = c.req.header("cookie");
   if (!header) return null;
-  const name = sessionCookieName(c);
   for (const part of header.split(";")) {
     const [k, ...rest] = part.trim().split("=");
     if (k === name) {
@@ -91,6 +95,57 @@ export function readSessionToken(c: Context<AppEnv>): string | null {
     }
   }
   return null;
+}
+
+function deviceCookieName(c: Context<AppEnv>): string {
+  return sessionCookieName(c) === SESSION_COOKIE ? DEVICE_COOKIE : DEV_DEVICE_COOKIE;
+}
+
+export function readDeviceCookie(c: Context<AppEnv>): string | null {
+  return readCookie(c, deviceCookieName(c));
+}
+
+/** The device cookie: random, HttpOnly, for 180 days. It only tells "seen before" from "new"; it never authenticates. */
+export function deviceCookie(c: Context<AppEnv>, value: string): string {
+  const attrs = [`${deviceCookieName(c)}=${encodeURIComponent(value)}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${DEVICE_COOKIE_MAX_AGE_S}`];
+  if (deviceCookieName(c) === DEVICE_COOKIE) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+const geoText = (value: unknown, max: number) => (typeof value === "string" && value ? value.slice(0, max) : null);
+
+/** The edge's view of the request, from the header the Worker's entry point set (absent in local development). */
+export function clientGeo(c: Context<AppEnv>): ClientGeo {
+  const raw = c.req.header(CLIENT_GEO_HEADER);
+  if (!raw || raw.length > 4096) return NO_GEO;
+  try {
+    const g = JSON.parse(decodeURIComponent(raw)) as Record<string, unknown>;
+    if (!g || typeof g !== "object") return NO_GEO;
+    const country = geoText(g.country, 2);
+    return {
+      country: country && /^[A-Z]{2}$/.test(country) ? country : null,
+      region: geoText(g.region, 100),
+      city: geoText(g.city, 100),
+      asn: typeof g.asn === "number" && Number.isInteger(g.asn) && g.asn > 0 && g.asn < 2 ** 32 ? g.asn : null,
+      asOrg: geoText(g.asOrg, 120),
+      colo: geoText(g.colo, 8),
+    };
+  } catch {
+    return NO_GEO;
+  }
+}
+
+/** Who is behind this request, for the sign-in activity. */
+export async function clientInfo(c: Context<AppEnv>): Promise<ClientInfo> {
+  const ip = c.req.header("cf-connecting-ip") ?? null;
+  return {
+    ip,
+    network: ip ? clientKey(ip) : isDevelopment(c) ? "local" : null,
+    userAgent: c.req.header("user-agent") ?? "",
+    host: new URL(c.req.url).hostname,
+    geo: clientGeo(c),
+    device: await c.env.agent.services.authLog.deviceId(readDeviceCookie(c)),
+  };
 }
 
 /**

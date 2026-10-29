@@ -135,7 +135,7 @@ describe("what counts as use", () => {
 describe("cookie and sign-out", () => {
   it("the session cookie ends with the browser", async () => {
     const res = await (await only()).call("/api/auth/login", { method: "POST", body: { password: (await import("./helpers")).password() } });
-    const cookie = res.headers.get("set-cookie")!;
+    const cookie = res.headers.getSetCookie().find((s) => s.includes("talorys_session="))!;
     expect(cookie).toMatch(/HttpOnly/);
     expect(cookie).toMatch(/SameSite=Strict/);
     expect(cookie).not.toMatch(/Expires=|Max-Age=/i);
