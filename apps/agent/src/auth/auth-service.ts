@@ -22,6 +22,11 @@ export const STEP_UP_WINDOW_MS = 15 * 60_000;
 export const LOGIN_WINDOW_MS = 15 * 60_000;
 export const MAX_FAILURES_PER_CLIENT = 5;
 export const MAX_FAILURES_GLOBAL = 25;
+/**
+ * Past this many failures in the window, networks the owner hasn't used get no attempt at all,
+ * so an attacker with many addresses (an IPv6 /48 holds 65,536 /64s) can't buy guesses with them.
+ */
+export const MAX_FAILURES_GLOBAL_HARD = 100;
 /** A network with a successful sign-in this recent is the owner's, and exempt from the global cap. */
 export const TRUSTED_CLIENT_MS = 30 * 24 * 3600_000;
 /** While the global cap is tripped, the owner hears about it at most this often. */
@@ -146,7 +151,9 @@ export class AuthService {
    * out (AUTH-02): the owner's recent networks keep their normal allowance, and any other
    * network gets a single attempt per window instead of five. Someone guessing from many
    * addresses is slowed to one guess per address, and the owner on a new network can still
-   * type the right password once. The owner is told when this starts.
+   * type the right password once. The owner is told when this starts. Past
+   * MAX_FAILURES_GLOBAL_HARD, unknown networks get no attempt until the window clears, which caps
+   * the guesses (and the PBKDF2 work) however many addresses the attacker has.
    */
   assertLoginAllowed(client: string): void {
     const nowMs = Date.now();
@@ -154,15 +161,19 @@ export class AuthService {
     this.db.run(`DELETE FROM tal_login_attempts WHERE (success = 0 AND at < ?) OR at < ?`, nowMs - 24 * 3600_000, nowMs - TRUSTED_CLIENT_MS);
     const failures = this.recentFailures(client);
     let blocked = failures >= MAX_FAILURES_PER_CLIENT;
-    if (!blocked && this.recentFailures() >= MAX_FAILURES_GLOBAL) {
+    let globally = false;
+    const total = blocked ? 0 : this.recentFailures();
+    if (total >= MAX_FAILURES_GLOBAL) {
       this.alertUnderAttack(nowMs);
-      blocked = failures >= 1 && !this.isTrustedClient(client);
+      if (!this.isTrustedClient(client)) {
+        globally = total >= MAX_FAILURES_GLOBAL_HARD;
+        blocked = globally || failures >= 1;
+      }
     }
     if (blocked) {
       const oldest = this.db.one<{ at: number }>(
-        `SELECT min(at) AS at FROM tal_login_attempts WHERE success = 0 AND at > ? AND client = ?`,
-        nowMs - LOGIN_WINDOW_MS,
-        client,
+        `SELECT min(at) AS at FROM tal_login_attempts WHERE success = 0 AND at > ?${globally ? "" : " AND client = ?"}`,
+        ...(globally ? [nowMs - LOGIN_WINDOW_MS] : [nowMs - LOGIN_WINDOW_MS, client]),
       );
       const retryAfter = Math.max(1, Math.ceil(((oldest?.at ?? nowMs) + LOGIN_WINDOW_MS - nowMs) / 1000));
       throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
