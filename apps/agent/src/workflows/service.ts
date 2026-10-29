@@ -1,7 +1,6 @@
 import {
   computeNextRun,
   describeSchedule,
-  type FeedRead,
   type SiteCheck,
   WORKFLOW_CONFIG_SCHEMAS,
   WORKFLOW_KEYS,
@@ -40,17 +39,12 @@ export interface WorkflowTimer {
 
 export const WORKFLOW_NAMES: Record<WorkflowKey, string> = {
   site_monitor: "Site monitor",
-  feed_digest: "Feed news",
 };
 
 const UNAVAILABLE = "Cloudflare Workflows is not set up in this deployment. Add the workflows binding and deploy again.";
 
 interface SiteMemory {
   sites?: Record<string, { failures: number; down: boolean; since?: string }>;
-}
-interface FeedMemory {
-  /** `primed` once a read succeeded: until then a read only learns what is there. */
-  feeds?: Record<string, { seen: string[]; failures: number; primed?: boolean }>;
 }
 
 const host = (url: string) => {
@@ -63,7 +57,7 @@ const host = (url: string) => {
 
 /**
  * Turns workflows on and off, schedules their runs and turns what a run found into alerts.
- * The network work (checking sites, reading feeds) happens in the workflow itself, with
+ * The network work (checking sites) happens in the workflow itself, with
  * retries; it reports back here, where the memory between runs and the alerts live.
  */
 export class WorkflowService {
@@ -119,16 +113,12 @@ export class WorkflowService {
     const parsed = WORKFLOW_CONFIG_SCHEMAS[key].safeParse(raw);
     if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid input");
     const config = parsed.data;
-    const urls = "urls" in config ? config.urls : config.feeds;
-    for (const url of urls) workflowUrl(url, { development: this.development });
+    for (const url of config.urls) workflowUrl(url, { development: this.development });
     return config;
   }
 
-  private checkReady(key: WorkflowKey, config: WorkflowConfig): void {
-    const urls = "urls" in config ? config.urls : config.feeds;
-    if (urls.length === 0) {
-      throw new ValidationError(key === "site_monitor" ? "Add at least one site to monitor." : "Add at least one feed to read.");
-    }
+  private checkReady(config: WorkflowConfig): void {
+    if (config.urls.length === 0) throw new ValidationError("Add at least one site to monitor.");
   }
 
   async update(key: WorkflowKey, patch: WorkflowUpdate): Promise<Workflow> {
@@ -137,7 +127,7 @@ export class WorkflowService {
     const schedule = patch.schedule !== undefined ? workflowScheduleSchema.parse(patch.schedule) : existing.schedule;
     const enabled = patch.enabled ?? existing.enabled;
     if (enabled) {
-      this.checkReady(key, config);
+      this.checkReady(config);
       if (!this.available()) throw new AppError("NOT_CONFIGURED", UNAVAILABLE);
     }
     let row = this.repo.save(key, { config, schedule, enabled });
@@ -206,7 +196,7 @@ export class WorkflowService {
   /** "Run now" from the app; on or off, with the settings saved. */
   async runNow(key: WorkflowKey): Promise<WorkflowRun> {
     const row = this.repo.get(key);
-    this.checkReady(key, row.config);
+    this.checkReady(row.config);
     const last = this.manualAt.get(key) ?? 0;
     const wait = Math.ceil((last + WORKFLOW_LIMITS.manualEverySeconds * 1000 - Date.now()) / 1000);
     if (wait > 0) {
@@ -238,7 +228,7 @@ export class WorkflowService {
   report(runId: string, report: WorkflowReport): void {
     const run = this.repo.run(runId);
     if (run?.status !== "running" || run.workflow_key !== report.key) return;
-    const result = report.key === "site_monitor" ? this.sites(report.checks) : this.feeds(report.feeds);
+    const result = this.sites(report.checks);
     this.repo.finishRun(runId, "success", { result });
     this.launcher.forget(runId);
   }
@@ -260,7 +250,7 @@ export class WorkflowService {
 
   private sites(checks: SiteCheck[]): string {
     const row = this.repo.get("site_monitor");
-    const configured = new Set("urls" in row.config ? row.config.urls : []);
+    const configured = new Set(row.config.urls);
     const before = (row.memory as SiteMemory).sites ?? {};
     const sites: NonNullable<SiteMemory["sites"]> = {};
     for (const [url, state] of Object.entries(before)) if (configured.has(url)) sites[url] = state;
@@ -299,65 +289,5 @@ export class WorkflowService {
     }
     this.repo.save("site_monitor", { memory: { sites } });
     return `${up} of ${checks.length} sites up`;
-  }
-
-  private feeds(reads: FeedRead[]): string {
-    const row = this.repo.get("feed_digest");
-    const config = "feeds" in row.config ? row.config : { feeds: [], max_items: 10 };
-    const configured = new Set(config.feeds);
-    const before = (row.memory as FeedMemory).feeds ?? {};
-    const feeds: NonNullable<FeedMemory["feeds"]> = {};
-    for (const [url, state] of Object.entries(before)) if (configured.has(url)) feeds[url] = state;
-    const fresh: string[] = [];
-    let failed = 0;
-    let learned = 0;
-    for (const read of reads.filter((r) => configured.has(r.url))) {
-      const state = feeds[read.url];
-      if (!read.ok) {
-        failed++;
-        const failures = (state?.failures ?? 0) + 1;
-        feeds[read.url] = { seen: state?.seen ?? [], failures, primed: state?.primed ?? false };
-        if (failures === WORKFLOW_LIMITS.feedFailuresBeforeAlert) {
-          this.alerts.raise({
-            title: `Feed unavailable: ${host(read.url)}`,
-            // Two lines, so each is translated on its own.
-            body: [`It could not be read ${failures} times in a row.`, clip(unlinked(read.reason ?? "No answer."), 200)].join("\n"),
-            category: "routine",
-            profileLabel: WORKFLOW_NAMES.feed_digest,
-            dedupeKey: `feed-down:${read.url}`,
-            cooldownMinutes: 24 * 60,
-          });
-        }
-        continue;
-      }
-      const seen = new Set(state?.seen ?? []);
-      // The first read of a feed only learns what is there: announcing a whole archive is noise.
-      if (state?.primed) {
-        for (const item of read.items.filter((i) => !seen.has(i.id))) {
-          const source = clip(read.title ?? host(read.url), 60);
-          const link = item.link ? ` (${item.link})` : "";
-          fresh.push(clip(unlinked(`- ${source}: ${item.title}${link}`).replace(/\s+/g, " "), 400));
-        }
-      } else {
-        learned++;
-      }
-      const ids = [...read.items.map((i) => i.id), ...(state?.seen ?? [])];
-      feeds[read.url] = { seen: [...new Set(ids)].slice(0, WORKFLOW_LIMITS.seenPerFeed), failures: 0, primed: true };
-    }
-    this.repo.save("feed_digest", { memory: { feeds } });
-    if (fresh.length > 0) {
-      const shown = fresh.slice(0, config.max_items);
-      const more = fresh.length - shown.length;
-      this.alerts.raise({
-        title: "New in your feeds",
-        body: [...shown, ...(more > 0 ? [`And ${more} more.`] : [])].join("\n"),
-        category: "digest",
-        profileLabel: WORKFLOW_NAMES.feed_digest,
-      });
-    }
-    const parts = [`${fresh.length} new item(s)`];
-    if (learned > 0) parts.push(`${learned} feed(s) read for the first time`);
-    if (failed > 0) parts.push(`${failed} feed(s) could not be read`);
-    return parts.join("\n");
   }
 }

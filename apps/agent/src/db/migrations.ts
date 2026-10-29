@@ -673,7 +673,7 @@ export const MIGRATIONS: Migration[] = [
     name: "workflows",
     statements: [
       // Routines run by Cloudflare Workflows, one row per catalog entry once the owner touches it.
-      // `memory` is what a workflow keeps between runs (sites down, feed items already seen).
+      // `memory` is what a workflow keeps between runs (sites down).
       `CREATE TABLE IF NOT EXISTS tal_workflows (
         key TEXT PRIMARY KEY,
         enabled INTEGER NOT NULL DEFAULT 0,

@@ -36,21 +36,6 @@ minutos).
   confirmar. Quando o site volta, chega **Site de volta**, com o horário em que
   caiu.
 
-### Novidades de feeds
-
-Lê até 10 feeds RSS ou Atom no horário escolhido (padrão: todo dia às 08:00) e
-manda **uma** notificação com os itens novos (até 20, padrão 10; o resto vira
-"E mais N").
-
-- A primeira leitura de um feed só aprende o que já existe, para não despejar o
-  arquivo inteiro.
-- Cada feed lembra os 200 itens mais recentes, então um item nunca é avisado
-  duas vezes.
-- Um feed que falha 3 execuções seguidas gera um aviso **Feed indisponível**
-  (no máximo um por dia).
-- Títulos e links vêm de fora: chegam como texto, sem link clicável, como os
-  eventos do n8n.
-
 ## Como usar
 
 1. Abra **Workflows** no menu.
@@ -77,7 +62,7 @@ Durable Object (agente)                     Cloudflare Workflow
 ```
 
 - O agente guarda as configurações, a memória entre execuções (sites fora do
-  ar, itens já vistos) e o histórico (50 execuções por workflow).
+  ar) e o histórico (50 execuções por workflow).
 - O Workflow faz só o trabalho de rede, em etapas duráveis, e devolve o
   resultado ao agente. Ele não lê os seus dados nem os seus segredos.
 - Uma execução que não termina em 30 minutos é encerrada como falha. Uma
@@ -96,10 +81,9 @@ Durable Object (agente)                     Cloudflare Workflow
 - Endereços só `https://`, sem usuário e senha, e nunca de rede privada ou
   local (`localhost`, `10.x`, `192.168.x`, `*.local`, `169.254.169.254`…). Antes
   de cada requisição o nome é consultado no DNS e recusado se apontar para um
-  endereço privado. Redirecionamentos de feed (até 2) são conferidos um a um.
-- Cada requisição tem limite de 15 segundos, e um feed é lido até 256 KB. O
-  leitor de feeds não carrega DTD nem entidades externas e foi feito para não
-  travar com XML hostil.
+  endereço privado.
+- Cada requisição tem limite de 15 segundos. Redirecionamentos não são
+  seguidos.
 - O Workflow se identifica com o `User-Agent` `Talorys-Workflows/1.0`.
 
 ## Custos (plano gratuito)
@@ -123,8 +107,7 @@ e [preços](https://developers.cloudflare.com/workflows/reference/pricing/).
 | `POST /api/workflows/:key/run` | Executa agora (uma vez por minuto); 429 com `retry-after` antes disso |
 | `GET /api/workflows/:key/runs` | As 50 execuções guardadas desse workflow |
 
-Chaves: `site_monitor` (`config: { urls }`) e `feed_digest`
-(`config: { feeds, max_items }`).
+Chave: `site_monitor` (`config: { urls }`).
 
 ## Adicionar um workflow
 

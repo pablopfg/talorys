@@ -1,26 +1,19 @@
 import { useState } from "react";
 import { type ScheduleSpec, WORKFLOW_LIMITS, type Workflow, type WorkflowKey, type WorkflowRun, describeSchedule } from "@talorys/shared";
-import { Activity, ChevronDown, Pencil, Play, Rss, Workflow as WorkflowIcon } from "lucide-react";
+import { Activity, ChevronDown, Pencil, Play, Workflow as WorkflowIcon } from "lucide-react";
 import { Badge, Button, Card, Dialog, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
 import { keys, useApiMutation, useWorkflows } from "../hooks/queries";
 import { api } from "../lib/api";
 import { cn, formatDateTime, relativeTime } from "../lib/utils";
 import { type PlainMessageKey, useI18n } from "../lib/i18n";
 
-const META: Record<WorkflowKey, { name: PlainMessageKey; description: PlainMessageKey; urls: PlainMessageKey; urlsHint: "workflows.sitesHint" | "workflows.feedsHint"; icon: typeof Rss }> = {
+const META: Record<WorkflowKey, { name: PlainMessageKey; description: PlainMessageKey; urls: PlainMessageKey; urlsHint: "workflows.sitesHint"; icon: typeof Activity }> = {
   site_monitor: {
     name: "workflows.siteMonitor",
     description: "workflows.siteMonitorHint",
     urls: "workflows.sitesLabel",
     urlsHint: "workflows.sitesHint",
     icon: Activity,
-  },
-  feed_digest: {
-    name: "workflows.feedDigest",
-    description: "workflows.feedDigestHint",
-    urls: "workflows.feedsLabel",
-    urlsHint: "workflows.feedsHint",
-    icon: Rss,
   },
 };
 
@@ -35,7 +28,7 @@ const RUN_LABEL: Record<WorkflowRun["status"], PlainMessageKey> = {
 /** Intervals offered in the form, in minutes; the platform minimum is 15. */
 const INTERVALS = [15, 30, 60, 180, 360, 720, 1440];
 
-const urlsOf = (w: Workflow) => ("urls" in w.config ? w.config.urls : w.config.feeds);
+const urlsOf = (w: Workflow) => w.config.urls;
 
 export default function WorkflowsPage() {
   const i18n = useI18n();
@@ -192,7 +185,6 @@ function WorkflowForm({ workflow, onClose }: { workflow: Workflow | null; onClos
   const { t } = i18n;
   const meta = workflow ? META[workflow.key] : null;
   const [urls, setUrls] = useState(() => (workflow ? urlsOf(workflow).join("\n") : ""));
-  const [maxItems, setMaxItems] = useState(() => (workflow && "max_items" in workflow.config ? workflow.config.max_items : 10));
   const [schedule, setSchedule] = useState<ScheduleSpec>(() => workflow?.schedule ?? { type: "interval", minutes: 60 });
   const [enable, setEnable] = useState(() => workflow?.enabled ?? false);
 
@@ -200,8 +192,7 @@ function WorkflowForm({ workflow, onClose }: { workflow: Workflow | null; onClos
   const save = useApiMutation(
     () => {
       const key = workflow?.key ?? "site_monitor";
-      const config = key === "site_monitor" ? { urls: list } : { feeds: list, max_items: maxItems };
-      return api<{ workflow: Workflow }>(`/workflows/${key}`, { method: "PATCH", body: { config, schedule, enabled: enable && list.length > 0 } });
+      return api<{ workflow: Workflow }>(`/workflows/${key}`, { method: "PATCH", body: { config: { urls: list }, schedule, enabled: enable && list.length > 0 } });
     },
     { invalidate: [keys.workflows], success: t("workflows.saved"), onSuccess: onClose },
   );
@@ -244,19 +235,6 @@ function WorkflowForm({ workflow, onClose }: { workflow: Workflow | null; onClos
             <div>
               <Label htmlFor="wf-time">{t("workflows.time")}</Label>
               <Input id="wf-time" type="time" required value={schedule.time} onChange={(e) => setSchedule({ type: "daily", time: e.target.value })} />
-            </div>
-          )}
-          {workflow.key === "feed_digest" && (
-            <div>
-              <Label htmlFor="wf-max">{t("workflows.maxItems")}</Label>
-              <Input
-                id="wf-max"
-                type="number"
-                min={1}
-                max={WORKFLOW_LIMITS.maxItemsPerAlert}
-                value={maxItems}
-                onChange={(e) => setMaxItems(Math.min(WORKFLOW_LIMITS.maxItemsPerAlert, Math.max(1, Number(e.target.value) || 1)))}
-              />
             </div>
           )}
         </div>

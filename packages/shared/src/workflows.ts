@@ -6,7 +6,7 @@ import { scheduleSpecSchema, type ScheduleSpec } from "./recurrence";
  * retries and waits, on the Workers Free plan). Each one is written in code and has a fixed
  * catalog entry; the owner only turns it on or off, picks when it runs and fills in its settings.
  */
-export const WORKFLOW_KEYS = ["site_monitor", "feed_digest"] as const;
+export const WORKFLOW_KEYS = ["site_monitor"] as const;
 export type WorkflowKey = (typeof WORKFLOW_KEYS)[number];
 export const workflowKeySchema = z.enum(WORKFLOW_KEYS);
 
@@ -15,14 +15,6 @@ export const WORKFLOW_LIMITS = {
   maxUrls: 10,
   /** A site alerts only after this many failed runs in a row, so one hiccup stays quiet. */
   failuresBeforeAlert: 2,
-  /** A feed that can't be read this many runs in a row raises one alert. */
-  feedFailuresBeforeAlert: 3,
-  /** Most new feed items in one alert. */
-  maxItemsPerAlert: 20,
-  /** Feed items remembered per feed, so an item is announced once. */
-  seenPerFeed: 200,
-  /** Most of a feed that is read, in bytes: parsing stays within the Free plan's 10 ms of CPU per step. */
-  feedBytes: 256 * 1024,
   /** Runs kept per workflow in the history. */
   runsKept: 50,
   /** A run still "running" after this long was lost (the platform keeps state 3 days on Free). */
@@ -50,22 +42,16 @@ const urlList = z
   .refine((list) => new Set(list).size === list.length, "Each address only once.");
 
 export const siteMonitorConfigSchema = z.object({ urls: urlList }).strict();
-export const feedDigestConfigSchema = z
-  .object({ feeds: urlList, max_items: z.number().int().min(1).max(WORKFLOW_LIMITS.maxItemsPerAlert) })
-  .strict();
 
 export type SiteMonitorConfig = z.infer<typeof siteMonitorConfigSchema>;
-export type FeedDigestConfig = z.infer<typeof feedDigestConfigSchema>;
 
 export interface WorkflowConfigs {
   site_monitor: SiteMonitorConfig;
-  feed_digest: FeedDigestConfig;
 }
 export type WorkflowConfig = WorkflowConfigs[WorkflowKey];
 
 export const WORKFLOW_CONFIG_SCHEMAS: { [K in WorkflowKey]: z.ZodType<WorkflowConfigs[K]> } = {
   site_monitor: siteMonitorConfigSchema,
-  feed_digest: feedDigestConfigSchema,
 };
 
 /** A workflow repeats: a one-time run is what "Run now" is for. */
@@ -73,7 +59,6 @@ export const workflowScheduleSchema = scheduleSpecSchema.refine((s) => s.type !=
 
 export const WORKFLOW_DEFAULTS: { [K in WorkflowKey]: { schedule: ScheduleSpec; config: WorkflowConfigs[K] } } = {
   site_monitor: { schedule: { type: "interval", minutes: 15 }, config: { urls: [] } },
-  feed_digest: { schedule: { type: "daily", time: "08:00" }, config: { feeds: [], max_items: 10 } },
 };
 
 export const workflowUpdateSchema = z
@@ -126,13 +111,4 @@ export interface SiteCheck {
   ms: number | null;
 }
 
-/** One feed read, as a workflow step returns it. Item ids are short hashes. */
-export interface FeedRead {
-  url: string;
-  ok: boolean;
-  title: string | null;
-  items: { id: string; title: string; link: string | null }[];
-  reason: string | null;
-}
-
-export type WorkflowReport = { key: "site_monitor"; checks: SiteCheck[] } | { key: "feed_digest"; feeds: FeedRead[] };
+export type WorkflowReport = { key: "site_monitor"; checks: SiteCheck[] };

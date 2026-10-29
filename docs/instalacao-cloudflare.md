@@ -90,7 +90,7 @@ navegador / Telegram / n8n
 | --- | --- | :---: |
 | Workers | Interface e API | ✅ 100 mil requisições/dia |
 | Durable Objects (SQLite) | Dados e agendamentos | ✅ |
-| Workflows | Rotinas do menu **Workflows** (monitor de sites, feeds) | ✅ 100 execuções simultâneas |
+| Workflows | Rotinas do menu **Workflows** (monitor de sites) | ✅ 100 execuções simultâneas |
 | Workers AI | Modelo do chat, embeddings e transcrição de voz | ✅ 10 mil Neurons/dia |
 | Email Routing (opcional) | Avisos e recuperação de senha por e-mail para o **seu** endereço verificado | ✅ |
 | Turnstile (opcional) | Verificação contra robôs nos logins arriscados | ✅ |

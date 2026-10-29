@@ -1,9 +1,9 @@
 import { AgentWorkflow, type AgentWorkflowEvent, type AgentWorkflowStep, type DefaultProgress } from "agents/workflows";
-import type { FeedRead, SiteCheck, WorkflowConfigs, WorkflowKey } from "@talorys/shared";
+import type { SiteCheck, WorkflowConfigs, WorkflowKey } from "@talorys/shared";
 import type { Env } from "../env";
 import type { TalorysAgent } from "../agent/talorys-agent";
 import { dohResolver } from "../mcp/url";
-import { checkSite, type Network, readFeed } from "./network";
+import { checkSite, type Network } from "./network";
 
 export type WorkflowParams = {
   [K in WorkflowKey]: { key: K; runId: string; config: WorkflowConfigs[K] };
@@ -40,34 +40,19 @@ export class TalorysWorkflow extends AgentWorkflow<TalorysAgent, WorkflowParams,
   override async run(event: AgentWorkflowEvent<WorkflowParams>, step: AgentWorkflowStep): Promise<string> {
     const params = event.payload;
     const net: Network = { fetch: (input, init) => fetch(input, init), resolve: dohResolver(fetch), development: this.env.TALORYS_ENV === "development", dns: new Map() };
-    if (params.key === "site_monitor") {
-      const checks: SiteCheck[] = [];
-      for (const [i, url] of params.config.urls.entries()) {
-        try {
-          checks.push(await step.do(`check site ${i + 1}`, NETWORK_STEP, () => checkSite(url, net)));
-        } catch (error) {
-          const reason = reasonOf(error);
-          checks.push({ url, ok: false, status: statusOf(reason), reason, ms: null });
-        }
-      }
-      await step.do("report", REPORT_STEP, async () => {
-        await this.agent.workflowReport(params.runId, { key: "site_monitor", checks });
-        return true;
-      });
-      return `${checks.filter((c) => c.ok).length}/${checks.length}`;
-    }
-    const feeds: FeedRead[] = [];
-    for (const [i, url] of params.config.feeds.entries()) {
+    const checks: SiteCheck[] = [];
+    for (const [i, url] of params.config.urls.entries()) {
       try {
-        feeds.push(await step.do(`read feed ${i + 1}`, NETWORK_STEP, () => readFeed(url, net)));
+        checks.push(await step.do(`check site ${i + 1}`, NETWORK_STEP, () => checkSite(url, net)));
       } catch (error) {
-        feeds.push({ url, ok: false, title: null, items: [], reason: reasonOf(error) });
+        const reason = reasonOf(error);
+        checks.push({ url, ok: false, status: statusOf(reason), reason, ms: null });
       }
     }
     await step.do("report", REPORT_STEP, async () => {
-      await this.agent.workflowReport(params.runId, { key: "feed_digest", feeds });
+      await this.agent.workflowReport(params.runId, { key: "site_monitor", checks });
       return true;
     });
-    return `${feeds.filter((f) => f.ok).length}/${feeds.length}`;
+    return `${checks.filter((c) => c.ok).length}/${checks.length}`;
   }
 }

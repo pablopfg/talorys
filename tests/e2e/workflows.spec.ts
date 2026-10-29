@@ -20,7 +20,6 @@ test.describe("Workflows", () => {
     await page.locator(`a[href="/workflows"]:visible`).first().click();
     await expect(page.getByRole("heading", { name: "Workflows" })).toBeVisible();
     await expect(page.getByText("Site monitor", { exact: true })).toBeVisible();
-    await expect(page.getByText("Feed news", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Edit Site monitor" }).click();
     await page.getByLabel("Sites to check").fill("https://example.com/health");
