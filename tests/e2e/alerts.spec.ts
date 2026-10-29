@@ -168,4 +168,26 @@ test.describe("Alerts", () => {
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.getByText("e2e insistent pill")).toHaveCount(0);
   });
+
+  test("starts a sentinel from the morning template, quiet unless something needs you", async ({ page }) => {
+    await login(page);
+    await page.getByRole("link", { name: "Automations" }).first().click();
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "AI routine" }).click();
+    const quiet = dialog.getByRole("switch", { name: "Only notify me when something needs me" });
+    await expect(quiet).toHaveAttribute("aria-checked", "false");
+    await dialog.getByRole("button", { name: "Morning check" }).click();
+    await expect(quiet).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByLabel("Name")).toHaveValue("Morning check");
+    await expect(page.getByLabel("Prompt")).toHaveValue(/Tell me only what needs me today/);
+    await expect(page.getByLabel("Repeat")).toHaveValue("daily");
+    await dialog.getByRole("button", { name: "Create" }).click();
+    const row = page.getByRole("listitem").filter({ hasText: "Morning check" });
+    await expect(row.getByText("Only when needed", { exact: true })).toBeVisible();
+    const { automations } = await (await page.request.get("/api/automations")).json();
+    const created = automations.find((a: { name: string }) => a.name === "Morning check");
+    expect(created).toMatchObject({ kind: "agent_prompt", sentinel: true, schedule: { type: "daily", time: "07:00" } });
+    await page.request.delete(`/api/automations/${created.id}`, { headers: CSRF });
+  });
 });

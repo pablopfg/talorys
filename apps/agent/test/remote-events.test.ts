@@ -174,6 +174,7 @@ describe("events from outside systems", () => {
       db.run(`INSERT INTO tal_remote_tokens SELECT id, name, token_hash, hint, scope, created_at, last_used_at, expires_at FROM tal_remote_tokens_now`);
       db.run(`DROP TABLE tal_remote_tokens_now`);
       expect(() => db.run(`UPDATE tal_remote_tokens SET scope = 'events'`)).toThrow();
+      db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
       db.run(`UPDATE tal_schema SET version = 22`);
       migrate(db);
       expect(db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_remote_tokens_v8`)!.n).toBe(0);

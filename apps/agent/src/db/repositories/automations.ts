@@ -14,14 +14,15 @@ import {
 import { type Database, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
 
-interface AutomationRow extends Omit<Automation, "schedule" | "enabled" | "schedule_description"> {
+interface AutomationRow extends Omit<Automation, "schedule" | "enabled" | "schedule_description" | "sentinel"> {
   schedule: string;
   enabled: number;
+  sentinel: number;
 }
 
 function toAutomation(row: AutomationRow): Automation {
   const schedule = JSON.parse(row.schedule) as ScheduleSpec;
-  return { ...row, schedule, enabled: row.enabled === 1, schedule_description: describeSchedule(schedule) };
+  return { ...row, schedule, enabled: row.enabled === 1, sentinel: row.sentinel === 1, schedule_description: describeSchedule(schedule) };
 }
 
 export class AutomationRepository {
@@ -44,14 +45,14 @@ export class AutomationRepository {
     return a;
   }
 
-  create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority }): Automation {
+  create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority; sentinel?: boolean }): Automation {
     const ts = now();
     const id = newId();
     this.db.run(
-      `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, input.name, input.kind, input.message, JSON.stringify(input.schedule), input.enabled ? 1 : 0,
-      input.priority ?? "normal", input.enabled ? "scheduled" : "paused", ts, ts,
+      input.priority ?? "normal", input.sentinel ? 1 : 0, input.enabled ? "scheduled" : "paused", ts, ts,
     );
     return this.require(id);
   }
@@ -60,9 +61,9 @@ export class AutomationRepository {
     const existing = this.require(id);
     const next = { ...existing, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } as Automation;
     this.db.run(
-      `UPDATE tal_automations SET name = ?, kind = ?, message = ?, schedule = ?, enabled = ?, priority = ?, status = ?, schedule_id = ?,
+      `UPDATE tal_automations SET name = ?, kind = ?, message = ?, schedule = ?, enabled = ?, priority = ?, sentinel = ?, status = ?, schedule_id = ?,
          next_run = ?, last_run = ?, last_result = ?, last_error = ?, run_count = ?, updated_at = ? WHERE id = ?`,
-      next.name, next.kind, next.message, JSON.stringify(next.schedule), next.enabled ? 1 : 0, next.priority, next.status,
+      next.name, next.kind, next.message, JSON.stringify(next.schedule), next.enabled ? 1 : 0, next.priority, next.sentinel ? 1 : 0, next.status,
       next.schedule_id, next.next_run, next.last_run, next.last_result, next.last_error, next.run_count, now(), id,
     );
     return this.require(id);

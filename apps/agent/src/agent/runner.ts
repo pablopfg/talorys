@@ -293,7 +293,7 @@ export class AgentRunner {
   }
 
   /** Runs an AI automation prompt with read-only tools (and MCP tools allowed there). Returns the reply text. */
-  async runScheduledPrompt(prompt: string, signal?: AbortSignal, routineName?: string): Promise<string> {
+  async runScheduledPrompt(prompt: string, signal?: AbortSignal, routineName?: string, opts: { sentinel?: boolean } = {}): Promise<string> {
     const s = this.services;
     const settings = s.settings.get();
     if (!this.provider) throw new AppError("AI_UNAVAILABLE", "Workers AI is not configured.");
@@ -313,6 +313,7 @@ export class AgentRunner {
         memoryTokenBudget(settings.limits),
       ),
       scheduled: true,
+      sentinel: opts.sentinel === true,
       externalTools: this.scheduledMcpTools.length > 0,
     });
     const providerTools = toProviderTools(executor);

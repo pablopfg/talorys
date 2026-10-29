@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AUTOMATION_PRIORITIES, type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, describeSchedule, getZonedParts, scheduleSpecSchema, upcomingRuns } from "@talorys/shared";
+import { AUTOMATION_PRIORITIES, type Automation, type AutomationKind, type AutomationPriority, type AutomationRun, type ScheduleSpec, SENTINEL_TEMPLATES, type SentinelTemplate, describeSchedule, getZonedParts, scheduleSpecSchema, sentinelText, upcomingRuns } from "@talorys/shared";
 import { AlarmClock, Bell, Bot, CalendarClock, ChevronDown, History, ListChecks, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, ErrorNotice, Input, Label, PageHeader, Select, Spinner, Switch, Textarea } from "../components/ui";
 import { keys, useApiMutation, useAutomationRuns, useAutomations } from "../hooks/queries";
@@ -84,6 +84,7 @@ export default function AutomationsPage() {
             {a.status === "completed" && <Badge>{t("automations.completed")}</Badge>}
             {a.status === "running" && <Badge tone="accent">{t("automations.running")}</Badge>}
             {a.priority === "high" && <Badge tone="warning">{t("automations.insistent")}</Badge>}
+            {a.sentinel && <Badge tone="accent">{t("automations.sentinel")}</Badge>}
           </div>
           <p className="mt-0.5 text-sm text-fg-muted">{describeSchedule(a.schedule, i18n.language)}</p>
           <p className="mt-0.5 text-xs text-fg-subtle">
@@ -384,6 +385,7 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
   const [name, setName] = useState(automation?.name ?? "");
   const [message, setMessage] = useState(automation?.message ?? "");
   const [priority, setPriority] = useState<AutomationPriority>(automation?.priority ?? "normal");
+  const [sentinel, setSentinel] = useState(automation?.sentinel ?? false);
   const [type, setType] = useState<ScheduleSpec["type"]>(initial?.type ?? "once");
   const [at, setAt] = useState(initial?.type === "once" ? initial.at : tomorrowAt9(tz));
   const [time, setTime] = useState(initial && "time" in initial ? initial.time : "09:00");
@@ -415,16 +417,28 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
     setName("");
     setMessage("");
     setKind("reminder");
+    setSentinel(false);
     setType("once");
     setAt(tomorrowAt9(tz));
+  };
+  /** Fills the form from a ready-made sentinel, in the app's language; everything stays editable. */
+  const applyTemplate = (template: SentinelTemplate) => {
+    const text = sentinelText(template, i18n.language);
+    setName(text.name);
+    setMessage(text.prompt);
+    setSentinel(true);
+    setType(template.schedule.type);
+    if ("time" in template.schedule) setTime(template.schedule.time);
+    if (template.schedule.type === "weekly") setDays(template.schedule.days);
   };
   const save = useApiMutation(
     () => {
       const finalName = name.trim() || message.trim().slice(0, 80) || t(KIND_META[kind].label);
-      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule, priority } });
+      const quiet = kind === "agent_prompt" ? { sentinel } : {};
+      if (!automation) return api("/automations", { method: "POST", body: { name: finalName, kind, message, schedule, priority, ...quiet } });
       // Saving a finished one-off with a new schedule brings it back to life.
       const revive = automation.status === "completed" ? { enabled: true } : {};
-      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, priority, ...revive } });
+      return api(`/automations/${automation.id}`, { method: "PATCH", body: { name: finalName, message, schedule, priority, ...quiet, ...revive } });
     },
     {
       invalidate: [keys.automations],
@@ -475,6 +489,16 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
         </div>
         )}
         <p className="text-xs text-fg-subtle">{t(KIND_META[kind].hint)}</p>
+        {!automation && kind === "agent_prompt" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-fg-subtle">{t("automations.sentinelTemplates")}</span>
+            {SENTINEL_TEMPLATES.map((template) => (
+              <Button key={template.id} type="button" variant="outline" size="sm" onClick={() => applyTemplate(template)}>
+                {sentinelText(template, i18n.language).name}
+              </Button>
+            ))}
+          </div>
+        )}
         <div>
           <Label htmlFor="auto-name" hint={t("tasks.optional")}>
             {t("mcp.name")}
@@ -492,6 +516,15 @@ function AutomationForm({ open, onClose, tz, automation }: { open: boolean; onCl
               maxLength={4000}
               placeholder={kind === "reminder" ? t("automations.reminderPlaceholder") : t("automations.promptPlaceholder")}
             />
+          </div>
+        )}
+        {kind === "agent_prompt" && (
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("automations.sentinelLabel")}</p>
+              <p className="mt-0.5 text-xs text-fg-subtle">{t("automations.sentinelHint")}</p>
+            </div>
+            <Switch checked={sentinel} onChange={setSentinel} label={t("automations.sentinelLabel")} />
           </div>
         )}
         <div>
