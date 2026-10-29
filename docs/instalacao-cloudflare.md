@@ -398,10 +398,11 @@ números, o tamanho indicado) e salve com o nome da tabela.
 | `OWNER_EMAIL` | — | recomendado | O seu e-mail. Com ele, o login pede e-mail **e** senha, e os avisos e a recuperação por e-mail vão para ele. |
 
 > **Grave o `PASSWORD_PEPPER` e o `SESSION_SECRET` antes do primeiro login e
-> não troque depois.** Trocar qualquer um dos dois encerra todas as sessões e
-> tokens, desfaz a senha trocada pelo app (volta a valer o `OWNER_PASSWORD`) e
-> desliga a verificação em duas etapas. Trocar o `SESSION_SECRET` também faz os
-> códigos do autenticador pararem de funcionar até você religar.
+> não troque depois.** Com o `OWNER_PASSWORD` (o caso deste guia), trocar
+> qualquer um dos dois encerra todas as sessões e tokens, desfaz a senha trocada
+> pelo app (volta a valer o `OWNER_PASSWORD`) e desliga a verificação em duas
+> etapas. Trocar o `SESSION_SECRET` também invalida o vínculo do Telegram (toque
+> em **Reconectar**) e os códigos do autenticador.
 
 <details>
 <summary>Gerar um valor aleatório sem gerenciador de senhas</summary>

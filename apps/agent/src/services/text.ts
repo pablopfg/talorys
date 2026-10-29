@@ -33,3 +33,34 @@ export function defangLinks(text: string): string {
     },
   );
 }
+
+// Top-level domains that Telegram and mail clients turn into links even without "http" or "www.".
+const LINKED_TLDS =
+  "com|net|org|info|biz|io|co|me|app|dev|ai|xyz|top|site|online|link|ly|gg|ru|cn|br|pt|us|uk|de|fr|es|eu|in|tk|cc|tv|to|sh|shop|store|club|live|tech|cloud|page|website|space|pro|vip|win|click|icu|fun|today";
+const SCHEME = /\b(h)tt(ps?):\/\//gi;
+const WWW = /\b(www)\.(?=[a-z0-9-])/gi;
+// A host followed by a path, or a host on a TLD clients link on its own (evil.example/login, evil.com).
+const HOST = /\b((?:[a-z0-9-]{1,63}\.)+)([a-z][a-z0-9-]{1,62})(?=\/|\b)/gi;
+const LINKED_TLD = new RegExp(`^(?:${LINKED_TLDS})$`, "i");
+
+/**
+ * Text for channels outside the app (Telegram, e-mail), where clients make links of anything that
+ * looks like an address, backticks or not: "http" becomes "hxxp", "www." becomes "www[.]" and the
+ * last dot of a host that a client would link becomes "[.]". Talorys' own links (the "Open Talorys"
+ * button and e-mail footer) are added after this, so they stay clickable.
+ */
+export function unlinkForChannels(text: string): string {
+  return text
+    .replace(SCHEME, "$1xx$2://")
+    .replace(WWW, "$1[.]")
+    .replace(HOST, (match: string, labels: string, tld: string, offset: number, whole: string) =>
+      whole[offset + match.length] === "/" || LINKED_TLD.test(tld) || whole.slice(Math.max(0, offset - 3), offset) === "://"
+        ? `${labels.slice(0, -1)}[.]${tld}`
+        : match,
+    );
+}
+
+/** Model- or outside-written text that no channel turns into a link: backticks in the app, defanged elsewhere. */
+export function unlinked(text: string): string {
+  return unlinkForChannels(defangLinks(text));
+}

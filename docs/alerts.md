@@ -452,7 +452,7 @@ confirmar **pelo Telegram**.
 | Telegram desvinculado | Telegram desvinculado |
 | Conversa pelo Telegram ligada | Conversa no Telegram ligada |
 | Aparelho novo no push (pede a senha recente) ou aparelho removido | Novo aparelho no push / Aparelho removido do push |
-| Servidor MCP adicionado | Servidor MCP adicionado |
+| Servidor MCP adicionado ou apontado para outro endereço | Servidor MCP adicionado |
 | Atividade de acesso apagada | Atividade de acesso apagada |
 | Backup exportado ou importado | Backup exportado / Backup importado |
 
@@ -471,6 +471,10 @@ ficam em Configurações → Segurança.
   mesmo navegador renovar a inscrição do push não gera alerta (nada mudou). Desligar o
   acesso remoto ou a conversa não gera alerta; desvincular o Telegram e remover um aparelho
   do push geram, porque fecham um caminho por onde os avisos chegariam.
+- **Remover um aparelho do push avisa antes de remover**, então o próprio aparelho recebe o
+  alerta: remover o único aparelho não deixa você sem aviso.
+- **Conectar o Telegram de novo** com a conversa desligada religa a conversa e gera o mesmo
+  alerta "Conversa no Telegram ligada" que a chave em Configurações.
 - **Cadastrar um aparelho novo no push pede a senha digitada há pouco** (um login recente
   conta). Sem isso, alguém com a sua sessão poderia cadastrar o próprio navegador e passar a
   receber todos os seus avisos.
@@ -498,7 +502,9 @@ sem chave de API.
   que imitam esses avisos.
 - O assunto é `Talorys: <título>`, no idioma do app, sem quebras de linha.
 - Só texto simples, sem HTML, sem links rastreados e sem anexos. O link no fim é o
-  endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe.
+  endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe. Endereços no
+  título e no texto (de lembretes, rotinas ou eventos) chegam desarmados (`hxxps://`,
+  `exemplo[.]com`), no e-mail e no Telegram, para nenhum aviso trazer um link de golpe.
 - Em **Configurações → Avisos → E-mail** aparece o destino mascarado (`d•••@exemplo.com.br`),
   quantos e-mails saíram hoje e o botão **Enviar e-mail de teste**.
 
@@ -620,10 +626,12 @@ aprende) e aparece no app.
 - **Repetição.** Com `id`, o mesmo `source` + `id` dentro de 24 horas é descartado (resposta
   200 com `duplicate: true`).
 - **Texto desarmado.** O título começa pela origem (`n8n: Backup falhou`), para que um evento
-  não se passe por um aviso do próprio Talorys, e fica numa linha só (até 120 caracteres
-  enviados); corpo até 1.000. Links viram texto não clicável em todos os canais:
-  `https://` vira `` `hxxps://` `` (o Telegram e os clientes de e-mail não transformam isso em
-  link). O corpo inteiro da requisição tem no máximo 2 KB.
+  não se passe por um aviso do próprio Talorys (uma origem chamada `Talorys` ou com o nome do
+  agente aparece como `remote`), e fica numa linha só (até 120 caracteres enviados); corpo até
+  1.000. Links viram texto não clicável em todos os canais: `https://exemplo.com/x` vira
+  `` `hxxps://exemplo[.]com/x` ``, e `www.` e domínios soltos também perdem o ponto (o Telegram
+  e os clientes de e-mail não transformam isso em link). O corpo inteiro da requisição tem no
+  máximo 2 KB.
 - **Prioridade que aprende por origem e tipo.** Cada par `source` + `kind` (por exemplo
   `n8n · backup-falhou`) é um perfil em **O que o Talorys aprendeu**, até 50 pares; depois
   disso, os pares novos dividem o perfil **Outros eventos**, para não apagar o que os seus

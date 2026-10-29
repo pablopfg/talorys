@@ -68,7 +68,7 @@ export function useConversations(q?: string) {
 export function useConversation(id: string | undefined) {
   return useQuery({
     queryKey: keys.conversation(id ?? ""),
-    queryFn: () => api<{ conversation: Conversation; messages: ChatMessage[]; streaming?: boolean }>(`/conversations/${id}`),
+    queryFn: () => api<{ conversation: Conversation; messages: ChatMessage[]; streaming?: boolean }>(`/conversations/${encodeURIComponent(id ?? "")}`),
     enabled: !!id,
     // A reply started elsewhere (another tab, or before a reload) is still generating: poll until it lands.
     refetchInterval: (query) => (query.state.data?.streaming ? 1500 : false),
@@ -113,7 +113,7 @@ export function useMemoryReviews() {
 export function useMemoryHistory(id: string | null) {
   return useQuery({
     queryKey: keys.memoryHistory(id ?? ""),
-    queryFn: () => api<MemoryHistory>(`/memories/${id}/history`),
+    queryFn: () => api<MemoryHistory>(`/memories/${encodeURIComponent(id ?? "")}/history`),
     enabled: !!id,
   });
 }
@@ -148,7 +148,7 @@ export function useAutomationRuns(id: string | null, status?: AutomationRun["sta
       const params = new URLSearchParams({ limit: "25" });
       if (status) params.set("status", status);
       if (pageParam) params.set("before", pageParam);
-      return api<{ runs: AutomationRun[]; has_more: boolean }>(`/automations/${id}/runs?${params}`);
+      return api<{ runs: AutomationRun[]; has_more: boolean }>(`/automations/${encodeURIComponent(id ?? "")}/runs?${params}`);
     },
     getNextPageParam: (last) => (last.has_more ? last.runs[last.runs.length - 1]?.started_at : undefined),
   });

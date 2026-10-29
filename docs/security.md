@@ -336,6 +336,13 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
 - Scheduled AI runs get read-only tools plus `notify_owner`, which exists only
   there. Its title always starts with the routine's name, and links in it, and
   in the run's reply, are shown as plain text that can't be clicked.
+- Outside the app, Telegram and mail clients turn any address into a link, even
+  in backticks. So every alert's title and text sent to Telegram or by e-mail
+  has `http` written as `hxxp`, `www.` as `www[.]` and the last dot of a host
+  as `[.]`; only Talorys' own "Open Talorys" button and e-mail footer stay
+  clickable.
+- The agent's name opens every system prompt: renaming it needs the recent
+  password, a backup can't change it, and it is always put in on one line.
 - Per-request limits: tool calls, per-tool caps, duplicate-call detection,
   reasoning steps, output and context tokens; daily caps on AI requests and
   scheduled AI runs. Every model call (each tool-loop step and each history
@@ -363,7 +370,9 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   profile, so the owner's learned priorities are never pushed out.
 - Titles start with the source and stay on one line; links are defanged
   (`hxxps://` in backticks) so neither the app, Telegram nor a mail client makes
-  them clickable: a leaked token can't send a convincing sign-in link.
+  them clickable: a leaked token can't send a convincing sign-in link. A source
+  named like the app or the agent (`Talorys`) is shown as `remote`, so an event
+  can't pass for one of Talorys' own alerts.
 
 ## Push notifications
 
@@ -404,8 +413,9 @@ does on its own:
 
 - New automations arrive paused, and existing ones are never rewritten or
   re-enabled (a backup may only pause them).
-- The model, limits, demo mode, auto-memory and memory history settings are
-  not imported.
+- The model, limits, demo mode, auto-memory, memory history, custom
+  instructions and the agent's name are not imported (the last two go into
+  every system prompt).
 - Conversation summaries are dropped; they feed the system prompt but are
   invisible in the UI. They are regenerated from the visible messages.
 - Imported messages are marked as imported. Retry refuses them, and recorded
@@ -518,6 +528,11 @@ Optional. Full details: [Remote MCP servers](mcp.md#security-model).
   `patternProperties`) are not run inside the agent, so a server can't stall
   the Durable Object with a backtracking pattern; the server validates them.
 - A changed tool definition hides the tool until the owner reviews it again.
+- Adding a server needs the password typed in the last 15 minutes. Pointing a
+  server at another origin is treated as adding one: it needs the recent
+  password, raises the same security alert, and turns every tool off, out of
+  scheduled runs and back to asking first, since the owner reviewed them for
+  the old origin.
 - Backups carry only server names, URLs and auth types; imported servers arrive
   turned off, without credentials or tools.
 

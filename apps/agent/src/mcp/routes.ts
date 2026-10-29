@@ -2,7 +2,7 @@ import { mcpOAuthCallbackSchema, mcpServerCreateSchema, mcpServerUpdateSchema, m
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
-import { body } from "../api/middleware";
+import { body, requireRecentAuth } from "../api/middleware";
 import { raiseSecurityAlert } from "../alerts/security";
 
 /** Owner sessions only: the remote allowlist already refuses these paths to access tokens, this refuses them again. */
@@ -38,6 +38,8 @@ mcpRoutes.get("/mcp/servers", (c) => {
 
 mcpRoutes.post("/mcp/servers", async (c) => {
   const input = await body(c, mcpServerCreateSchema, 16 * 1024);
+  // A new server opens a channel to the agent's tool calls: a stolen session alone can't add one.
+  requireRecentAuth(c);
   const server = await c.env.agent.services.mcp.create(input, appOrigin(c));
   raiseSecurityAlert(c.env.agent.services.alerts, "mcp_added");
   return c.json({ server }, 201);
@@ -50,7 +52,14 @@ mcpRoutes.get("/mcp/servers/:id", (c) => {
 
 mcpRoutes.patch("/mcp/servers/:id", async (c) => {
   const patch = await body(c, mcpServerUpdateSchema, 16 * 1024);
-  return c.json({ server: await c.env.agent.services.mcp.update(c.req.param("id"), patch, appOrigin(c)) });
+  const mcp = c.env.agent.services.mcp;
+  const before = mcp.require(c.req.param("id"));
+  const originChanged = patch.url !== undefined && originOf(patch.url) !== originOf(before.url);
+  // Pointing a server somewhere else is the same as adding one: recent password and the same alert.
+  if (originChanged) requireRecentAuth(c);
+  const server = await mcp.update(c.req.param("id"), patch, appOrigin(c));
+  if (originChanged) raiseSecurityAlert(c.env.agent.services.alerts, "mcp_added");
+  return c.json({ server });
 });
 
 mcpRoutes.delete("/mcp/servers/:id", async (c) => {
@@ -85,3 +94,12 @@ mcpRoutes.patch("/mcp/servers/:id/tools/:toolId", async (c) => {
   const patch = await body(c, mcpToolUpdateSchema, 1024);
   return c.json({ tool: c.env.agent.services.mcp.updateTool(c.req.param("id"), c.req.param("toolId"), patch) });
 });
+
+/** The origin of a URL, or the text itself when it doesn't parse (the service rejects it then). */
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}

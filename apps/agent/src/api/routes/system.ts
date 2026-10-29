@@ -56,7 +56,9 @@ systemRoutes.patch("/settings", async (c) => {
   const longer = (Object.keys(patch.session ?? {}) as (keyof typeof before.session)[]).some((k) => (patch.session?.[k] ?? 0) > before.session[k]);
   // Instructions stay in every prompt, so a stolen session could plant them to steer the agent; clearing them is free.
   const newInstructions = !!patch.customInstructions && patch.customInstructions !== before.customInstructions;
-  if (longer || newInstructions) requireRecentAuth(c);
+  // The agent's name opens every system prompt, so it is guarded the same way.
+  const newName = patch.agentName !== undefined && patch.agentName !== before.agentName;
+  if (longer || newInstructions || newName) requireRecentAuth(c);
   const settings = s.settings.update(patch);
   if (settings.timezone !== before.timezone) await s.automations.rearmAll();
   if (settings.demoMode !== before.demoMode) {

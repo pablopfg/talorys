@@ -300,6 +300,20 @@ describe("alerts on Telegram", () => {
     });
   });
 
+  it("never sends an address Telegram would make tappable, and keeps its own button", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      agent.services.alerts.updatePreferences({ ...DEFAULT_ALERT_PREFERENCES, fullText: ["reminder"] });
+      agent.services.alerts.raise({ title: "Log in at evil.com", body: "Go to `https://evil.example/login` or www.evil.com", category: "reminder" });
+      await agent.services.telegram.idle();
+      const msg = fake.sent().at(-1)!.params;
+      expect(msg.text).toContain("<b>Log in at evil[.]com</b>");
+      expect(msg.text).toContain("Go to `hxxps://evil[.]example/login` or www[.]evil[.]com");
+      expect(msg.reply_markup.inline_keyboard.at(-1)).toEqual([{ text: "Open Talorys", url: BASE }]);
+    });
+  });
+
   it("records a failed send and never throws", async () => {
     await inAgent(async (agent) => {
       await linkChat(agent, fakeTelegram({ sendMessage: () => ({ ok: false, error_code: 403, description: "Forbidden: bot was blocked by the user" }) }));
@@ -636,6 +650,22 @@ describe("conversation in the private chat", () => {
       expect(last.text).toBe("Something here needs your confirmation. Open Talorys to review it.");
       expect(last.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Open in Talorys", url: `${BASE}/chat/${agent.services.telegram.status().conversation_id}` });
       expect(agent.services.tasks.list({ status: "open", limit: 500 }).length).toBe(before + 1);
+    });
+  });
+
+  it("raises the security alert when connecting again turns the conversation back on", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      t.setConversation(false);
+      const count = () => agent.services.notifications.list().filter((n) => n.category === "security").length;
+      const before = count();
+      await t.connect(BASE);
+      expect(t.link().conversation).toBe(true);
+      expect(count()).toBe(before + 1);
+      await t.connect(BASE);
+      expect(count()).toBe(before + 1);
     });
   });
 

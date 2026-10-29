@@ -201,6 +201,14 @@ export class McpRepository {
     );
   }
 
+  /** A new origin is a new third party: every tool goes off, out of routines and back to asking first. */
+  resetToolTrust(serverId: string): void {
+    this.db.run(
+      `UPDATE tal_mcp_tools SET enabled = 0, policy = 'approve', scheduled = 0, reviewed_hash = NULL, updated_at = ? WHERE server_id = ?`,
+      now(), serverId,
+    );
+  }
+
   /**
    * Stores a fresh catalog. Known tools keep their stable exposed name, enablement and policy (a
    * changed definition then needs review, see `isUsable`); new ones arrive disabled; tools the

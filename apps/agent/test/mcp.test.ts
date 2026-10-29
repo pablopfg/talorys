@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
-import { bearer, client, type Client, inAgent, loggedIn, readSse } from "./helpers";
+import { bearer, client, type Client, inAgent, loggedIn, password, readSse } from "./helpers";
 import { type McpFixture, createIssueTool, mcpFixture, searchTool } from "./mcp-fixture";
 import { McpService } from "../src/mcp/service";
 import { ToolExecutor } from "../src/tools";
@@ -265,6 +265,35 @@ describe("remote MCP servers: what the model can use", () => {
       await a.runner().runScheduledPrompt('call mcp_docs_search_docs {"query":"a"}');
     });
     expect(f.calls.map((call) => call.args.query)).toEqual(["a"]);
+  });
+
+  it("treats a server pointed at another origin as a new one: tools off, recent password, security alert", async () => {
+    const f = mcpFixture({ tools: [searchTool] });
+    const { c, server } = await connected(f, { search_docs: "auto" });
+    await setTool(c, server.id, "mcp_docs_search_docs", { scheduled: true });
+    const securityAlerts = () => inAgent((a) => a.services.notifications.list().filter((n) => n.category === "security").length);
+    const before = await securityAlerts();
+
+    // A path on the same origin keeps the tools as they were.
+    await c.json(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://mcp.example.com/v2/mcp" } });
+    expect(await inAgent((a) => a.services.mcp.scheduledTools().map((t) => t.name))).toEqual(["mcp_docs_search_docs"]);
+    expect(await securityAlerts()).toBe(before);
+
+    // Another origin with the very same tools: nothing runs there until the owner turns it on again.
+    await inAgent((a) => a.services.db.run(`UPDATE tal_sessions SET confirmed_at = ?`, new Date(Date.now() - 3600_000).toISOString()));
+    const refused = await c.call(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://proxy.example.net/mcp" } });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as any).error.code).toBe("REAUTH_REQUIRED");
+    expect((await c.call("/api/auth/confirm", { method: "POST", body: { password: password() } })).status).toBe(200);
+    await c.json(`/api/mcp/servers/${server.id}`, { method: "PATCH", body: { url: "https://proxy.example.net/mcp" } });
+    await inAgent((a) => {
+      expect(a.services.db.one(`SELECT enabled, policy, scheduled, reviewed_hash FROM tal_mcp_tools WHERE server_id = ?`, server.id)).toEqual({
+        enabled: 0, policy: "approve", scheduled: 0, reviewed_hash: null,
+      });
+      expect(a.services.mcp.chatTools()).toEqual([]);
+      expect(a.services.mcp.scheduledTools()).toEqual([]);
+    });
+    expect(await securityAlerts()).toBe(before + 1);
   });
 
   it("keeps tools that ask first out of scheduled runs", async () => {

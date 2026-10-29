@@ -134,7 +134,7 @@ function NoteEditor({ id, onBack }: { id: string; onBack: () => void }) {
   useEffect(() => {
     // Ignore a superseded load: a late response must not overwrite what the owner already typed.
     let stale = false;
-    api<{ note: Note }>(`/notes/${id}`)
+    api<{ note: Note }>(`/notes/${encodeURIComponent(id)}`)
       .then((r) => {
         if (stale) return;
         setNote(r.note);
@@ -157,7 +157,7 @@ function NoteEditor({ id, onBack }: { id: string; onBack: () => void }) {
   const dirty = !!note && (savedTitle !== note.title || content !== note.content || projectId !== (note.project_id ?? ""));
   const body = { title: savedTitle, content, project_id: projectId || null };
 
-  const save = useApiMutation(() => api<{ note: Note }>(`/notes/${id}`, { method: "PATCH", body }), {
+  const save = useApiMutation(() => api<{ note: Note }>(`/notes/${encodeURIComponent(id)}`, { method: "PATCH", body }), {
     invalidate: [["notes"]],
     onSuccess: (r) => setNote(r.note),
   });
@@ -170,7 +170,7 @@ function NoteEditor({ id, onBack }: { id: string; onBack: () => void }) {
   useEffect(
     () => () => {
       if (!pending.current.dirty || deleted.current) return;
-      void api(`/notes/${id}`, { method: "PATCH", body: pending.current.body })
+      void api(`/notes/${encodeURIComponent(id)}`, { method: "PATCH", body: pending.current.body })
         .then(() => qc.invalidateQueries({ queryKey: ["notes"] }))
         .catch(() => {});
     },
@@ -189,7 +189,7 @@ function NoteEditor({ id, onBack }: { id: string; onBack: () => void }) {
   const toggleTask = useCallback((line: number) => setContent((c) => toggleTaskLine(c, line)), []);
   const remove = useApiMutation(
     async () => {
-      await api(`/notes/${id}`, { method: "DELETE" });
+      await api(`/notes/${encodeURIComponent(id)}`, { method: "DELETE" });
       deleted.current = true;
     },
     {
