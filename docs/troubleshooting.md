@@ -1,61 +1,67 @@
-# Troubleshooting
+# Solução de problemas
 
-Start with:
+Comece com:
 
 ```bash
 npx create-talorys@latest doctor
 ```
 
-## Installation
+## Instalação
 
-**The browser login does not open / times out.** Copy the URL Wrangler prints
-into a browser. In SSH or containers, set `CLOUDFLARE_API_TOKEN` instead.
+As mensagens do instalador aparecem em inglês, como o próprio terminal as
+mostra.
 
-**"Multiple Cloudflare accounts are available."** Pass `--account-id <id>` in
-non-interactive mode.
+**O login pelo navegador não abre ou expira.** Copie para o navegador a URL que
+o Wrangler imprime. Em SSH ou em containers, defina `CLOUDFLARE_API_TOKEN` em
+vez disso.
 
-**"…lacks a required permission."** You need to be able to edit Workers and
-Pages in the chosen account (see [deployment.md](deployment.md#permissions)).
+**"Multiple Cloudflare accounts are available."** Informe
+`--account-id <id>` no modo não interativo.
 
-**"The deployment did not pass its health checks yet."** New `pages.dev` sites
-can take a few minutes to get DNS and certificates. Re-run the same command;
-it resumes without duplicating anything.
+**"…lacks a required permission."** Você precisa poder editar Workers e Pages na
+conta escolhida (veja [deployment.md](deployment.md#permissões)).
 
-**"…already exists and is not a Talorys installation."** Choose another
-directory with `--dir`. The installer never overwrites unrelated folders.
+**"The deployment did not pass its health checks yet."** Sites `pages.dev` novos
+podem levar alguns minutos para receber DNS e certificados. Rode o mesmo comando
+de novo; ele continua de onde parou sem duplicar nada.
 
-**"SQLite-backed Durable Objects are not available."** Check the account's
-Workers settings; SQLite Durable Objects are included on the Free plan.
+**"…already exists and is not a Talorys installation."** Escolha outra pasta com
+`--dir`. O instalador nunca sobrescreve pastas que não são dele.
 
-## Using Talorys
+**"SQLite-backed Durable Objects are not available."** Confira as configurações
+de Workers da conta; Durable Objects com SQLite fazem parte do plano Free.
 
-**"Your Cloudflare account has used its Workers AI allocation for today."**
-The daily free Neuron allocation is exhausted. Chat resumes after the reset;
-tasks, notes, memories and reminders keep working. Exact usage is in the
-Cloudflare dashboard (Workers AI).
+## Usando o Talorys
 
-**"Talorys reached its daily limit of N AI requests."** That's Talorys' own
-guardrail; raise it in Settings → AI.
+**"Sua conta Cloudflare usou a cota do Workers AI de hoje."** A cota diária
+gratuita de Neurons acabou. O chat volta depois que a cota reinicia; tarefas,
+notas, memórias e lembretes continuam funcionando. O uso exato fica no painel da
+Cloudflare (Workers AI).
 
-**"Too many failed attempts."** Wait 15 minutes, use **Forgot your password?**
-on the sign-in screen (when e-mail is set up), or reset the password with
-`npx create-talorys@latest reset-password`.
+**"O Talorys atingiu o limite diário de N pedidos de IA."** Esse é o limite de
+proteção do próprio Talorys; aumente-o em **Configurações → IA**.
 
-**Reminders fire at the wrong time.** Check Settings → General → Timezone.
-Changing it re-schedules all automations.
+**"Muitas tentativas sem sucesso."** Espere 15 minutos, use **Esqueceu a
+senha?** na tela de login (quando o e-mail estiver configurado) ou redefina a
+senha com `npx create-talorys@latest reset-password`.
 
-**"The configured AI model is not available."** Set a supported Workers AI
-model with tool calling in Settings → AI (default `@cf/zai-org/glm-4.7-flash`).
+**Lembretes disparam na hora errada.** Confira **Configurações → Geral → Fuso
+horário**. Mudar o fuso reagenda todas as automações.
 
-## Development
+**"O modelo de IA configurado não está disponível."** Escolha em
+**Configurações → IA** um modelo do Workers AI compatível com chamada de
+ferramentas (o padrão é `@cf/zai-org/glm-4.7-flash`).
 
-**`database is locked: SQLITE_BUSY`** — two local runtimes share a state
-directory. Stop stray `wrangler` processes; the dev scripts use separate
-directories for the Worker and Pages.
+## Desenvolvimento
 
-**Port already in use** — stop other dev servers on 5173, 8787 or 8788.
+**`database is locked: SQLITE_BUSY`**: dois runtimes locais estão usando a mesma
+pasta de estado. Pare os processos `wrangler` perdidos; os scripts de
+desenvolvimento usam pastas separadas para o Worker e para o Pages.
 
-## MCP servers
+**Porta já em uso**: pare outros servidores de desenvolvimento nas portas 5173,
+8787 ou 8788.
 
-See [Remote MCP servers → Troubleshooting](mcp.md#troubleshooting) for
-connection, authentication and tool messages.
+## Servidores MCP
+
+Veja [Servidores MCP remotos → Solução de problemas](mcp.md#solução-de-problemas)
+para as mensagens de conexão, autenticação e ferramentas.

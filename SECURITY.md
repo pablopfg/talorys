@@ -1,57 +1,64 @@
-# Security Policy
+# Política de segurança
 
-Talorys runs in each user's own Cloudflare account, so a vulnerability can
-expose someone's personal data. Thank you for reporting responsibly.
+O Talorys roda na conta da Cloudflare de cada usuário, então uma
+vulnerabilidade pode expor os dados pessoais de alguém. Obrigado por relatar de
+forma responsável.
 
-## Supported versions
+## Versões com suporte
 
-Only the latest published version of `create-talorys`, and the agent it
-deploys, receives security fixes. Users update with
+Só a última versão publicada do `create-talorys`, e o agente que ele instala,
+recebe correções de segurança. Os usuários atualizam com
 `npx create-talorys@latest update`.
 
-## Reporting a vulnerability
+## Como relatar uma vulnerabilidade
 
-**Do not open a public issue.** Report privately through GitHub:
-**Security → Report a vulnerability** on this repository
-([private vulnerability reporting](https://docs.github.com/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)).
+**Não abra uma issue pública.** Relate de forma privada pelo GitHub:
+**Security → Report a vulnerability** neste repositório
+([relato privado de vulnerabilidades](https://docs.github.com/pt/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)).
 
-Please include:
+Inclua, por favor:
 
-- affected component (installer, agent Worker, Pages Function, web app)
-- steps to reproduce or a proof of concept
-- impact, and any suggested fix
+- o componente afetado (instalador, Worker do agente, Pages Function, app web)
+- os passos para reproduzir ou uma prova de conceito
+- o impacto e, se tiver, uma sugestão de correção
 
-We aim to acknowledge reports within 3 business days and to publish a fix
-and advisory within 30 days, depending on severity. We will credit you
-unless you prefer otherwise.
+Procuramos confirmar o recebimento em até 3 dias úteis e publicar a correção e
+o aviso de segurança em até 30 dias, conforme a gravidade. Damos o crédito a
+você, a menos que prefira o contrário.
 
-## Scope
+## Escopo
 
-In scope, for example:
+Dentro do escopo, por exemplo:
 
-- authentication or session bypass, CSRF, login rate-limit bypass
-- reaching the agent Worker, its storage or the AI binding without the owner session
-- secrets or credentials leaked to the browser, logs, `talorys.json` or exports
-- prompt injection that makes the agent perform write or destructive actions
-  without owner confirmation, or escape its tool restrictions
-- the installer deleting or overwriting data or unrelated Cloudflare resources
-- anything that silently enables paid Cloudflare features
+- contornar a autenticação ou a sessão, CSRF, contornar o limite de tentativas
+  de login
+- alcançar o Worker do agente, o armazenamento dele ou o binding de IA sem a
+  sessão do dono
+- segredos ou credenciais vazados para o navegador, logs, `talorys.json` ou
+  exportações
+- prompt injection que faça o agente executar ações de escrita ou destrutivas
+  sem a confirmação do dono, ou escapar das restrições das ferramentas
+- o instalador excluir ou sobrescrever dados ou recursos da Cloudflare que não
+  são dele
+- qualquer coisa que ligue em silêncio recursos pagos da Cloudflare
 
-Out of scope:
+Fora do escopo:
 
-- vulnerabilities in Cloudflare's platform (report them to
+- vulnerabilidades na plataforma da Cloudflare (relate à
   [Cloudflare](https://hackerone.com/cloudflare))
-- attacks that need an already compromised Cloudflare account or owner device
-- exceeding free-tier quotas by the owner themselves
-- missing hardening with no demonstrated impact
+- ataques que precisem de uma conta da Cloudflare ou de um dispositivo do dono
+  já comprometidos
+- o próprio dono ultrapassar as cotas do plano gratuito
+- falta de proteção adicional sem impacto demonstrado
 
-## Personal data in your installation
+## Dados pessoais na sua instalação
 
-Your Talorys records sign-in activity (IP address, approximate location from
-Cloudflare, user agent) in your own Durable Object, to protect your account.
-Details are kept 90 days by default, then only daily counts per country, and
-you can export or delete them in Settings → Security. Nothing is sent to the
-project or any third party. See
-[docs/security.md#sign-in-activity](docs/security.md#sign-in-activity).
+O seu Talorys registra a atividade de acesso (endereço IP, localização
+aproximada informada pela Cloudflare, user agent) no seu próprio Durable
+Object, para proteger a sua conta. Os detalhes ficam 90 dias por padrão; depois
+disso, só contagens diárias por país. Você pode exportá-los ou excluí-los em
+**Configurações → Segurança**. Nada é enviado ao projeto nem a terceiros. Veja
+[docs/security.md#atividade-de-acesso](docs/security.md#atividade-de-acesso).
 
-The design and threat model are described in [docs/security.md](docs/security.md).
+O desenho e o modelo de ameaças estão descritos em
+[docs/security.md](docs/security.md).
