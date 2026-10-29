@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import type { Automation } from "@talorys/shared";
+import { type Automation, TRANSCRIPTION_LIMITS } from "@talorys/shared";
 import type { Env } from "../env";
 import { migrate } from "../db/migrations";
 import { createServices, type Services } from "../services/container";
@@ -15,6 +15,8 @@ import { semanticExtensions } from "../semantic";
 import { AppError } from "../api/errors";
 import { semanticNeighbors } from "../semantic/neighbors";
 import { CLEF_MODEL, type ClefRun } from "../memory/conflict";
+import { createTranscriber, type Transcription } from "../ai/transcription";
+import { classifyAiError } from "../ai/provider";
 
 interface AgentState {
   /** Unread notifications, kept in agent state for cheap polling. */
@@ -71,6 +73,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         active: this.activeRuns,
         exists: (id) => services.conversations.get(id) !== null,
         keepAliveWhile: (work) => this.keepAliveWhile(work),
+        transcribe: (audio, opts) => this.transcribeClip(audio, opts),
       });
     }
     return this._services;
@@ -112,6 +115,36 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     if (!this.env.AI || !(this.aiProvider() instanceof CloudflareWorkersAIProvider)) return null;
     const ai = this.env.AI;
     return (request, signal) => ai.run(CLEF_MODEL, { ...request }, { signal });
+  }
+
+  /**
+   * Turns one audio clip (base64) into text, for the app's voice input and Telegram voice
+   * messages alike: one clip at a time, within the daily audio cap, and the audio is never stored.
+   * `seconds` is the length the sender reported, checked against the cap before any model call.
+   */
+  async transcribeClip(audio: string, opts: { context?: string; signal?: AbortSignal; seconds?: number } = {}): Promise<Transcription> {
+    const s = this.services;
+    const transcriber = createTranscriber(this.env, s.settings);
+    if (!transcriber) throw new AppError("AI_UNAVAILABLE", "Workers AI is not configured.");
+    const max = TRANSCRIPTION_LIMITS.maxSecondsPerDay;
+    const today = s.usage.transcriptionSecondsToday();
+    if (today >= max || (opts.seconds !== undefined && today + opts.seconds > max)) {
+      throw new AppError("AI_LIMIT_REACHED", `Talorys reached its daily limit of ${max / 60} minutes of voice input.`);
+    }
+    if (this.transcribing) throw new AppError("CONFLICT", "A recording is already being transcribed.");
+    this.transcribing = true;
+    try {
+      const result = await transcriber.transcribe(audio, { language: s.settings.language(), context: opts.context, signal: opts.signal });
+      // Charge the longer of the two lengths, so a clip is never undercounted.
+      const seconds = Math.max(result.seconds, opts.seconds ?? 0);
+      s.usage.recordTranscription(transcriber.model, transcriber.billable, seconds);
+      return { text: result.text, seconds };
+    } catch (error) {
+      s.usage.increment({ ai_errors: 1 });
+      throw classifyAiError(error);
+    } finally {
+      this.transcribing = false;
+    }
   }
 
   runner(): AgentRunner {

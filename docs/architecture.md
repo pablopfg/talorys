@@ -203,3 +203,6 @@ Chat voice input is one Whisper call per recorded clip (`POST /api/transcribe`),
 billed by audio minute (about 46.6 Neurons a minute). Clips are capped at 60 s
 and audio at 60 minutes a day (`TRANSCRIPTION_LIMITS`), apart from the daily AI
 request budget, and recorded in the usage ledger like any other model call.
+Telegram voice messages (up to 5 minutes and 5 MB) go through the same
+`TalorysAgent.transcribeClip`, so they share the one-at-a-time lock and the
+daily audio cap with the app.

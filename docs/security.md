@@ -205,6 +205,11 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   /api/transcribe`, which needs the owner session and is not open to remote
   access tokens. The audio goes only to Workers AI and is never stored;
   transcription has its own daily cap of audio minutes.
+- Telegram voice messages from the owner's linked private chat (at most 5 minutes
+  and 5 MB) are downloaded only from `api.telegram.org`, never following
+  redirects, with the file path checked and the read cut off past 5 MB. They
+  share the same transcription lock and daily cap, and the audio is never
+  stored.
 - API responses carry their own `Content-Security-Policy: default-src 'none';
   frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer
   opened directly can't load anything or be framed.

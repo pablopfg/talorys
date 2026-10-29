@@ -921,7 +921,7 @@ export const ptBR = {
   "telegram.chat": "Chat privado",
   "telegram.chatHint": "Sua conversa com o bot. Só a sua conta do Telegram é ouvida.",
   "telegram.conversation": "Conversar com o Talorys pelo chat",
-  "telegram.conversationHint": "O que você manda ao bot vai para o agente, como no chat do app, com as mesmas ferramentas e limites. Aprovações e planos de tarefas são confirmados no app. /new começa uma conversa nova.",
+  "telegram.conversationHint": "O que você manda ao bot, por texto ou voz (até 5 minutos), vai para o agente, como no chat do app, com as mesmas ferramentas e limites. Aprovações e planos de tarefas são confirmados no app. /new começa uma conversa nova.",
   "telegram.conversationAria": "Conversar com o Talorys pelo chat do Telegram",
   "telegram.conversationOn": "Conversa pelo Telegram ligada",
   "telegram.conversationOff": "Conversa pelo Telegram desligada",
