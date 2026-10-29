@@ -6,6 +6,7 @@ import type { AuthEventKind } from "@talorys/shared";
 import type { ClientInfo } from "../../auth/auth-log";
 import type { SignedIn } from "../../auth/auth-service";
 import type { MfaFactor } from "../../auth/mfa";
+import { raiseSecurityAlert } from "../../alerts/security";
 import { body, clientId, clientInfo, deviceCookie, mfaCookie, readDeviceCookie, readMfaCookie, readSessionToken, requireRecentAuth, sessionCookie } from "../middleware";
 import { AppError, ValidationError, errorResponse } from "../errors";
 
@@ -181,6 +182,7 @@ authRoutes.post("/password", async (c) => {
   // This browser stays signed in, on a new session: the old token no longer works anywhere.
   const { token, sessionId } = await s.auth.createSession(c.req.header("user-agent") ?? "");
   s.authLog.record("password_changed", client, { session: sessionId.slice(0, 16) });
+  raiseSecurityAlert(s.alerts, "password_changed");
   c.header("set-cookie", sessionCookie(c, token));
   return c.json({ changed: true });
 });
@@ -209,6 +211,7 @@ authRoutes.post("/activity/delete", (c) => {
   requireRecentAuth(c);
   const deleted = c.env.agent.services.authLog.clear();
   c.env.agent.services.activity.record("auth.activity_deleted", "Sign-in activity deleted");
+  raiseSecurityAlert(c.env.agent.services.alerts, "activity_deleted");
   return c.json({ deleted });
 });
 

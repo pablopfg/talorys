@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app";
 import { body, requireRecentAuth } from "../middleware";
+import { raiseSecurityAlert } from "../../alerts/security";
 import { schemaVersion } from "../../db/migrations";
 import { MAX_IMPORT_BYTES, exportData, importData } from "../../services/backup";
 import { WORKERS_AI_PRICING } from "../../ai/pricing";
@@ -106,6 +107,7 @@ systemRoutes.get("/export", (c) => {
   const backup = exportData(c.env.agent.services);
   c.env.agent.services.activity.record("data.exported", "Exported a backup");
   c.env.agent.services.settings.setJson(BACKUP_KEY, new Date().toISOString());
+  raiseSecurityAlert(c.env.agent.services.alerts, "data_exported");
   return new Response(JSON.stringify(backup, null, 2), {
     headers: {
       "content-type": "application/json; charset=utf-8",

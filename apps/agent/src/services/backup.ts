@@ -12,6 +12,7 @@ import {
   scheduleSpecSchema,
 } from "@talorys/shared";
 import type { Services } from "./container";
+import { raiseSecurityAlert } from "../alerts/security";
 import { ValidationError } from "../api/errors";
 import { decodeTools } from "../db/repositories/conversations";
 import { validateEndpoint } from "../mcp/url";
@@ -300,6 +301,8 @@ export async function importData(s: Services, raw: unknown): Promise<ImportSumma
     };
   });
 
+  // The data is in: the owner hears about it even if re-arming the schedules fails below.
+  raiseSecurityAlert(s.alerts, "data_imported");
   // Disarm automations the backup paused; a new timezone also moves the owner's existing schedules.
   if (paused > 0 || s.settings.get().timezone !== previousTimezone) await s.automations.rearmAll();
   s.activity.record("data.imported", `Imported backup from ${backup.exported_at}`);

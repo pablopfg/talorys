@@ -1,12 +1,16 @@
 import { MAX_PUSH_DEVICES } from "@talorys/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { client, inAgent, loggedIn } from "./helpers";
-import { fakeBrowser } from "./push-helpers";
+import { fakeBrowser, pushServiceStub } from "./push-helpers";
 import { endpointProblem } from "../src/push/endpoint";
 import { deviceLabel } from "../src/push/routes";
 
 beforeEach(async () => {
-  await inAgent((agent) => agent.services.db.run(`DELETE FROM tal_push_subscriptions`));
+  await inAgent((agent) => {
+    agent.services.db.run(`DELETE FROM tal_push_subscriptions`);
+    // A new device raises a security alert, which is pushed: a fake push service accepts it.
+    agent.services.push.fetcher = pushServiceStub(201).fetcher;
+  });
 });
 
 describe("push endpoint validation", () => {

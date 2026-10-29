@@ -1,6 +1,7 @@
 import type { PushService } from "../push/service";
 import type { TelegramService } from "../telegram/service";
 import type { AlertChannelAdapter } from "./service";
+import type { EmailAlerts } from "./email";
 
 /** Web Push to every subscribed browser; reached = devices that accepted the message. */
 export function pushChannel(push: PushService): AlertChannelAdapter {
@@ -20,5 +21,19 @@ export function telegramChannel(telegram: TelegramService, fullText: (n: Paramet
     id: "telegram",
     unavailable: () => (!telegram.configured() ? "not_configured" : telegram.target() === null ? "no_device" : null),
     send: (n, done, attempt) => telegram.deliver(n, fullText(n), done, attempt),
+  };
+}
+
+/**
+ * The owner's e-mail; reached = 1 when Cloudflare accepted the message. Only an alert's first try
+ * is e-mailed, within EMAIL_ALERTS.perDay messages a day whatever the priority.
+ */
+export function emailChannel(email: EmailAlerts, fullText: (n: Parameters<AlertChannelAdapter["send"]>[0]) => boolean): AlertChannelAdapter {
+  return {
+    id: "email",
+    unavailable: () => (!email.configured() ? "not_configured" : null),
+    firstTryOnly: true,
+    full: (n) => email.full(n),
+    send: (n, done) => email.deliver(n, fullText(n), done),
   };
 }

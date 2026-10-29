@@ -80,6 +80,9 @@ Push notifications are optional here; see [Push notifications](#push-notificatio
 to add the keys. To connect MCP servers that need a token, also set
 `MCP_CREDENTIAL_KEY` (see [Remote MCP servers](mcp.md#configuration)). For
 alerts on Telegram, set `TELEGRAM_BOT_TOKEN` (see [Alerts](alerts.md#configurar-o-telegram)).
+For alerts by e-mail through Cloudflare Email Routing (free to your verified address),
+add the `send_email` binding, the `ALERT_EMAIL_FROM` variable and the `ALERT_EMAIL_TO`
+secret (see [Alerts](alerts.md#configurar-o-e-mail)).
 
 `OWNER_PASSWORD` is the plain password, for deploys that cannot hash it
 beforehand. It must pass the installer's strength check (10+ characters, mixed

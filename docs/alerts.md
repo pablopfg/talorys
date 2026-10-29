@@ -12,8 +12,7 @@ canais são os caminhos **fora** do app:
 | --- | --- |
 | **Push** | Notificações do sistema no celular e no computador |
 | **Telegram** | O seu grupo de avisos no Telegram (ou o chat privado com o bot, enquanto nenhum grupo estiver vinculado) |
-
-O e-mail entra nesta mesma central numa próxima entrega, sem mudar o que está descrito aqui.
+| **E-mail** | O seu e-mail, pelo Cloudflare Email Routing (opcional). Recebe sempre os alertas de segurança e os críticos; veja [E-mail](#e-mail) |
 
 Este documento é atualizado a cada entrega do plano "Talorys proativo".
 
@@ -25,7 +24,7 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 | --- | --- |
 | Notificações push | Liga o push neste aparelho, lista os aparelhos cadastrados e envia um teste. |
 | Telegram | Conecta o bot, vincula o chat privado e o grupo, envia um teste e desvincula. Veja [Telegram](#telegram). |
-| Para onde vão os avisos | Para cada categoria, um interruptor por canal e o interruptor **Texto completo** (só para o Telegram). Desligado, a categoria fica só no app. Também define os limites por canal. |
+| Para onde vão os avisos | Para cada categoria, um interruptor por canal e o interruptor **Texto completo** (para o Telegram e o e-mail). Desligado, a categoria fica só no app. Também mostra o destino do e-mail com o botão de teste e define os limites por canal. |
 | Entregas recentes | As últimas 100 tentativas de envio, com categoria, canal, prioridade, situação e o motivo quando o aviso não saiu. |
 
 ## Prioridades
@@ -170,9 +169,11 @@ numa escada de 3 tentativas contadas a partir do primeiro envio:
 - escrever qualquer coisa no chat privado do bot (vale para todos os avisos insistindo);
 - baixar a prioridade do aviso para Normal ou Baixa na central, ou apagá-lo.
 
-**Alertas de segurança só param pelo Telegram.** Login novo, verificação em duas etapas
-ligada ou desligada, muitas tentativas de login e código de recuperação usado são
-alertas críticos e também insistem. Para eles, nada feito **dentro do app** encerra a
+**Alertas de segurança só param pelo Telegram.** Login novo, troca de senha, verificação
+em duas etapas ligada ou desligada, muitas tentativas de login, código de recuperação
+usado, acesso remoto ligado, token criado, Telegram vinculado, conversa no Telegram ligada
+e backup exportado ou importado são alertas críticos e também insistem (veja
+[Alertas de segurança fora da banda](#alertas-de-segurança-fora-da-banda-e-e-mail)). Para eles, nada feito **dentro do app** encerra a
 escada: abrir, marcar como lido, baixar a prioridade, silenciar e apagar não param as
 tentativas (silenciar e apagar são recusados enquanto ele insiste). Só **Feito**,
 **Adiar** ou **Silenciar** no Telegram, ou uma mensagem sua no chat privado do bot,
@@ -430,16 +431,138 @@ no Worker; para desligar o bot de vez, apague o segredo
 - Custos: a Bot API do Telegram é gratuita, e cada aviso ou toque num botão é uma
   requisição ao Worker, dentro do plano gratuito da Cloudflare.
 
+## Alertas de segurança fora da banda e e-mail
+
+Alguém que entrou na sua sessão (um cookie roubado, um computador destravado) não pode
+esconder de você o que fez. Por isso as mudanças que abrem uma porta para os seus dados
+geram um **alerta de segurança**: sempre **Crítico**, enviado por **todos os canais**
+(push, Telegram e e-mail) mesmo que a pessoa esteja dentro do app, e insistente até você
+confirmar **pelo Telegram**.
+
+| O que aconteceu | Título do alerta |
+| --- | --- |
+| Login de aparelho ou país novo | Novo login |
+| Senha trocada | Senha alterada |
+| Verificação em duas etapas ligada ou desligada | Verificação em duas etapas ativada / desativada |
+| Muitas tentativas de login, código de recuperação usado | (já existiam) |
+| Acesso remoto ligado | Acesso remoto ativado |
+| Token de acesso criado | Token de acesso criado |
+| Chat ou grupo do Telegram vinculado | Telegram vinculado / Grupo do Telegram vinculado |
+| Telegram desvinculado | Telegram desvinculado |
+| Conversa pelo Telegram ligada | Conversa no Telegram ligada |
+| Aparelho novo no push (pede a senha recente) ou aparelho removido | Novo aparelho no push / Aparelho removido do push |
+| Servidor MCP adicionado | Servidor MCP adicionado |
+| Atividade de acesso apagada | Atividade de acesso apagada |
+| Backup exportado ou importado | Backup exportado / Backup importado |
+
+O texto diz só o que aconteceu e o que fazer se não foi você; nunca de onde veio, nem o
+nome do token, nem dados do backup, porque pode aparecer na tela bloqueada. Os detalhes
+ficam em Configurações → Segurança.
+
+**Regras que protegem o registro:**
+
+- **Apagar um alerta de segurança pede a senha digitada há pouco**, mesmo depois de
+  confirmado. Enquanto ele ainda insiste, apagar continua recusado (só o Telegram o cala).
+- A central guarda os **200 alertas de segurança mais recentes à parte** dos outros avisos
+  (que ficam nos 500 mais recentes): uma enxurrada de avisos de rotina não empurra um alerta
+  de segurança para fora.
+- Ligar o acesso remoto de novo quando ele já está ligado, ligar a conversa já ligada ou o
+  mesmo navegador renovar a inscrição do push não gera alerta (nada mudou). Desligar o
+  acesso remoto ou a conversa não gera alerta; desvincular o Telegram e remover um aparelho
+  do push geram, porque fecham um caminho por onde os avisos chegariam.
+- **Cadastrar um aparelho novo no push pede a senha digitada há pouco** (um login recente
+  conta). Sem isso, alguém com a sua sessão poderia cadastrar o próprio navegador e passar a
+  receber todos os seus avisos.
+
+### E-mail
+
+O e-mail é o canal de último recurso: chega mesmo sem o Telegram e sem o push. Ele usa o
+**Cloudflare Email Routing** e o binding `send_email` do Worker, sem serviço de terceiros e
+sem chave de API.
+
+- **Recebe sempre** os alertas de segurança e os críticos. As outras categorias só vão por
+  e-mail se você ligar a chave **E-mail** delas em **Para onde vão os avisos**.
+- **Só a primeira tentativa** vai por e-mail; as tentativas 2 e 3 de um aviso insistente
+  saem pelo push e pelo Telegram. Um aviso que só conseguiu sair por e-mail não insiste.
+- **No máximo 10 e-mails a cada 24 horas**, contando os que falharam. Os **4 últimos são
+  reservados** para alertas de segurança e críticos: o e-mail de teste e as categorias que
+  você ligou usam no máximo 6. Assim ninguém consegue gastar o limite antes de fazer algo
+  grave. O e-mail que esgota uma parte do limite avisa ("os outros avisos param de ir por
+  e-mail hoje" ou "este é o último aviso por e-mail de hoje"). Passou disso, a entrega
+  aparece como *limite do canal atingido* e o aviso continua no app, no push e no Telegram.
+- O **e-mail de teste** pede a senha digitada há pouco e sai no máximo **2 vezes por dia**.
+- O e-mail é discreto como o Telegram: sem **Texto completo** na categoria, leva o título,
+  a categoria, a prioridade e "Abra o Talorys para ler". Todo alerta de segurança termina
+  com "O Talorys nunca pede sua senha ou códigos por e-mail", para você reconhecer golpes
+  que imitam esses avisos.
+- O assunto é `Talorys: <título>`, no idioma do app, sem quebras de linha.
+- Só texto simples, sem HTML, sem links rastreados e sem anexos. O link no fim é o
+  endereço do app (o primeiro de `TALORYS_ALLOWED_HOSTS`), quando existe.
+- Em **Configurações → Avisos → E-mail** aparece o destino mascarado (`d•••@exemplo.com.br`),
+  quantos e-mails saíram hoje e o botão **Enviar e-mail de teste**.
+
+**Custo:** gratuito. A Cloudflare cobra pelo envio só para destinatários quaisquer (Email
+Sending, plano Workers Paid). Enviar para um endereço **verificado** no Email Routing da sua
+conta é gratuito em todos os planos, e o Talorys só envia para o seu endereço verificado.
+
+### Configurar o e-mail
+
+⚠️ **Ligar o Email Routing troca os registros MX do domínio.** Se o domínio já recebe
+e-mail em outro lugar (Google Workspace, Microsoft 365, Zoho, a hospedagem), ligar o Email
+Routing nele **para a entrega desses e-mails**. Nesse caso use um subdomínio que não
+recebe e-mail (por exemplo `avisos.exemplo.com.br`) ou um domínio só para isso.
+
+1. No painel da Cloudflare, abra o domínio e vá em **Email → Email Routing**. Toque em
+   **Enable Email Routing** e aceite os registros MX e SPF que ela propõe (para um
+   subdomínio, escolha o subdomínio).
+2. Em **Destination addresses**, adicione o seu e-mail pessoal e clique no link de
+   verificação que a Cloudflare manda. Sem a verificação nada é entregue.
+3. Escolha o remetente, um endereço do domínio do passo 1, por exemplo
+   `talorys@exemplo.com.br`. Ele não precisa existir como caixa de entrada.
+4. Diga ao Worker quem é o destinatário, como segredo (nunca no repositório):
+
+   ```bash
+   npx wrangler secret put ALERT_EMAIL_TO --name <worker>   # o e-mail verificado no passo 2
+   ```
+
+   Se você já usa `OWNER_EMAIL` (login com e-mail) e quer receber no mesmo endereço, pode
+   pular este passo: sem `ALERT_EMAIL_TO`, os avisos vão para o `OWNER_EMAIL`.
+5. Adicione o binding e o remetente:
+   - **Deploy pelo GitHub Actions:** crie a variável `TALORYS_ALERT_EMAIL_FROM` no ambiente
+     `production` (Settings → Environments → production → Variables) com o remetente do
+     passo 3. O deploy acrescenta `send_email` (só esse remetente pode enviar) e
+     `ALERT_EMAIL_FROM`. Rode o deploy.
+   - **Deploy manual (instalador ou `wrangler deploy`):** acrescente ao `wrangler.jsonc`
+     do Worker e faça o deploy:
+
+     ```jsonc
+     "send_email": [{ "name": "SEND_EMAIL", "allowed_sender_addresses": ["talorys@exemplo.com.br"] }],
+     "vars": { "ALERT_EMAIL_FROM": "talorys@exemplo.com.br" }
+     ```
+
+     (Junte `ALERT_EMAIL_FROM` às `vars` que já existirem.)
+6. Abra **Configurações → Avisos → E-mail** e toque em **Enviar e-mail de teste**. Se não
+   chegar, olhe a pasta de spam e o histórico de entregas.
+
+**Problemas comuns:** *canal não configurado* = falta o binding, o remetente ou o
+destinatário, ou algum deles não é um endereço simples (sem nome nem `<>`). *Falhou* =
+a Cloudflare recusou: o destino não foi verificado (`E_RECIPIENT_NOT_ALLOWED`), o remetente
+não é do domínio com Email Routing (`E_SENDER_NOT_VERIFIED`), ou o Email Routing está
+desligado. Os logs do Worker mostram só o código do erro, nunca os endereços.
+
+Para desligar, apague a variável `TALORYS_ALERT_EMAIL_FROM` (ou o bloco `send_email`) e
+faça o deploy; o segredo `ALERT_EMAIL_TO` pode ser apagado com `wrangler secret delete`.
+
 ## O que o histórico de entregas mostra
 
 | Situação | Motivo | Significado |
 | --- | --- | --- |
 | Enviando | — | O envio ainda está em andamento em segundo plano. Se não houver resposta em 5 minutos (por exemplo, o Worker reiniciou no meio), passa para *Falhou* e deixa de contar no limite |
-| Enviado | — | Pelo menos um aparelho (push) ou o chat/grupo (Telegram) recebeu |
+| Enviado | — | Pelo menos um aparelho (push) ou o chat/grupo (Telegram) recebeu, ou a Cloudflare aceitou o e-mail |
 | Falhou | nenhum aparelho ou chat foi alcançado | Todos os envios falharam: aparelhos fora do ar, inscrições expiradas, bot removido do grupo ou bloqueado |
 | Não enviado | prioridade baixa fica só no app | Aviso de prioridade baixa |
-| Não enviado | limite do canal atingido | O canal já mandou o máximo da hora ou do dia |
-| Não enviado | canal não configurado | O deploy não tem as chaves VAPID (push) ou o segredo `TELEGRAM_BOT_TOKEN` (Telegram) |
+| Não enviado | limite do canal atingido | O canal já mandou o máximo da hora ou do dia (no e-mail, os 10 do dia, valendo até para segurança) |
+| Não enviado | canal não configurado | O deploy não tem as chaves VAPID (push), o segredo `TELEGRAM_BOT_TOKEN` (Telegram) ou o binding `SEND_EMAIL` com remetente e destinatário (e-mail) |
 | Não enviado | nenhum aparelho ou chat vinculado | Ninguém ligou o push neste app, ou o chat do Telegram ainda não foi vinculado |
 
 O histórico guarda só metadados (título, categoria, canal, prioridade, situação), nunca o
@@ -454,9 +577,13 @@ texto do aviso. Cada linha fica **90 dias**, com teto de 2.000 linhas.
 | `VAPID_PUBLIC_KEY` | Segredo do Worker | Para o Push | Chave pública do Web Push (o instalador gera) |
 | `VAPID_PRIVATE_KEY` | Segredo do Worker | Para o Push | Chave privada do Web Push (o instalador gera) |
 | `VAPID_SUBJECT` | Variável do Worker | Não | Contato enviado aos serviços de push; no deploy pelo GitHub, `TALORYS_VAPID_SUBJECT` |
+| `SEND_EMAIL` | Binding `send_email` do Worker | Para o e-mail | Envio pelo Cloudflare Email Routing; no deploy pelo GitHub, criado a partir de `TALORYS_ALERT_EMAIL_FROM` |
+| `ALERT_EMAIL_FROM` | Variável do Worker | Para o e-mail | Remetente, num domínio com Email Routing; no deploy pelo GitHub, `TALORYS_ALERT_EMAIL_FROM` (variável do ambiente `production`) |
+| `ALERT_EMAIL_TO` | Segredo do Worker | Não | Seu e-mail verificado no Email Routing; sem ele, usa o `OWNER_EMAIL` |
 
-Sem as chaves VAPID ou sem o token do Telegram, tudo funciona e aquele canal aparece no
-histórico como *canal não configurado*. O ID do chat, do grupo e da sua conta do Telegram
+Sem as chaves VAPID, sem o token do Telegram ou sem o e-mail, tudo funciona e aquele canal
+aparece no histórico como *canal não configurado*. O seu endereço de e-mail fica só em
+segredo do Worker, nunca no repositório. O ID do chat, do grupo e da sua conta do Telegram
 ficam só no banco do Talorys, nunca no repositório nem em variáveis.
 
 ## Instalação e configuração
@@ -474,7 +601,8 @@ ganham o resumo às 07:30 e os vigias ligados. A migração 21 acrescenta às no
 (`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
 as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
 100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
-avisos. Não há variável nova.
+avisos. Não há variável nova. Os alertas de segurança novos e o canal de e-mail não pedem
+migração; o e-mail é opcional e segue [Configurar o e-mail](#configurar-o-e-mail).
 
 Para o Telegram, siga [Configurar o Telegram](#configurar-o-telegram). Para o push,
 depois do deploy:
@@ -493,8 +621,11 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 
 | Método e rota | Corpo | Resposta |
 | --- | --- | --- |
-| `GET /api/alerts` | — | `{ preferences, deliveries, channels }` |
-| `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...], digest: { enabled, time: "HH:MM" }, watchers }` (todas as categorias, até 8 KB; `fullText`, `digest` e `watchers` opcionais, padrão vazio, `{ enabled: true, time: "07:30" }` e `true`) | `{ preferences }`; 400 se inválido |
+| `GET /api/alerts` | — | `{ preferences, deliveries, channels, email: { to, sentToday } }`; `channels` tem `push`, `telegram` e `email`; `email.to` é o destino mascarado ou `null` sem e-mail |
+| `POST /api/alerts/email/test` | — | Envia o e-mail de teste; `{ sent, overview }`; pede a senha recente (403 `REAUTH_REQUIRED`); 503 `NOT_CONFIGURED` sem e-mail; 429 depois de 2 testes no dia ou sem espaço no limite |
+| `POST /api/push/subscriptions` | Inscrição do navegador | Um aparelho novo pede a senha recente e gera o alerta "Novo aparelho no push"; a renovação do mesmo navegador não |
+| `DELETE /api/notifications/:id` | — | Alerta de segurança pede a senha recente (403 `REAUTH_REQUIRED`); 409 enquanto ainda insiste |
+| `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram", "email"] }, limits: { perHour, perDay }, fullText: [<categoria>...], digest: { enabled, time: "HH:MM" }, watchers }` (todas as categorias, até 8 KB; `fullText`, `digest` e `watchers` opcionais, padrão vazio, `{ enabled: true, time: "07:30" }` e `true`) | `{ preferences }`; 400 se inválido |
 | `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }` com `priority_reason: "corrected"`; o perfil do aviso aprende com a correção; 400 para baixar um alerta de segurança; 404 se não existir |
 | `GET /api/notifications` | — | Cada notificação traz `priority`, `category`, `escalation` (`null`, `"active"`, `"acknowledged"`, `"muted"` ou `"unacknowledged"`), `attempts`, `next_attempt_at`, `profile` (chave do perfil; `null` em segurança) e `priority_reason` (`"default"`, `"rule"`, `"raised"`, `"lowered"`, `"pinned"`, `"corrected"` ou `null` nos avisos de antes) |
 | `POST /api/notifications/read` | `{ id? }` | Ler um aviso conta como sinal (rapidez); sem `id` marca todos, sem sinal |
@@ -537,6 +668,14 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   `packages/shared/src/alerts.ts`. Um aviso sobre uma tarefa deve usar a chave de repetição
   `task-<tipo>:<id da tarefa>` para que concluir a tarefa conte como sinal. Lembretes
   únicos passam `profileKind: "once"` para aprender juntos.
+- Os alertas de segurança fora da banda ficam em `apps/agent/src/alerts/security.ts`
+  (`SECURITY_EVENTS` e `raiseSecurityAlert()`, que nunca lança erro). Uma mudança nova que
+  abra acesso aos dados deve chamar `raiseSecurityAlert()` depois de feita, com título e
+  texto em inglês traduzidos no catálogo. O canal de e-mail fica em
+  `apps/agent/src/alerts/email.ts` (`EmailAlerts`: endereço simples obrigatório, assunto
+  sem quebra de linha, teto de `EMAIL_ALERTS.perDay` contado na chave `alerts.email.sent`
+  antes de enviar, com `reserved` vagas só para segurança e críticos e `testsPerDay` testes). Um canal com `firstTryOnly` só recebe a primeira tentativa e não conta
+  para a insistência; um canal com `full()` segura até os alertas de segurança.
 - O bot fica em `apps/agent/src/telegram/`: `client.ts` (chamadas à Bot API, sem seguir
   redirecionamentos, com tempo limite de 10 s; o erro nunca leva o token), `service.ts`
   (vinculação, envio, tópicos, botões, conversa), `format.ts` (Markdown para o HTML do
@@ -548,4 +687,5 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   API, correções no contexto do agente), `apps/agent/test/watchers.test.ts` (cada vigia,
   limite por rodada, resumo do dia com fuso, tradução e agendamento),
   `apps/agent/test/telegram.test.ts` (Bot API falsa: vinculação, envio, tópicos, botões,
-  webhook, Access) e `tests/e2e/alerts.spec.ts` (tela).
+  webhook, Access), `apps/agent/test/email.test.ts` (e-mail com binding falso, teto diário,
+  só a primeira tentativa, alertas de segurança novos, apagar com senha, retenção) e `tests/e2e/alerts.spec.ts` (tela).

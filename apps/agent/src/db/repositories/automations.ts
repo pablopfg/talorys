@@ -138,6 +138,10 @@ const COLUMNS = "id, title, body, automation_id, priority, category, read_at, es
 /** What the owner did with an alert, as one learning signal (see AlertLearning). */
 export type AlertSignal = "fast" | "read" | "slow" | "snooze" | "mute" | "ignored" | "task";
 
+/** Notifications kept: the newest ones, and the newest security alerts on top of those. */
+export const MAX_NOTIFICATIONS = 500;
+export const MAX_SECURITY_NOTIFICATIONS = 200;
+
 export class NotificationRepository {
   constructor(private readonly db: Database) {}
 
@@ -190,8 +194,16 @@ export class NotificationRepository {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       n.id, n.title, n.body, n.automation_id, n.priority, n.category, input.dedupe_key ?? null, n.profile, n.priority_reason, n.created_at,
     );
+    // Security alerts are kept apart, so a flood of other alerts can't push them out of the record.
     this.db.run(
-      `DELETE FROM tal_notifications WHERE id NOT IN (SELECT id FROM tal_notifications ORDER BY created_at DESC LIMIT 500)`,
+      `DELETE FROM tal_notifications WHERE category != 'security'
+         AND id NOT IN (SELECT id FROM tal_notifications WHERE category != 'security' ORDER BY created_at DESC LIMIT ?)`,
+      MAX_NOTIFICATIONS,
+    );
+    this.db.run(
+      `DELETE FROM tal_notifications WHERE category = 'security'
+         AND id NOT IN (SELECT id FROM tal_notifications WHERE category = 'security' ORDER BY created_at DESC LIMIT ?)`,
+      MAX_SECURITY_NOTIFICATIONS,
     );
     return n;
   }

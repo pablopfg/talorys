@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { Context } from "hono";
 import type { AppEnv } from "../app";
 import { AppError, NotFoundError } from "../errors";
-import { body, query } from "../middleware";
+import { body, query, requireRecentAuth } from "../middleware";
 
 export const automationRoutes = new Hono<AppEnv>();
 
@@ -89,8 +89,11 @@ automationRoutes.post("/notifications/read", async (c) => {
   return c.json({ unread: c.env.agent.services.notifications.unreadCount() });
 });
 
+/** A security alert is the record of what happened: deleting one needs the password typed recently. */
 automationRoutes.delete("/notifications/:id", (c) => {
-  c.env.agent.services.alerts.delete(c.req.param("id"));
+  const s = c.env.agent.services;
+  if (s.notifications.get(c.req.param("id"))?.category === "security") requireRecentAuth(c);
+  s.alerts.delete(c.req.param("id"));
   c.env.agent.refreshUnread();
   return c.json({ deleted: true });
 });
@@ -124,6 +127,17 @@ automationRoutes.put("/alerts/preferences", async (c) => {
   const preferences = s.alerts.updatePreferences(await body(c, alertPreferencesSchema, 8 * 1024));
   s.activity.record("alerts.preferences", "Changed alert preferences");
   return c.json({ preferences });
+});
+
+/** Sends a test e-mail to the owner's address: at most EMAIL_ALERTS.testsPerDay, counted in the daily cap. */
+automationRoutes.post("/alerts/email/test", async (c) => {
+  const s = c.env.agent.services;
+  // A stolen session must not be able to spend the e-mail limit before doing something worse.
+  requireRecentAuth(c);
+  if (!s.email.configured()) throw new AppError("NOT_CONFIGURED", "E-mail alerts are not set up on this deployment.");
+  if (!s.email.canTest()) throw new AppError("RATE_LIMITED", "The daily e-mail limit was reached. Try again tomorrow.");
+  const sent = await s.email.test();
+  return c.json({ sent, overview: s.alerts.overview() });
 });
 
 /** What the priority learned from the owner's use, per kind of alert. */

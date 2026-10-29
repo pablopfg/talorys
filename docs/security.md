@@ -218,6 +218,28 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   owner's Telegram (a button, or a message in the bot's private chat) confirms
   them. Push notifications of these alerts carry no buttons. See
   [alerts.md](alerts.md#insistência).
+- Changes that open a door to the owner's data raise a security alert too: a
+  password change, remote access turned on, an access token created, a Telegram
+  chat or group linked or unlinked, the Telegram conversation turned on, a push
+  device added (which also needs the password typed recently) or removed, an
+  MCP server added, the sign-in activity deleted, and a backup exported or
+  imported (raised as soon as the import commits). They go to every channel, e-mail included, even when the
+  person who made the change is signed in, and say only what happened (never
+  the token name, the IP or the data). Deleting a security alert needs the
+  password typed recently, and the newest 200 are kept apart from other alerts,
+  so a flood of routine alerts can't push them out of the record.
+- E-mail alerts use Cloudflare Email Routing's `send_email` binding, restricted
+  to one sender (`allowed_sender_addresses`) and able to deliver only to
+  addresses verified in the account. Talorys sends to one address (the
+  `ALERT_EMAIL_TO` or `OWNER_EMAIL` secret, never in the repository), accepts
+  only plain addresses, strips line breaks from the subject, sends plain text
+  only, and caps e-mail at 10 messages in 24 hours (counted before each send,
+  failed ones included), whatever the priority. The last 4 are reserved for
+  security and critical alerts, and the test e-mail needs the password typed
+  recently and goes out at most twice a day, so a stolen session can't use up
+  the limit before acting. Only an alert's first try is
+  e-mailed. Logs carry the error code, never the addresses. Each security e-mail
+  says Talorys never asks for the password or codes by e-mail.
 - The learned priority never touches security alerts: they have no profile, are
   always critical, can't be pinned, and lowering one (app, API or Telegram) is
   refused. Learning can't make any alert critical, and events from outside

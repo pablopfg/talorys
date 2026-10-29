@@ -19,8 +19,10 @@ export const alertCategorySchema = z.enum(ALERT_CATEGORIES);
 /**
  * Channels outside the app. The app's notification center is not a channel: it always gets everything.
  * telegram: the owner's Telegram group (or the private chat with the bot while no group is linked).
+ * email: the owner's e-mail address, through Cloudflare Email Routing. Security and critical alerts
+ * by default; any other category only when the owner turns it on.
  */
-export const ALERT_CHANNELS = ["push", "telegram"] as const;
+export const ALERT_CHANNELS = ["push", "telegram", "email"] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export const alertChannelSchema = z.enum(ALERT_CHANNELS);
 
@@ -60,6 +62,7 @@ export const alertPreferencesSchema = z.object({
 export type AlertPreferences = z.infer<typeof alertPreferencesSchema>;
 
 export const DEFAULT_ALERT_PREFERENCES: AlertPreferences = {
+  // E-mail is for what must not be missed (security and critical alerts always reach it).
   routes: Object.fromEntries(ALERT_CATEGORIES.map((c) => [c, ["push", "telegram"]])) as AlertPreferences["routes"],
   limits: { perHour: 6, perDay: 30 },
   fullText: [],
@@ -97,6 +100,15 @@ export const WATCH = {
   digestGraceHours: 3,
 } as const;
 
+/**
+ * E-mail limits, on top of the owner's channel limits: at most perDay messages in 24 hours, the
+ * security and critical alerts included, so a flood of alerts can't fill the inbox or spend the
+ * sending quota. The last `reserved` of them are kept for security and critical alerts: the test
+ * e-mail (at most testsPerDay) and the categories the owner routed to e-mail can't use them up.
+ * Only an alert's first try is e-mailed; the later tries go to the other channels.
+ */
+export const EMAIL_ALERTS = { perDay: 10, reserved: 4, testsPerDay: 2 } as const;
+
 /** What happened when an alert met a channel. Pending: the send is still running in the background. */
 export const ALERT_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped"] as const;
 export type AlertDeliveryStatus = (typeof ALERT_DELIVERY_STATUSES)[number];
@@ -129,6 +141,8 @@ export interface AlertsOverview {
   /** Newest first. */
   deliveries: AlertDelivery[];
   channels: Record<AlertChannel, { available: boolean }>;
+  /** Where e-mail alerts go, masked (p•••@exemplo.com.br), or null when e-mail is not set up. */
+  email: { to: string | null; sentToday: number };
 }
 
 export const notificationPriorityUpdateSchema = z.object({ priority: alertPrioritySchema });

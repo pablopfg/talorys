@@ -80,6 +80,55 @@ const PT_BR: Catalog = {
   "Avoid repeating a single character.": "Evite repetir um único caractere.",
   "This password appeared in a known data breach. Choose another one.": "Esta senha apareceu em um vazamento de dados conhecido. Escolha outra.",
   "Incorrect email or password.": "E-mail ou senha incorretos.",
+  "Password changed": "Senha alterada",
+  "Your Talorys password was changed and the other sessions were signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide).":
+    "A senha do Talorys foi alterada e as outras sessões foram encerradas. Se não foi você, redefina a senha do proprietário na Cloudflare imediatamente (veja o guia de segurança).",
+  "Remote access on": "Acesso remoto ativado",
+  "Remote access was turned on: apps with an access token can now reach your data. If it wasn't you, turn it off in Settings → Security → Remote access and change your password.":
+    "O acesso remoto foi ativado: apps com um token de acesso agora alcançam seus dados. Se não foi você, desative em Configurações → Segurança → Acesso remoto e troque a senha.",
+  "Access token created": "Token de acesso criado",
+  "A new access token was created. If it wasn't you, revoke it in Settings → Security → Remote access and change your password.":
+    "Um novo token de acesso foi criado. Se não foi você, revogue em Configurações → Segurança → Acesso remoto e troque a senha.",
+  "Telegram linked": "Telegram vinculado",
+  "A Telegram chat was linked to Talorys and will receive your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.":
+    "Um chat do Telegram foi vinculado ao Talorys e vai receber seus avisos. Se não foi você, desvincule o Telegram em Configurações → Avisos e troque a senha.",
+  "Telegram group linked": "Grupo do Telegram vinculado",
+  "A Telegram group was linked and now receives your alerts. If it wasn't you, unlink Telegram in Settings → Alerts and change your password.":
+    "Um grupo do Telegram foi vinculado e agora recebe seus avisos. Se não foi você, desvincule o Telegram em Configurações → Avisos e troque a senha.",
+  "Telegram conversation on": "Conversa no Telegram ligada",
+  "The conversation with Talorys in the Telegram chat was turned on. If it wasn't you, turn it off in Settings → Alerts and change your password.":
+    "A conversa com o Talorys no chat do Telegram foi ligada. Se não foi você, desligue em Configurações → Avisos e troque a senha.",
+  "Backup exported": "Backup exportado",
+  "A full backup of your data was downloaded. If it wasn't you, change your password now and sign out the other sessions.":
+    "Um backup completo dos seus dados foi baixado. Se não foi você, troque a senha agora e encerre as outras sessões.",
+  "Backup imported": "Backup importado",
+  "A backup was imported into Talorys. If it wasn't you, change your password now and check your data.":
+    "Um backup foi importado no Talorys. Se não foi você, troque a senha agora e confira seus dados.",
+  "This is a test e-mail from Talorys. E-mail alerts work.": "Este é um e-mail de teste do Talorys. Os avisos por e-mail estão funcionando.",
+  "Test e-mail": "E-mail de teste",
+  "This is the last e-mail alert for today. Until tomorrow, alerts stay in the app, push and Telegram.":
+    "Este é o último aviso por e-mail de hoje. Até amanhã, os avisos ficam no app, no push e no Telegram.",
+  "Other alerts stop going by e-mail for today; security and critical alerts still do.":
+    "Os outros avisos param de ir por e-mail hoje; os de segurança e os críticos continuam indo.",
+  "Telegram unlinked": "Telegram desvinculado",
+  "Telegram was unlinked: alerts no longer reach it. If it wasn't you, link it again in Settings → Alerts and change your password.":
+    "O Telegram foi desvinculado: os avisos não chegam mais lá. Se não foi você, vincule de novo em Configurações → Avisos e troque a senha.",
+  "New push device": "Novo aparelho no push",
+  "A new device now receives your push notifications. If it wasn't you, remove it in Settings → Alerts and change your password.":
+    "Um aparelho novo passou a receber suas notificações push. Se não foi você, remova em Configurações → Avisos e troque a senha.",
+  "Push device removed": "Aparelho removido do push",
+  "A device was removed from push notifications. If it wasn't you, check the devices in Settings → Alerts and change your password.":
+    "Um aparelho foi removido das notificações push. Se não foi você, confira os aparelhos em Configurações → Avisos e troque a senha.",
+  "MCP server added": "Servidor MCP adicionado",
+  "A new MCP server was added: the agent can now use its tools. If it wasn't you, remove it in Settings → Integrations and change your password.":
+    "Um servidor MCP novo foi adicionado: o agente agora pode usar as ferramentas dele. Se não foi você, remova em Configurações → Integrações e troque a senha.",
+  "The sign-in activity was deleted. If it wasn't you, change your password now and sign out the other sessions.":
+    "A atividade de acesso foi apagada. Se não foi você, troque a senha agora e encerre as outras sessões.",
+  "Talorys never asks for your password or codes by e-mail.": "O Talorys nunca pede sua senha ou códigos por e-mail.",
+  "Open Talorys:": "Abrir o Talorys:",
+  "Choose which alerts reach your e-mail in Settings → Alerts.": "Escolha quais avisos chegam ao seu e-mail em Configurações → Avisos.",
+  "E-mail alerts are not set up on this deployment.": "Os avisos por e-mail não estão configurados nesta instalação.",
+  "The daily e-mail limit was reached. Try again tomorrow.": "O limite diário de e-mails foi atingido. Tente de novo amanhã.",
   "New sign-in": "Novo login",
   "Someone signed in to Talorys from a new device or country. If it wasn't you, change your password now and sign out the other sessions. Details in Settings → Security → Sign-in activity.":
     "Alguém entrou no Talorys por um aparelho ou país novo. Se não foi você, troque a senha agora e encerre as outras sessões. Detalhes em Configurações → Segurança → Atividade de acesso.",

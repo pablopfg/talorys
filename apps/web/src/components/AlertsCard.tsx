@@ -12,6 +12,7 @@ import {
   type AlertsOverview,
   AUTOMATION_PRIORITIES,
   type AutomationPriority,
+  EMAIL_ALERTS,
 } from "@talorys/shared";
 import { Badge, Button, Card, ErrorNotice, Input, Select, Switch } from "./ui";
 import { useApiMutation } from "../hooks/queries";
@@ -47,6 +48,7 @@ const CATEGORY_HINTS: Record<AlertCategory, PlainMessageKey> = {
 const CHANNEL_LABELS: Record<AlertChannel, PlainMessageKey> = {
   push: "alerts.channel.push",
   telegram: "alerts.channel.telegram",
+  email: "alerts.channel.email",
 };
 
 const STATUS_TEXT: Record<AlertDelivery["status"], PlainMessageKey> = {
@@ -209,6 +211,7 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
       <Row label={t("alerts.watchersTitle")} hint={t("alerts.watchersHint")}>
         <Switch checked={prefs.watchers} onChange={(on) => saveNow({ watchers: on })} label={t("alerts.watchersAria")} disabled={save.isPending} />
       </Row>
+      <EmailRow overview={overview} />
       <Row label={t("alerts.limitsTitle")} hint={t("alerts.limitsHint")}>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           {t("alerts.perHour")}
@@ -247,6 +250,25 @@ function PreferencesForm({ overview }: { overview: AlertsOverview }) {
         <p className="px-5 py-4 text-xs leading-5 text-warning">{t("alerts.telegramUnavailable")}</p>
       )}
     </>
+  );
+}
+
+/** Where e-mail alerts go and how many went today, with a test message; or how to set it up. */
+function EmailRow({ overview }: { overview: AlertsOverview }) {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  const test = useApiMutation(() => api<{ sent: boolean; overview: AlertsOverview }>("/alerts/email/test", { method: "POST" }), {
+    success: (r) => (r.sent ? t("alerts.emailTestSent") : t("alerts.emailTestFailed")),
+    onSuccess: (r) => qc.setQueryData<AlertsOverview>(ALERTS_KEY, r.overview),
+  });
+  const { to, sentToday } = overview.email;
+  if (!to) return <Row label={t("alerts.emailTitle")} hint={t("alerts.emailUnavailable")}>{null}</Row>;
+  return (
+    <Row label={t("alerts.emailTitle")} hint={t("alerts.emailHint", { to, count: sentToday, max: EMAIL_ALERTS.perDay })}>
+      <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending}>
+        {t("alerts.emailTest")}
+      </Button>
+    </Row>
   );
 }
 

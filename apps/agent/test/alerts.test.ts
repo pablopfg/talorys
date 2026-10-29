@@ -266,7 +266,9 @@ describe("alert API", () => {
     await inAgent((agent) => agent.services.alerts.raise({ title: "Stretch", body: "b", category: "reminder" }));
     const res = await c.json("/api/alerts");
     expect(res.preferences).toEqual(DEFAULT_ALERT_PREFERENCES);
-    expect(res.channels).toEqual({ push: { available: true }, telegram: { available: true } });
+    // E-mail needs the send_email binding, which this deployment doesn't have.
+    expect(res.channels).toEqual({ push: { available: true }, telegram: { available: true }, email: { available: false } });
+    expect(res.email).toEqual({ to: null, sentToday: 0 });
     // No device subscribed and no Telegram chat linked in this test.
     for (const channel of ["push", "telegram"]) {
       expect(res.deliveries.find((d: { channel: string }) => d.channel === channel)).toMatchObject({ title: "Stretch", status: "skipped", reason: "no_device" });

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../api/app";
 import { NotFoundError } from "../api/errors";
 import { body, requireRecentAuth } from "../api/middleware";
+import { raiseSecurityAlert } from "../alerts/security";
 
 /**
  * Owner-only token admin. Session and CSRF checks apply as for every other API route; a
@@ -17,7 +18,9 @@ remoteRoutes.patch("/remote/status", async (c) => {
   const { enabled } = await body(c, remoteStatusSchema, 1024);
   // Turning it off is always allowed: it only closes the door.
   if (enabled) requireRecentAuth(c);
+  const was = s.remote.isEnabled();
   s.remote.setEnabled(enabled);
+  if (enabled && !was) raiseSecurityAlert(s.alerts, "remote_enabled");
   s.activity.record(enabled ? "remote.enabled" : "remote.disabled", enabled ? "Remote access turned on" : "Remote access turned off");
   return c.json({ enabled });
 });
@@ -30,6 +33,7 @@ remoteRoutes.post("/remote/tokens", async (c) => {
   const input = await body(c, remoteTokenCreateSchema, 4 * 1024);
   const token = await s.remote.create(input, c.get("sessionId"));
   s.activity.record("remote.token_created", `Created access token "${token.name}" (${token.scope})`);
+  raiseSecurityAlert(s.alerts, "token_created");
   return c.json({ token }, 201);
 });
 

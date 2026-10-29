@@ -90,6 +90,19 @@ describe("renderConfig", () => {
     }
   });
 
+  it("adds the e-mail binding, limited to the sender, only when a sender is set", () => {
+    const ok = { TALORYS_WORKER_NAME: "talorys" };
+    const config = renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: " Talorys@Exemplo.com.br " });
+    assert.equal(config.vars.ALERT_EMAIL_FROM, "talorys@exemplo.com.br");
+    assert.deepEqual(config.send_email, [{ name: "SEND_EMAIL", allowed_sender_addresses: ["talorys@exemplo.com.br"] }]);
+    const none = renderConfig({ ...base(), send_email: [{ name: "OTHER" }] }, ok);
+    assert.equal(none.send_email, undefined);
+    assert.equal(none.vars?.ALERT_EMAIL_FROM, undefined);
+    for (const bad of ["talorys", "Talorys <a@exemplo.com.br>", "a@b", "a@exemplo.com.br\nBcc: x@y.z", "a b@exemplo.com.br"]) {
+      assert.throws(() => renderConfig(base(), { ...ok, TALORYS_ALERT_EMAIL_FROM: bad }), ConfigError, bad);
+    }
+  });
+
   it("passes Cloudflare Access settings through only as a valid pair", () => {
     const aud = "a".repeat(64);
     const config = renderConfig(base(), {

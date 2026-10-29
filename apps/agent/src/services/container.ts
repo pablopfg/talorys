@@ -21,7 +21,9 @@ import { McpService } from "../mcp/service";
 import { AlertService } from "../alerts/service";
 import { AlertDeliveryRepository } from "../alerts/repository";
 import { AlertLearning } from "../alerts/learning";
-import { pushChannel, telegramChannel } from "../alerts/channels";
+import { emailChannel, pushChannel, telegramChannel } from "../alerts/channels";
+import { EmailAlerts } from "../alerts/email";
+import { raiseSecurityAlert } from "../alerts/security";
 import { TelegramService } from "../telegram/service";
 
 /** All data services for the single owner, bound to one Durable Object's storage. */
@@ -36,6 +38,7 @@ export interface Services {
   notifications: NotificationRepository;
   alerts: AlertService;
   telegram: TelegramService;
+  email: EmailAlerts;
   pendingActions: PendingActionRepository;
   settings: SettingsService;
   usage: UsageService;
@@ -81,16 +84,27 @@ export function createServices(
     acknowledgeAll: () => alerts.acknowledgeAll(),
     setPriority: (id, priority) => alerts.setPriority(id, priority),
     get: (id) => notifications.get(id),
+    security: (event) => raiseSecurityAlert(alerts, event),
   }, activity, background);
+  const appHost = env.TALORYS_ALLOWED_HOSTS?.split(",")[0]?.trim();
+  const email = new EmailAlerts({
+    binding: env.SEND_EMAIL,
+    from: env.ALERT_EMAIL_FROM?.trim(),
+    // An empty ALERT_EMAIL_TO falls back too.
+    to: env.ALERT_EMAIL_TO?.trim() || env.OWNER_EMAIL?.trim(),
+    appUrl: appHost && /^[a-z0-9.-]{1,253}$/i.test(appHost) ? `https://${appHost}/` : undefined,
+  }, settings, background);
   const channels = {
     push: pushChannel(push),
     telegram: telegramChannel(telegram, (n) => fullText(n.category)),
+    email: emailChannel(email, (n) => fullText(n.category)),
   };
   const alerts: AlertService = new AlertService(notifications, new AlertDeliveryRepository(db), settings, channels, {
     timers: alertTimers,
     automations,
     activity,
     learning: new AlertLearning(db, notifications, activity),
+    email,
   });
   const memories = new MemoryRepository(db);
   const usage = new UsageService(db, () => settings.get().timezone);
@@ -108,6 +122,7 @@ export function createServices(
     notifications,
     alerts,
     telegram,
+    email,
     pendingActions: new PendingActionRepository(db),
     settings,
     usage,
