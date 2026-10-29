@@ -1,5 +1,6 @@
 import {
   type CalendarMode,
+  type CalendarNotice,
   GOOGLE_CALENDAR_CALLBACK_PATH,
   type GoogleCalendarInfo,
   type GoogleCalendarStatus,
@@ -64,6 +65,16 @@ interface CalendarRow {
   time_zone: string | null;
   is_primary: number;
   mode: CalendarMode;
+  notice_minutes: number | null;
+  notice_text: string | null;
+}
+
+/** An event as Talorys itself reads it (notices, the daily summary, routine gates). */
+export interface CalendarEvent {
+  title: string;
+  /** Start instant in ms for a timed event; null for an all-day one. */
+  start: number | null;
+  allDay: boolean;
 }
 
 /** A Google error turned into words for the owner or the model; never the raw response. */
@@ -123,6 +134,7 @@ export class CalendarService {
       primary: row.is_primary === 1,
       mode: row.mode,
       writable: WRITABLE_ROLES.has(row.access_role),
+      notice: row.notice_minutes ? { minutes: row.notice_minutes, text: row.notice_text ?? "" } : null,
     };
   }
 
@@ -307,8 +319,50 @@ export class CalendarService {
     if (!row) throw new NotFoundError("Calendar not found.");
     if (mode === "write" && !WRITABLE_ROLES.has(row.access_role)) throw new ValidationError("Google only lets you read this calendar.");
     if (mode !== "off" && row.access_role === "freeBusyReader") throw new ValidationError("This calendar only shares free and busy times, so there's nothing to read.");
-    this.db.run(`UPDATE tal_google_calendars SET mode = ?, updated_at = ? WHERE id = ?`, mode, new Date().toISOString(), id);
-    return this.present({ ...row, mode });
+    // A hidden calendar isn't read at all, so its notice goes too.
+    const notice = mode === "off" ? { notice_minutes: null, notice_text: null } : {};
+    this.db.run(
+      `UPDATE tal_google_calendars SET mode = ?, notice_minutes = CASE WHEN ? = 'off' THEN NULL ELSE notice_minutes END,
+         notice_text = CASE WHEN ? = 'off' THEN NULL ELSE notice_text END, updated_at = ? WHERE id = ?`,
+      mode, mode, mode, new Date().toISOString(), id,
+    );
+    return this.present({ ...row, mode, ...notice });
+  }
+
+  /** A notice before the calendar's first event of the day, or null to stop it. Only for an open calendar. */
+  setNotice(id: string, notice: CalendarNotice | null): GoogleCalendarInfo {
+    const row = this.account() ? this.db.one<CalendarRow>(`SELECT * FROM tal_google_calendars WHERE id = ?`, id) : null;
+    if (!row) throw new NotFoundError("Calendar not found.");
+    if (notice && row.mode === "off") throw new ValidationError("Open this calendar first (read only is enough).");
+    const text = notice ? cleanText(notice.text, 200) : null;
+    this.db.run(
+      `UPDATE tal_google_calendars SET notice_minutes = ?, notice_text = ?, updated_at = ? WHERE id = ?`,
+      notice?.minutes ?? null, text, new Date().toISOString(), id,
+    );
+    return this.present({ ...row, notice_minutes: notice?.minutes ?? null, notice_text: text });
+  }
+
+  /** Open calendars with a notice before their first event. */
+  withNotice(): GoogleCalendarInfo[] {
+    return this.readable().filter((c) => c.notice !== null);
+  }
+
+  /** Events of one calendar between two instants, earliest first (at most 50), cancelled ones left out. */
+  async events(calendarId: string, from: Date, to: Date): Promise<CalendarEvent[]> {
+    const { body } = await this.api(`/calendars/${encodeURIComponent(calendarId)}/events`, {
+      query: { timeMin: from.toISOString(), timeMax: to.toISOString(), singleEvents: "true", orderBy: "startTime", maxResults: "50" },
+    });
+    const out: CalendarEvent[] = [];
+    for (const item of Array.isArray(body?.items) ? body.items : []) {
+      if (!item || typeof item !== "object") continue;
+      const e = item as { status?: unknown; summary?: unknown; start?: { dateTime?: unknown; date?: unknown } };
+      if (e.status === "cancelled") continue;
+      const start = typeof e.start?.dateTime === "string" ? Date.parse(e.start.dateTime) : Number.NaN;
+      const allDay = typeof e.start?.date === "string";
+      if (!allDay && Number.isNaN(start)) continue;
+      out.push({ title: cleanText(e.summary, 120), start: allDay ? null : start, allDay });
+    }
+    return out;
   }
 
   /** Forgets the account here and gives its access back to Google. */

@@ -192,6 +192,9 @@ describe("events from outside systems", () => {
       db.run(`ALTER TABLE tal_automations DROP COLUMN sentinel`);
       // Migration 25 (passkeys).
       db.run(`ALTER TABLE tal_mfa_challenges DROP COLUMN passkey_challenge`);
+      // Migration 27 (calendar routines).
+      db.run(`ALTER TABLE tal_automations DROP COLUMN calendar_gate`);
+      for (const col of ["notice_minutes", "notice_text"]) db.run(`ALTER TABLE tal_google_calendars DROP COLUMN ${col}`);
       db.run(`UPDATE tal_schema SET version = 22`);
       migrate(db);
       expect(db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_remote_tokens_v8`)!.n).toBe(0);

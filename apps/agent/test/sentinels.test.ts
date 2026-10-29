@@ -34,7 +34,7 @@ describe("sentinel replies", () => {
   });
 
   it("has a morning and a weekly template in English and Portuguese, falling back to English", () => {
-    expect(SENTINEL_TEMPLATES.map((t) => t.id)).toEqual(["morning", "weekly"]);
+    expect(SENTINEL_TEMPLATES.map((t) => t.id)).toEqual(["morning", "weekly", "briefing", "closing", "saturday"]);
     const morning = SENTINEL_TEMPLATES[0]!;
     expect(sentinelText(morning, "pt-BR").name).toBe("Checagem da manhã");
     expect(sentinelText(morning, "ko")).toEqual(morning.text.en);

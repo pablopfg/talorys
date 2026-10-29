@@ -1,6 +1,7 @@
 import { type AlertCategory, getZonedParts, PUSH_INACTIVE_DAYS, TALORYS_VERSION, type Task, WATCH, zonedTimeToUtc } from "@talorys/shared";
 import type { Services } from "../services/container";
 import { checkForUpdate } from "../services/update-check";
+import { agendaLines } from "../calendar/routines";
 import { clip, defangLinks } from "../services/text";
 import { formatLocal, localDayBounds, toLocalMinute } from "../services/time";
 
@@ -59,7 +60,7 @@ export async function runWatchers(s: Services, now = new Date(), fetchFn: typeof
     try {
       // Once a day, with the summary: the update check calls npm, cached for a day.
       if (prefs.watchers) count("update", await watchUpdate(s, fetchFn));
-      report.digest = sendDigest(s, now, digestDay);
+      report.digest = sendDigest(s, now, digestDay, await agendaLines(s, now));
     } catch (error) {
       console.warn("Daily summary failed", error instanceof Error ? error.message : String(error));
     }
@@ -288,11 +289,12 @@ function digestDue(s: Services, time: string, now: Date): string | null {
 }
 
 /**
- * The daily summary: overdue tasks, tasks due today, what is scheduled for today, the alerts that
+ * The daily summary: overdue tasks, tasks due today, today's events on the open Google calendars
+ * (`agenda`), what is scheduled for today, the alerts that
  * stayed in the app (low priority) and, on Fridays, what the priority learned this week. Nothing
  * to tell, nothing sent. True when it went out.
  */
-export function sendDigest(s: Services, now = new Date(), day = toLocalMinute(now, s.settings.get().timezone).slice(0, 10)): boolean {
+export function sendDigest(s: Services, now = new Date(), day = toLocalMinute(now, s.settings.get().timezone).slice(0, 10), agenda: string[] = []): boolean {
   const settings = s.settings.get();
   const tz = settings.timezone;
   const language = s.settings.language();
@@ -330,6 +332,7 @@ export function sendDigest(s: Services, now = new Date(), day = toLocalMinute(no
   const parts = [
     section("Overdue", overdue.map(line)),
     section("Due today", today.map(line)),
+    section("Calendar today", agenda),
     section("Scheduled today", scheduled),
     section("Waiting in the app", waiting),
   ];

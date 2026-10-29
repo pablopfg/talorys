@@ -20,7 +20,18 @@ export interface GoogleCalendarInfo {
   mode: CalendarMode;
   /** Whether Google lets this account change events there (owner or writer). */
   writable: boolean;
+  /** A notice before the day's first event (timed, not all-day), or null. */
+  notice: CalendarNotice | null;
 }
+
+export interface CalendarNotice {
+  minutes: number;
+  /** What to remember, in the owner's words ("Turn on the air conditioning"). */
+  text: string;
+}
+
+/** How long before the first event a notice can go out. */
+export const CALENDAR_NOTICE_MINUTES = [15, 30, 45, 60, 90, 120, 180] as const;
 
 export interface GoogleCalendarStatus {
   /** GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and MCP_CREDENTIAL_KEY are set. */
@@ -39,4 +50,14 @@ export const googleCalendarCallbackSchema = z.object({
   state: z.string().min(16).max(200),
   code: z.string().min(1).max(2048).optional(),
   error: z.string().max(200).optional(),
+});
+
+/** A calendar's notice before its first event; null turns it off. */
+export const calendarNoticeSchema = z.object({
+  notice: z
+    .object({
+      minutes: z.number().int().refine((m) => (CALENDAR_NOTICE_MINUTES as readonly number[]).includes(m), "Choose one of the offered times"),
+      text: z.string().trim().max(200),
+    })
+    .nullable(),
 });

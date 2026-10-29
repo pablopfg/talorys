@@ -7,10 +7,14 @@ import type { ScheduleSpec } from "./recurrence";
  */
 export const SENTINEL_NOTHING = "NOTHING";
 
-/** A ready-made sentinel the owner can start from in Automations, in each app language. */
+/** A ready-made AI routine the owner can start from in Automations, in each app language. */
 export interface SentinelTemplate {
-  id: "morning" | "weekly";
+  id: "morning" | "weekly" | "briefing" | "closing" | "saturday";
   schedule: ScheduleSpec;
+  /** Stays quiet when nothing needs the owner. Defaults to true. */
+  sentinel?: boolean;
+  /** Meant to run only on days with events on a calendar the owner picks (for example, patients on a Saturday). */
+  calendarGate?: boolean;
   /** English is the fallback for languages without their own text. */
   text: { en: SentinelText } & Partial<Record<Language, SentinelText>>;
 }
@@ -55,6 +59,58 @@ export const SENTINEL_TEMPLATES: readonly SentinelTemplate[] = [
         name: "Revisão da semana",
         prompt:
           "Revise a minha semana: tarefas abertas sem andamento, tarefas atrasadas e o que vence na semana que vem e precisa de preparo agora. Me diga só o que pede uma decisão ou uma ação minha, numa lista curta.",
+      },
+    },
+  },
+  {
+    id: "briefing",
+    schedule: { type: "daily", time: "07:00" },
+    sentinel: false,
+    text: {
+      en: {
+        name: "Morning briefing",
+        prompt:
+          "Prepare my briefing for today: today's events on my calendars (first one and gaps), tasks due today or overdue, today's reminders, and what I should prepare before the first commitment. Short, in bullet points.",
+      },
+      "pt-BR": {
+        name: "Briefing da manhã",
+        prompt:
+          "Prepare o meu briefing de hoje: os compromissos de hoje nas minhas agendas (o primeiro e os intervalos), as tarefas que vencem hoje ou estão atrasadas, os lembretes de hoje e o que devo preparar antes do primeiro compromisso. Curto, em tópicos.",
+      },
+    },
+  },
+  {
+    id: "closing",
+    schedule: { type: "weekly", days: [1, 2, 3, 4, 5], time: "19:00" },
+    sentinel: false,
+    text: {
+      en: {
+        name: "Closing the day",
+        prompt:
+          "Close my day: what was on my calendars today, tasks I finished, what is still open or overdue, and what I should leave ready for tomorrow (tomorrow's first event included). Short, in bullet points.",
+      },
+      "pt-BR": {
+        name: "Fechamento do dia",
+        prompt:
+          "Faça o fechamento do meu dia: o que estava nas minhas agendas hoje, as tarefas que concluí, o que continua aberto ou atrasado e o que devo deixar pronto para amanhã (incluindo o primeiro compromisso de amanhã). Curto, em tópicos.",
+      },
+    },
+  },
+  {
+    id: "saturday",
+    schedule: { type: "weekly", days: [6], time: "13:00" },
+    sentinel: false,
+    calendarGate: true,
+    text: {
+      en: {
+        name: "Saturday closing",
+        prompt:
+          "Close my Saturday: what was on my calendars today, what is still open or overdue, and what I should prepare for Monday. Short, in bullet points.",
+      },
+      "pt-BR": {
+        name: "Fechamento de sábado",
+        prompt:
+          "Faça o fechamento do meu sábado: o que estava nas minhas agendas hoje, o que continua aberto ou atrasado e o que devo preparar para segunda-feira. Curto, em tópicos.",
       },
     },
   },

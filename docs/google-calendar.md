@@ -36,6 +36,33 @@ of changing it, share that calendar in Google Calendar with your own account as
 **See all event details**, then set it to **Read only** in Talorys. Google
 itself then refuses any change, whatever happens in Talorys.
 
+## Daily routines with the calendar
+
+Talorys also reads the open calendars for itself, without the AI:
+
+- **Daily summary.** The summary (Settings → Alerts) lists today's events on
+  every open calendar, in time order.
+- **Notice before the first event.** Under a calendar in **Settings →
+  Integrations**, choose **Notice N min before the first event** and write what
+  to remember ("turn on the air conditioning"). On days with a timed event it
+  goes out once, that many minutes before the first one. If the first event
+  moves, the notice follows it; all-day events are ignored.
+- **Routines only on days with events.** An automation can **Run only on days
+  with events** on one open calendar. On a day without events there, the run is
+  skipped (shown in its history). If Google can't be reached, it runs anyway.
+  If that calendar is hidden later, runs are skipped and you get one alert.
+
+In **Automations → New → AI routine**, three ready-made routines use this:
+
+| Template | When | What |
+| --- | --- | --- |
+| **Morning briefing** | Every day, 07:00 | Today's events, tasks due or overdue, reminders, what to prepare. |
+| **Closing the day** | Monday to Friday, 19:00 | What happened, what is still open, what to leave ready for tomorrow. |
+| **Saturday closing** | Saturday, 13:00 | The same, but only on Saturdays with events on the calendar you choose (a work calendar, for example). |
+
+Everything stays editable. Fixed bills are plain monthly reminders: create one
+7 days and another 3 days before the due date.
+
 ## Setting it up
 
 You need a free OAuth client in Google Cloud. The step-by-step guide, in

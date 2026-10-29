@@ -45,14 +45,23 @@ export class AutomationRepository {
     return a;
   }
 
-  create(input: { name: string; kind: AutomationKind; message: string; schedule: ScheduleSpec; enabled: boolean; priority?: AutomationPriority; sentinel?: boolean }): Automation {
+  create(input: {
+    name: string;
+    kind: AutomationKind;
+    message: string;
+    schedule: ScheduleSpec;
+    enabled: boolean;
+    priority?: AutomationPriority;
+    sentinel?: boolean;
+    calendar_gate?: string | null;
+  }): Automation {
     const ts = now();
     const id = newId();
     this.db.run(
-      `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tal_automations (id, name, kind, message, schedule, enabled, priority, sentinel, calendar_gate, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, input.name, input.kind, input.message, JSON.stringify(input.schedule), input.enabled ? 1 : 0,
-      input.priority ?? "normal", input.sentinel ? 1 : 0, input.enabled ? "scheduled" : "paused", ts, ts,
+      input.priority ?? "normal", input.sentinel ? 1 : 0, input.calendar_gate ?? null, input.enabled ? "scheduled" : "paused", ts, ts,
     );
     return this.require(id);
   }
@@ -61,9 +70,9 @@ export class AutomationRepository {
     const existing = this.require(id);
     const next = { ...existing, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } as Automation;
     this.db.run(
-      `UPDATE tal_automations SET name = ?, kind = ?, message = ?, schedule = ?, enabled = ?, priority = ?, sentinel = ?, status = ?, schedule_id = ?,
+      `UPDATE tal_automations SET name = ?, kind = ?, message = ?, schedule = ?, enabled = ?, priority = ?, sentinel = ?, calendar_gate = ?, status = ?, schedule_id = ?,
          next_run = ?, last_run = ?, last_result = ?, last_error = ?, run_count = ?, updated_at = ? WHERE id = ?`,
-      next.name, next.kind, next.message, JSON.stringify(next.schedule), next.enabled ? 1 : 0, next.priority, next.sentinel ? 1 : 0, next.status,
+      next.name, next.kind, next.message, JSON.stringify(next.schedule), next.enabled ? 1 : 0, next.priority, next.sentinel ? 1 : 0, next.calendar_gate ?? null, next.status,
       next.schedule_id, next.next_run, next.last_run, next.last_result, next.last_error, next.run_count, now(), id,
     );
     return this.require(id);
