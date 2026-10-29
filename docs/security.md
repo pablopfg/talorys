@@ -596,6 +596,24 @@ Optional. Full details: [Remote MCP servers](mcp.md#security-model).
 - Backups carry only server names, URLs and auth types; imported servers arrive
   turned off, without credentials or tools.
 
+## Google Calendar
+
+See [google-calendar.md](google-calendar.md#security-model) for the full model.
+
+- Only the owner, in the app, connects an account or opens a calendar to the
+  agent; both need the password typed recently, and connecting raises a
+  security alert. No tool can change these settings.
+- OAuth uses PKCE and a hashed, single-use state that expires in 10 minutes.
+  If Google grants fewer permissions than asked, the access is revoked at once.
+- Google's tokens are sealed with `MCP_CREDENTIAL_KEY` (AES-256-GCM) and never
+  appear in backups, exports or API responses. Disconnecting revokes them.
+- The agent proposes changes only in chat, only on calendars set to **Read and
+  propose changes** where Google lets the account edit, and each one waits for
+  approval. Changes never e-mail guests and are sent with the event's etag, so a
+  newer edit in Google wins. Scheduled automations can only read.
+- Event text comes from whoever sent the invite: it reaches the model as
+  untrusted data inside a data block, with control characters removed.
+
 ## Reporting
 
 Please report vulnerabilities privately via GitHub Security Advisories.

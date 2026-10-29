@@ -22,6 +22,7 @@ import { TelegramCard } from "../components/TelegramCard";
 import { RemoteAccessCard } from "../components/RemoteAccessCard";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { McpServersCard } from "../components/McpServersCard";
+import { GoogleCalendarCard } from "../components/GoogleCalendarCard";
 import { AuthActivityCard } from "../components/AuthActivityCard";
 import { TwoFactorCard } from "../components/TwoFactorCard";
 import { PasskeysCard } from "../components/PasskeysCard";
@@ -110,7 +111,12 @@ export default function SettingsPage() {
           {tab === "AI" && <AiTab settings={settings} />}
           {tab === "Privacy" && <PrivacyTab />}
           {tab === "Security" && <SecurityTab settings={settings} />}
-          {tab === "Integrations" && <McpServersCard />}
+          {tab === "Integrations" && (
+            <>
+              <GoogleCalendarCard />
+              <McpServersCard />
+            </>
+          )}
           {tab === "About" && <AboutTab settings={settings} />}
         </div>
       )}

@@ -48,9 +48,10 @@ terminal*.
   - [22. Telegram](#22-telegram)
   - [23. n8n e outras automações (eventos e acesso remoto)](#23-n8n-e-outras-automações-eventos-e-acesso-remoto)
   - [24. Servidores MCP](#24-servidores-mcp)
+  - [25. Google Agenda](#25-google-agenda)
 - **Parte 5 — Versões e conferência**
-  - [25. Publicar a primeira release](#25-publicar-a-primeira-release)
-  - [26. Conferência final](#26-conferência-final)
+  - [26. Publicar a primeira release](#26-publicar-a-primeira-release)
+  - [27. Conferência final](#27-conferência-final)
 - [Rotina de manutenção](#rotina-de-manutenção)
 - [Problemas comuns](#problemas-comuns)
 - [Referência: variáveis e segredos](#referência-variáveis-e-segredos)
@@ -732,11 +733,48 @@ O Talorys só se conecta a endereços **públicos** e `https://`: um n8n na sua
 rede local precisa estar publicado (por exemplo por um Cloudflare Tunnel).
 Detalhes: [mcp.md](mcp.md).
 
+### 25. Google Agenda
+
+O Talorys pode ler as suas agendas do Google e propor eventos (cada alteração
+espera a sua aprovação no chat). Tudo pelo plano gratuito do Google Cloud.
+
+1. Em <https://console.cloud.google.com>, crie um projeto (por exemplo
+   `talorys`). Não precisa ativar faturamento.
+2. **APIs e serviços → Biblioteca** → procure **Google Calendar API** →
+   **Ativar**.
+3. **Google Auth Platform** (ou **Tela de consentimento OAuth**):
+   - Tipo de usuário **Externo** (ou **Interno**, se a conta for do Google
+     Workspace), nome do app `Talorys` e o seu e-mail de suporte.
+   - Em **Acesso a dados → Adicionar escopos**, marque só estes dois:
+     `.../auth/calendar.calendarlist.readonly` e `.../auth/calendar.events`.
+   - Em **Público-alvo**, clique em **Publicar app** (status **Em produção**).
+     Em **Teste**, o Google derruba a conexão a cada 7 dias. Como só você usa o
+     app, não precisa pedir a verificação do Google: na hora de conectar,
+     escolha **Avançado → Acessar Talorys (não seguro)**.
+4. **Clientes → Criar cliente** → tipo **Aplicativo da Web** → em **URIs de
+   redirecionamento autorizados**, o endereço do seu Talorys seguido de
+   `/settings/google-calendar`, por exemplo
+   `https://talorys.exemplo.com.br/settings/google-calendar`. Não precisa de
+   origem JavaScript.
+5. Copie o **ID do cliente** e a **Chave secreta do cliente** e grave como
+   segredos do Worker (como na etapa 15): `GOOGLE_CLIENT_ID` e
+   `GOOGLE_CLIENT_SECRET`. O segredo `MCP_CREDENTIAL_KEY` também precisa
+   existir: ele cifra os tokens do Google. Guarde a chave secreta no
+   gerenciador de senhas e nunca no GitHub.
+6. Talorys → **Configurações → Integrações → Google Agenda → Conectar Google**
+   → entre na conta, marque as duas permissões → escolha, em cada agenda,
+   **Oculta para o agente**, **Só leitura** ou **Ler e propor alterações**.
+
+Para uma agenda de trabalho (a do consultório, por exemplo), compartilhe-a no
+Google Agenda com a sua conta pessoal como **Ver todos os detalhes do evento** e
+deixe-a em **Só leitura** no Talorys: assim o próprio Google impede qualquer
+alteração. Detalhes e modelo de segurança: [google-calendar.md](google-calendar.md).
+
 ---
 
 ## Parte 5 — Versões e conferência
 
-### 25. Publicar a primeira release
+### 26. Publicar a primeira release
 
 1. **Actions → Prepare release → Run workflow** → branch `develop` →
    *version* `1.0.0` na primeira vez (depois, `auto`) → **Run workflow**.
@@ -749,7 +787,7 @@ Detalhes: [mcp.md](mcp.md).
 
 O fluxo completo, as regras do changelog e o versionamento: [releases.md](releases.md).
 
-### 26. Conferência final
+### 27. Conferência final
 
 Cloudflare:
 
@@ -779,6 +817,7 @@ Talorys:
 - [ ] Com Turnstile: depois de uma senha errada, o login pede a verificação.
 - [ ] Com e-mail: o e-mail de teste chegou e o login mostra **Esqueceu a senha?**.
 - [ ] Com push e Telegram: os testes chegaram.
+- [ ] Com Google Agenda: a conta aparece conectada e só as agendas escolhidas estão abertas para o agente.
 
 ---
 
@@ -846,13 +885,14 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 | `SESSION_SECRET` | 15 | sim |
 | `PASSWORD_PEPPER` | 15 | recomendado |
 | `OWNER_EMAIL` | 15 | recomendado |
-| `MCP_CREDENTIAL_KEY` | 15, 24 | para MCP com token |
+| `MCP_CREDENTIAL_KEY` | 15, 24, 25 | para MCP com token e Google Agenda |
 | `TURNSTILE_SECRET_KEY` | 19 | para o Turnstile |
 | `ALERT_EMAIL_TO` | 20 | não (usa o `OWNER_EMAIL`) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | 21 | para o push |
 | `TELEGRAM_BOT_TOKEN` | 22 | para o Telegram |
 | `TALORYS_MCP` (`off`), `TALORYS_MCP_MAX_TOOLS` | 24 | não |
 | `TALORYS_MCP_ALLOWED_ORIGINS` | 24 | não (recomendado) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 25 | para a Google Agenda |
 
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.

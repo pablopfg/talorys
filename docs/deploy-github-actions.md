@@ -30,7 +30,7 @@ pessoa lê o código, os workflows e os logs.
 | Dependência maliciosa roubar o token | O job que instala e roda o código do projeto (`build`) não tem segredo. O job `deploy` instala com `npm ci --ignore-scripts` (nenhum script de instalação roda ao lado do token) e não usa cache do npm. |
 | Action de terceiros alterada | Todas as actions são oficiais (`actions/*`) e fixadas pelo SHA completo do commit. |
 | Workflow com permissão demais | `permissions: contents: read` no workflow inteiro e `persist-credentials: false` no checkout. |
-| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID, `MCP_CREDENTIAL_KEY` e `TELEGRAM_BOT_TOKEN` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
+| Segredo do app no GitHub | `OWNER_PASSWORD`, `SESSION_SECRET`, chaves VAPID, `MCP_CREDENTIAL_KEY` `TELEGRAM_BOT_TOKEN` e `GOOGLE_CLIENT_SECRET` **nunca** entram no GitHub. São gravados uma vez com `wrangler secret put` e o deploy os preserva. |
 | Dados em log público | O health check imprime só o código HTTP; o corpo (que descreve a configuração) não aparece. O ID da conta é segredo e sai mascarado. |
 | Deploy sem revisão | Opcional: o ambiente `production` pode exigir a sua aprovação antes de cada deploy. |
 | Token com poder demais | Token de **conta**, só com as permissões abaixo, só na sua conta e na sua zona, com validade. |
@@ -191,7 +191,8 @@ de novo.
 | --- | --- | --- |
 | `OWNER_PASSWORD` | sim | A senha de acesso ao Talorys. Gere no gerenciador de senhas (20+ caracteres) e guarde lá. |
 | `SESSION_SECRET` | sim | 48+ caracteres aleatórios, gerados no gerenciador de senhas. Ninguém precisa digitá-lo. |
-| `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
+| `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Para guardar tokens de servidores MCP e da Google Agenda. |
+| `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` | não | Cliente OAuth gratuito do Google Cloud, para a Google Agenda. Veja [google-calendar.md](google-calendar.md). |
 | `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
 | `TELEGRAM_BOT_TOKEN` | não | Token do bot do Telegram (criado no @BotFather) para receber avisos no Telegram. Veja [alerts.md](alerts.md#configurar-o-telegram). |
 | `TURNSTILE_SECRET_KEY` | não | *Secret Key* do widget do Turnstile, para a verificação contra robôs nos logins arriscados (passo 7). |
@@ -222,6 +223,8 @@ npx wrangler secret put VAPID_PRIVATE_KEY --name talorys  # opcional (push)
 npx wrangler secret put TELEGRAM_BOT_TOKEN --name talorys # opcional (Telegram)
 npx wrangler secret put ALERT_EMAIL_TO --name talorys     # opcional (e-mail)
 npx wrangler secret put TURNSTILE_SECRET_KEY --name talorys # opcional (Turnstile)
+npx wrangler secret put GOOGLE_CLIENT_ID --name talorys   # opcional (Google Agenda)
+npx wrangler secret put GOOGLE_CLIENT_SECRET --name talorys # opcional (Google Agenda)
 ```
 
 Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores

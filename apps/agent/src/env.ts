@@ -49,6 +49,13 @@ export interface Env {
   SEND_EMAIL?: SendEmail;
   ALERT_EMAIL_FROM?: string;
   ALERT_EMAIL_TO?: string;
+  /**
+   * Google Calendar: the OAuth client from Google Cloud (free). The ID can be a plain variable; the
+   * secret is a Worker secret. Tokens are sealed with MCP_CREDENTIAL_KEY. Without all three the
+   * calendar is unavailable and nothing else changes.
+   */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
   /** Comma-separated origins MCP servers may use (https://n8n.example.com, https://*.example.com). Unset: any public host. */

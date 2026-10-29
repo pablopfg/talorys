@@ -14,6 +14,7 @@ import { pushRoutes } from "../push/routes";
 import { remoteAuth } from "../remote/middleware";
 import { remoteRoutes } from "../remote/routes";
 import { mcpRoutes } from "../mcp/routes";
+import { calendarRoutes } from "../calendar/routes";
 import { telegramRoutes, telegramWebhook } from "../telegram/routes";
 
 export interface AppEnv {
@@ -54,6 +55,7 @@ export function createApi() {
   app.route("/", pushRoutes);
   app.route("/", remoteRoutes);
   app.route("/", mcpRoutes);
+  app.route("/", calendarRoutes);
   app.route("/", telegramRoutes);
 
   return app;

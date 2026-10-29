@@ -628,6 +628,35 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_mfa_challenges ADD COLUMN passkey_challenge TEXT`,
     ],
   },
+  {
+    version: 26,
+    name: "google calendar",
+    statements: [
+      // The one Google account connected. Tokens are AES-GCM sealed; none of this goes into backups.
+      `CREATE TABLE IF NOT EXISTS tal_google_account (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        email TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        access_token TEXT,
+        access_expires_at INTEGER,
+        scopes TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'connected',
+        error TEXT,
+        connected_at TEXT NOT NULL,
+        checked_at TEXT
+      )`,
+      // Calendars of that account and what the agent may do with each: off, read, or read and write.
+      `CREATE TABLE IF NOT EXISTS tal_google_calendars (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        access_role TEXT NOT NULL,
+        time_zone TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        mode TEXT NOT NULL DEFAULT 'off' CHECK (mode IN ('off','read','write')),
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

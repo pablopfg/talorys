@@ -13,3 +13,4 @@ export * from "./totp";
 export * from "./alerts";
 export * from "./sentinels";
 export * from "./passkeys";
+export * from "./calendar";

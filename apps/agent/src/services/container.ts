@@ -21,6 +21,7 @@ import { RemoteEvents } from "../remote/events";
 import { RemoteTokenService } from "../remote/tokens";
 import { TaskPlanService } from "./task-plans";
 import { McpService } from "../mcp/service";
+import { CalendarService } from "../calendar/service";
 import { AlertService } from "../alerts/service";
 import { AlertDeliveryRepository } from "../alerts/repository";
 import { AlertLearning } from "../alerts/learning";
@@ -56,6 +57,7 @@ export interface Services {
   remoteEvents: RemoteEvents;
   taskPlans: TaskPlanService;
   mcp: McpService;
+  calendar: CalendarService;
 }
 
 /** `background` keeps work alive after the request or alarm that started it (the Durable Object's waitUntil). */
@@ -167,5 +169,6 @@ export function createServices(
     remoteEvents: new RemoteEvents(alerts, settings, db),
     taskPlans: new TaskPlanService(db, tasks, projects, activity),
     mcp: new McpService(db, env, activity),
+    calendar: new CalendarService(db, env, settings, activity),
   };
 }

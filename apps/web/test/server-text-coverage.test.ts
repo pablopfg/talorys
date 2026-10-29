@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 describe("server text coverage", () => {
   const AGENT = join(__dirname, "../../agent/src");
   /** Error classes whose message reaches the owner, and the index of the message argument. */
-  const ERRORS: Record<string, number> = { AppError: 1, ValidationError: 0, NotFoundError: 0, McpConnectionError: 1, McpEndpointError: 0 };
+  const ERRORS: Record<string, number> = { AppError: 1, ValidationError: 0, NotFoundError: 0, McpConnectionError: 1, McpEndpointError: 0, CalendarError: 0 };
   /** Properties whose string value the owner reads. */
   const PROPERTIES = new Set(["label", "summary", "reason", "result", "body", "title", "invalid_reason"]);
 

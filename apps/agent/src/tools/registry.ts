@@ -42,6 +42,8 @@ interface BaseTool<S extends z.ZodType> {
    * there (`scheduled`), and only if it runs without asking.
    */
   external?: { serverId: string; scheduled?: boolean };
+  /** Offered only while this holds (e.g. a Google calendar is shared with the agent). */
+  available?: (ctx: ToolContext) => boolean;
 }
 
 /**
@@ -140,8 +142,9 @@ export class ToolExecutor {
    */
   available(): ToolDefinition[] {
     if (this.limits.maxToolCalls <= 0) return [];
-    if (this.ctx.mode === "chat") return this.tools.filter((t) => t.name !== "notify_owner");
-    return this.tools.filter((t) => (t.external ? t.external.scheduled === true && t.permission === "read" : t.permission === "read" || t.name === "notify_owner"));
+    const tools = this.tools.filter((t) => !t.available || t.available(this.ctx));
+    if (this.ctx.mode === "chat") return tools.filter((t) => t.name !== "notify_owner");
+    return tools.filter((t) => (t.external ? t.external.scheduled === true && t.permission === "read" : t.permission === "read" || t.name === "notify_owner"));
   }
 
   find(name: string): ToolDefinition | undefined {

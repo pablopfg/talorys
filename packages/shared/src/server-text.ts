@@ -518,12 +518,65 @@ const PT_BR: Catalog = {
   "Choose at least one day.": "Escolha pelo menos um dia.",
   "Expected YYYY-MM-DDTHH:MM local time": "Esperado horário local no formato AAAA-MM-DDTHH:MM",
   "Not a valid calendar date": "Não é uma data válida",
+  // Google Calendar
+  "Google Calendar connected": "Google Agenda conectada",
+  "Google Calendar disconnected": "Google Agenda desconectada",
+  "A Google account's calendars were connected to Talorys. If it wasn't you, disconnect it in Settings → Integrations, remove Talorys from your Google account's third-party access and change your password.":
+    "As agendas de uma conta Google foram conectadas ao Talorys. Se não foi você, desconecte em Configurações → Integrações, remova o Talorys dos acessos de terceiros da sua conta Google e troque a senha.",
+  "Google Calendar can only be managed from the Talorys app.": "A Google Agenda só pode ser gerenciada pelo app do Talorys.",
+  "Google Calendar isn't set up on this deployment. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and MCP_CREDENTIAL_KEY (see the Google Calendar guide).":
+    "A Google Agenda não está configurada nesta instalação. Adicione GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e MCP_CREDENTIAL_KEY (veja o guia da Google Agenda).",
+  "This Google sign-in expired or was already used. Start again from Settings → Integrations.":
+    "Este login do Google expirou ou já foi usado. Comece de novo em Configurações → Integrações.",
+  "Google access wasn't allowed. Connect again to retry.": "O acesso ao Google não foi permitido. Conecte de novo para tentar outra vez.",
+  "Google didn't grant lasting access. Connect again and allow every permission asked.": "O Google não concedeu acesso duradouro. Conecte de novo e permita todas as permissões pedidas.",
+  "Allow both permissions on Google's page (see your calendars, and see and edit their events). Connect again to retry.":
+    "Permita as duas permissões na página do Google (ver suas agendas, e ver e editar os eventos delas). Conecte de novo para tentar outra vez.",
+  "Google didn't return your main calendar. Try connecting again.": "O Google não devolveu sua agenda principal. Tente conectar de novo.",
+  "Connect Google Calendar first.": "Conecte a Google Agenda primeiro.",
+  "Calendar not found.": "Agenda não encontrada.",
+  "Google only lets you read this calendar.": "O Google só permite ler esta agenda.",
+  "This calendar only shares free and busy times, so there's nothing to read.": "Esta agenda só compartilha horários livres e ocupados, então não há nada para ler.",
+  "Google didn't return an access token. Try again.": "O Google não devolveu um token de acesso. Tente de novo.",
+  "Google access was revoked or expired. Connect again in Settings → Integrations.": "O acesso ao Google foi revogado ou expirou. Conecte de novo em Configurações → Integrações.",
+  "Google refused the sign-in. Check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and the redirect address in the Google Cloud console.":
+    "O Google recusou o login. Confira GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e o endereço de redirecionamento no console do Google Cloud.",
+  "Google Calendar isn't connected.": "A Google Agenda não está conectada.",
+  "Google Calendar needs to be connected again.": "A Google Agenda precisa ser conectada de novo.",
+  "Couldn't reach Google Calendar. Try again in a minute.": "Não foi possível acessar a Google Agenda. Tente de novo em um minuto.",
+  "Google Calendar refused the request.": "A Google Agenda recusou o pedido.",
+  "Google Calendar refused access. Check the connection in Settings → Integrations.": "A Google Agenda recusou o acesso. Confira a conexão em Configurações → Integrações.",
+  "That calendar or event doesn't exist anymore.": "Essa agenda ou evento não existe mais.",
+  "The event changed in Google Calendar after it was proposed, so nothing was done. Ask again.": "O evento mudou na Google Agenda depois de proposto, então nada foi feito. Peça de novo.",
+  "Google Calendar is limiting requests right now. Try again in a minute.": "A Google Agenda está limitando pedidos agora. Tente de novo em um minuto.",
+  "Google Calendar couldn't do that right now. Try again later.": "A Google Agenda não conseguiu fazer isso agora. Tente de novo mais tarde.",
+  "Calendar “{name}”: off": "Agenda “{name}”: desligada",
+  "Calendar “{name}”: read": "Agenda “{name}”: só leitura",
+  "Calendar “{name}”: write": "Agenda “{name}”: leitura e alterações",
+  "Checking the calendar": "Verificando a agenda",
+  "Searching the calendar for “{query}”": "Buscando “{query}” na agenda",
+  "Proposing the event “{title}”": "Propondo o evento “{title}”",
+  "Proposing a calendar change": "Propondo uma alteração na agenda",
+  "Proposing to delete a calendar event": "Propondo excluir um evento da agenda",
+  "Create {title} on {calendar}: {when}": "Criar {title} em {calendar}: {when}",
+  "Change {title} on {calendar}: {changes}": "Alterar {title} em {calendar}: {changes}",
+  "Delete {title} on {calendar}: {when}": "Excluir {title} em {calendar}: {when}",
+  "rename to {title}": "renomear para {title}",
+  "move from {before} to {after}": "mover de {before} para {after}",
+  "change the place": "mudar o local",
+  "change the notes": "mudar as observações",
+  "Agent created the calendar event “{title}”": "O agente criou o evento “{title}” na agenda",
+  "Agent changed a calendar event": "O agente alterou um evento da agenda",
+  "Agent deleted a calendar event": "O agente excluiu um evento da agenda",
 };
 
 const CATALOGS: Partial<Record<Language, Catalog>> = { "pt-BR": PT_BR };
 
 /** Placeholders whose value is itself server text (a topic, a priority), translated too. */
-const NESTED = new Set(["topic", "priority", "alert"]);
+const NESTED = new Set(["topic", "priority", "alert", "changes"]);
+
+/** Nested placeholders that hold a list joined with "; ", translated item by item. */
+const LISTS = new Set(["changes"]);
 
 interface Pattern {
   regex: RegExp;
@@ -568,7 +621,9 @@ function localizeLine(line: string, language: Language, catalog: Catalog, depth 
       const index = pattern.names.indexOf(name);
       if (index < 0) return whole;
       const value = match[index + 1]!;
-      return NESTED.has(name) && depth < 1 ? localizeLine(value, language, catalog, depth + 1) : value;
+      if (!NESTED.has(name) || depth >= 1) return value;
+      if (LISTS.has(name)) return value.split("; ").map((item) => localizeLine(item, language, catalog, depth + 1)).join("; ");
+      return localizeLine(value, language, catalog, depth + 1);
     });
   }
   // Validation errors read "field: message"; translate the message and keep the field name.

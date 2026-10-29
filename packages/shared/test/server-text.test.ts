@@ -26,6 +26,12 @@ describe("localizeServerText", () => {
     expect(localizeServerText("timezone: Unknown IANA timezone", "pt-BR")).toBe("timezone: Fuso horário IANA desconhecido");
   });
 
+  it("translates each change of a calendar approval, keeping the owner's words", () => {
+    expect(localizeServerText("Change “Gym; Run” on Owner: rename to “Run”; move from 2026-11-03 14:00 – 2026-11-03 15:00 to 2026-11-03 16:00 – 2026-11-03 17:00; change the place", "pt-BR")).toBe(
+      "Alterar “Gym; Run” em Owner: renomear para “Run”; mover de 2026-11-03 14:00 – 2026-11-03 15:00 para 2026-11-03 16:00 – 2026-11-03 17:00; mudar o local",
+    );
+  });
+
   it("leaves English, unknown text and other languages alone", () => {
     expect(localizeServerText("Incorrect password.", "en")).toBe("Incorrect password.");
     expect(localizeServerText("Something only the model wrote.", "pt-BR")).toBe("Something only the model wrote.");
