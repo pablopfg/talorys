@@ -12,6 +12,8 @@ export interface PushSubscriptionRow {
   origin: string;
   created_at: string;
   last_success_at: string | null;
+  /** Set on every subscribe and on POST /api/push/seen; null only for rows older than migration 22. */
+  last_seen_at: string | null;
   failures: number;
 }
 
@@ -32,6 +34,7 @@ export class PushSubscriptionRepository {
       service: new URL(r.endpoint).hostname,
       created_at: r.created_at,
       last_success_at: r.last_success_at,
+      last_seen_at: r.last_seen_at ?? r.created_at,
       failures: r.failures,
     }));
   }
@@ -42,17 +45,32 @@ export class PushSubscriptionRepository {
     const id = existing?.id ?? newId();
     if (existing) {
       this.db.run(
-        `UPDATE tal_push_subscriptions SET p256dh = ?, auth = ?, label = ?, origin = ?, failures = 0 WHERE id = ?`,
-        input.p256dh, input.auth, input.label, input.origin, id,
+        `UPDATE tal_push_subscriptions SET p256dh = ?, auth = ?, label = ?, origin = ?, failures = 0, last_seen_at = ? WHERE id = ?`,
+        input.p256dh, input.auth, input.label, input.origin, now(), id,
       );
     } else {
       this.assertRoom();
       this.db.run(
-        `INSERT INTO tal_push_subscriptions (id, endpoint, p256dh, auth, label, origin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        id, input.endpoint, input.p256dh, input.auth, input.label, input.origin, now(),
+        `INSERT INTO tal_push_subscriptions (id, endpoint, p256dh, auth, label, origin, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, input.endpoint, input.p256dh, input.auth, input.label, input.origin, now(), now(),
       );
     }
     return this.devices().find((d) => d.id === id)!;
+  }
+
+  /**
+   * Moves a registered device to the new endpoint and keys the browser rotated to, keeping its id,
+   * label and last access (a rotation is not the owner using the device). False when `oldEndpoint`
+   * is not registered.
+   */
+  replace(oldEndpoint: string, input: { endpoint: string; p256dh: string; auth: string }): PushDevice | null {
+    const row = this.db.one<{ id: string }>(`SELECT id FROM tal_push_subscriptions WHERE endpoint = ?`, oldEndpoint);
+    if (!row) return null;
+    this.db.run(
+      `UPDATE tal_push_subscriptions SET endpoint = ?, p256dh = ?, auth = ?, failures = 0 WHERE id = ?`,
+      input.endpoint, input.p256dh, input.auth, row.id,
+    );
+    return this.devices().find((d) => d.id === row.id)!;
   }
 
   /** Throws when no new device fits. */
@@ -63,6 +81,18 @@ export class PushSubscriptionRepository {
 
   hasEndpoint(endpoint: string): boolean {
     return !!this.db.one<{ id: string }>(`SELECT id FROM tal_push_subscriptions WHERE endpoint = ?`, endpoint);
+  }
+
+  /** Notes that the browser holding `endpoint` opened Talorys; false when no device has it. */
+  markSeen(endpoint: string, at = now()): boolean {
+    return this.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ? WHERE endpoint = ?`, at, endpoint).changes > 0;
+  }
+
+  /** Removes the devices last seen before `before` (ISO time) and returns them. */
+  removeUnseenSince(before: string): PushDevice[] {
+    const stale = this.devices().filter((d) => d.last_seen_at < before);
+    for (const d of stale) this.remove(d.id);
+    return stale;
   }
 
   remove(id: string): boolean {

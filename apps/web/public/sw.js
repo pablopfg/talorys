@@ -94,21 +94,15 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
       const sub = event.newSubscription ?? (await self.registration.pushManager.subscribe(options));
-      const headers = { "content-type": "application/json", "x-talorys-request": "1" };
-      // Free the old endpoint's device slot first, so the new one is not refused at the device limit.
-      if (event.oldSubscription?.endpoint) {
-        await fetch("/api/push/unsubscribe", {
-          method: "POST",
-          credentials: "same-origin",
-          headers,
-          body: JSON.stringify({ endpoint: event.oldSubscription.endpoint }),
-        }).catch(() => {});
-      }
+      // Names the old endpoint, so the server moves the same device to the new one: it keeps its
+      // place without a recent password. When the old one is unknown, this is a plain subscribe.
+      const body = { ...sub.toJSON() };
+      if (event.oldSubscription?.endpoint) body.replaces = event.oldSubscription.endpoint;
       await fetch("/api/push/subscriptions", {
         method: "POST",
         credentials: "same-origin",
-        headers,
-        body: JSON.stringify(sub.toJSON()),
+        headers: { "content-type": "application/json", "x-talorys-request": "1" },
+        body: JSON.stringify(body),
       });
     })(),
   );

@@ -356,6 +356,8 @@ const PT_BR: Catalog = {
   "Talorys used {used} of today's {max} AI requests.": "O Talorys usou {used} dos {max} pedidos de IA de hoje.",
   "Push notifications not arriving": "Notificações push não estão chegando",
   "None of your devices received the last push notifications. Open Settings → Alerts and turn them on again on each device.": "Nenhum dos seus aparelhos recebeu as últimas notificações push. Abra Configurações → Avisos e ative de novo em cada aparelho.",
+  "Push device removed for inactivity": "Aparelho removido do push por inatividade",
+  "“{device}” had not opened Talorys for {days} days and no longer receives push notifications. To get them again, open Talorys on it and turn them on in Settings → Alerts.": "“{device}” não abria o Talorys havia {days} dias e não recebe mais notificações push. Para voltar a recebê-las, abra o Talorys nele e ative em Configurações → Avisos.",
   "Time for a backup": "Hora de fazer um backup",
   "Your last backup is more than {days} days old. Export one in Settings → Data.": "Seu último backup tem mais de {days} dias. Exporte um em Configurações → Dados.",
   "Update available": "Atualização disponível",

@@ -483,6 +483,8 @@ export const ptBR = {
   "push.sendTest": "Enviar um teste",
   "push.devicesRegistered": { one: "{count} de {max} dispositivos registrados.", other: "{count} de {max} dispositivos registrados." },
   "push.sendTestButton": "Enviar teste",
+  "push.lastSeen": "último acesso {when}",
+  "push.inactiveHint": "Um aparelho que fica {days} dias sem abrir o Talorys é removido por segurança; ative as notificações nele de novo para voltar a recebê-las.",
 
   "remote.title": "Acesso remoto",
   "remote.turnedOn": "Acesso remoto ativado",

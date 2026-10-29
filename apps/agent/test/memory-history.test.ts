@@ -441,6 +441,8 @@ describe("migration from the previous schema", () => {
       for (const col of ["profile", "priority_reason", "signal"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
       db.run(`DROP TABLE tal_alert_profiles`);
       db.run(`DROP TABLE tal_alert_corrections`);
+      // Migration 22 (push device last seen).
+      db.run(`ALTER TABLE tal_push_subscriptions DROP COLUMN last_seen_at`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
         `INSERT INTO tal_memories (id, content, category, source, created_at, updated_at) VALUES ('legacy-1', 'Legacy memory about sailing', 'fact', 'manual', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,

@@ -4,6 +4,7 @@ import { useSession } from "../hooks/session";
 import { api } from "../lib/api";
 import { broadcast, type LocalDeadlines, lastReportedAt, lastUseAt, markUse, noteReported, onSessionMessage, type SessionDeadlines, toLocal } from "../lib/activity";
 import { useI18n } from "../lib/i18n";
+import { reportPushSeen } from "../lib/push";
 
 /** The tab holding this lock sends the presence signal for all of them. */
 const LEADER_LOCK = "talorys-heartbeat";
@@ -37,10 +38,17 @@ export function SessionGuard() {
 
   useEffect(() => setDeadlines(session?.local), [session?.local]);
 
+  // Opening the app counts as using this device, for its push subscription.
+  useEffect(() => {
+    void reportPushSeen();
+  }, []);
+
   const beat = useCallback(
     async (active: boolean) => {
       lastBeat.current = Date.now();
       if (active) noteReported();
+      // Keeps this device's push subscription (removed after days without use); at most hourly.
+      void reportPushSeen();
       try {
         const { deadlines } = await api<{ deadlines: SessionDeadlines }>("/auth/heartbeat", { method: "POST", body: { active } });
         const local = toLocal(deadlines);

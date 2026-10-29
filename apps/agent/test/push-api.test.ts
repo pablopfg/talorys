@@ -1,4 +1,4 @@
-import { MAX_PUSH_DEVICES } from "@talorys/shared";
+import { MAX_PUSH_DEVICES, PUSH_INACTIVE_DAYS } from "@talorys/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { client, inAgent, loggedIn } from "./helpers";
 import { fakeBrowser, pushServiceStub } from "./push-helpers";
@@ -59,6 +59,9 @@ describe("push API", () => {
     expect(status.available).toBe(true);
     expect(status.public_key).toMatch(/^[\w-]{87}$/);
     expect(status.max_devices).toBe(MAX_PUSH_DEVICES);
+    expect(MAX_PUSH_DEVICES).toBe(3);
+    expect(PUSH_INACTIVE_DAYS).toBe(7);
+    expect(status.inactive_days).toBe(PUSH_INACTIVE_DAYS);
     expect(JSON.stringify(status)).not.toContain("PRIVATE");
     const health = await c.json("/api/health");
     expect(health.push).toBe(true);
@@ -107,6 +110,52 @@ describe("push API", () => {
     const over = await c.call("/api/push/subscriptions", { method: "POST", body: (await fakeBrowser()).json });
     expect(over.status).toBe(400);
     expect((await c.json("/api/push")).devices).toHaveLength(MAX_PUSH_DEVICES);
+  });
+
+  it("notes when a device opens the app, and tells a browser whose device is gone", async () => {
+    const c = await loggedIn();
+    const browser = await fakeBrowser();
+    const { device } = await c.json("/api/push/subscriptions", { method: "POST", body: browser.json });
+    expect(Date.now() - Date.parse(device.last_seen_at)).toBeLessThan(60_000);
+    const old = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    await inAgent((agent) => agent.services.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ?`, old));
+    expect(await c.json("/api/push/seen", { method: "POST", body: { endpoint: browser.endpoint } })).toEqual({ known: true });
+    const [seen] = (await c.json("/api/push")).devices;
+    expect(seen.last_seen_at > old).toBe(true);
+    // Renewing the subscription counts too.
+    await inAgent((agent) => agent.services.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ?`, old));
+    const renewed = await c.json("/api/push/subscriptions", { method: "POST", body: browser.json });
+    expect(renewed.device.last_seen_at > old).toBe(true);
+
+    expect(await c.json("/api/push/seen", { method: "POST", body: { endpoint: "https://fcm.googleapis.com/fcm/send/unknown" } })).toEqual({ known: false });
+    expect((await c.call("/api/push/seen", { method: "POST", body: { endpoint: "not a url" } })).status).toBe(400);
+    expect((await client().call("/api/push/seen", { method: "POST", body: { endpoint: browser.endpoint } })).status).toBe(401);
+  });
+
+  it("moves a device to the endpoint its browser rotated to, without the password and without extending it", async () => {
+    const c = await loggedIn();
+    const old = await fakeBrowser();
+    const { device } = await c.json("/api/push/subscriptions", { method: "POST", body: { ...old.json, label: "Phone" } });
+    const seen = "2026-10-01T00:00:00.000Z";
+    await inAgent((agent) => {
+      agent.services.db.run(`UPDATE tal_push_subscriptions SET last_seen_at = ?, failures = 2`, seen);
+      agent.services.db.run(`UPDATE tal_sessions SET confirmed_at = '2000-01-01T00:00:00.000Z'`);
+      agent.services.db.run(`DELETE FROM tal_notifications`);
+    });
+    const rotated = await fakeBrowser();
+    const moved = await c.json("/api/push/subscriptions", { method: "POST", body: { ...rotated.json, replaces: old.endpoint } });
+    expect(moved.device).toMatchObject({ id: device.id, label: "Phone", last_seen_at: seen, failures: 0 });
+    expect(moved.status.devices).toHaveLength(1);
+    await inAgent((agent) => {
+      expect(agent.services.push.subscriptions.hasEndpoint(rotated.endpoint)).toBe(true);
+      expect(agent.services.push.subscriptions.hasEndpoint(old.endpoint)).toBe(false);
+      expect(agent.services.notifications.list({ limit: 10 }).map((n) => n.title)).not.toContain("New push device");
+    });
+    // An endpoint that is not registered is no key: that is a new device, which needs the password.
+    const stranger = await c.call("/api/push/subscriptions", { method: "POST", body: { ...(await fakeBrowser()).json, replaces: old.endpoint } });
+    expect(stranger.status).toBe(403);
+    expect(((await stranger.json()) as { error: { code: string } }).error.code).toBe("REAUTH_REQUIRED");
+    expect((await c.json("/api/push")).devices).toHaveLength(1);
   });
 
   it("never puts push subscriptions in a backup", async () => {

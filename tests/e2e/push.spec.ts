@@ -45,12 +45,13 @@ test.describe("Push notifications", () => {
     await expect(page.getByText(/Notifications are blocked for this site/)).toBeVisible();
     await expect(toggle).toBeDisabled();
     await expect(page.getByText("E2E laptop")).toBeVisible();
-    await expect(page.getByText("1 of 10 devices registered.")).toBeVisible();
+    await expect(page.getByText(/^1 of 3 devices registered\. A device that does not open Talorys for 7 days is removed/)).toBeVisible();
+    await expect(page.getByText(/added .* · last opened /)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send test" })).toBeEnabled();
 
     await page.getByRole("button", { name: "Remove E2E laptop" }).click();
     await expect(page.getByText("E2E laptop")).toHaveCount(0);
-    await expect(page.getByText("0 of 10 devices registered.")).toBeVisible();
+    await expect(page.getByText(/^0 of 3 devices registered\./)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send test" })).toBeDisabled();
   });
 
