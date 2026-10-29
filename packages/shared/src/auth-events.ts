@@ -22,11 +22,14 @@ export const AUTH_EVENT_KINDS = [
   "mfa_disabled",
   "mfa_codes_regenerated",
   "login_human_check",
+  "recovery_requested",
+  "recovery_failure",
+  "password_reset",
 ] as const;
 export type AuthEventKind = (typeof AUTH_EVENT_KINDS)[number];
 
 /** Kinds that mean someone was refused; these are the ones counted as failures. */
-export const AUTH_FAILURE_KINDS: readonly AuthEventKind[] = ["login_failure", "login_rate_limited", "confirm_failure", "remote_token_rejected", "mfa_failure", "login_human_check"];
+export const AUTH_FAILURE_KINDS: readonly AuthEventKind[] = ["login_failure", "login_rate_limited", "confirm_failure", "remote_token_rejected", "mfa_failure", "login_human_check", "recovery_failure"];
 
 /** Detailed rows (with IP and user agent) are kept this many days by default, then only daily counts. */
 export const AUTH_LOG_DEFAULT_RETENTION_DAYS = 90;
@@ -92,3 +95,12 @@ export type AuthEventsQuery = z.infer<typeof authEventsQuerySchema>;
 export const authLogSettingsSchema = z.object({
   retention_days: z.number().int().min(AUTH_LOG_RETENTION_RANGE[0]).max(AUTH_LOG_RETENTION_RANGE[1]),
 });
+
+/** "Forgot password": the e-mailed link works once, for this long. */
+export const RECOVERY_LINK_TTL_MS = 30 * 60_000;
+/** Tries per link (a wrong two-step code counts): past them the link stops working. */
+export const RECOVERY_MAX_ATTEMPTS = 5;
+/** Recovery e-mails sent in 24 hours, whoever asks. */
+export const RECOVERY_EMAILS_PER_DAY = 3;
+/** Requests one network may make in 15 minutes, sent or not. */
+export const RECOVERY_REQUESTS_PER_CLIENT = 3;

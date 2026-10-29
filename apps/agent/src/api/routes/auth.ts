@@ -1,4 +1,15 @@
-import { authEventsQuerySchema, authLogSettingsSchema, changePasswordSchema, confirmSchema, heartbeatSchema, mfaCodeSchema, randomToken, signInSchema } from "@talorys/shared";
+import {
+  authEventsQuerySchema,
+  authLogSettingsSchema,
+  changePasswordSchema,
+  confirmSchema,
+  heartbeatSchema,
+  mfaCodeSchema,
+  randomToken,
+  recoveryCompleteSchema,
+  recoveryRequestSchema,
+  signInSchema,
+} from "@talorys/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { AppEnv } from "../app";
@@ -18,7 +29,10 @@ async function logged<T>(c: Context<AppEnv>, client: ClientInfo, onWrong: AuthEv
     return await work();
   } catch (error) {
     const log = c.env.agent.services.authLog;
-    const humanCheck = error instanceof AppError ? (error.details as { human_check?: string } | undefined)?.human_check : undefined;
+    const details = error instanceof AppError ? (error.details as { human_check?: string; recovery?: string } | undefined) : undefined;
+    const humanCheck = details?.human_check;
+    // A good link asking for the two-step code next is a step, not a refusal.
+    if (details?.recovery === "code_required" && reason === "link") throw error;
     if (error instanceof AppError && error.code === "RATE_LIMITED") log.record("login_rate_limited", client, { reason });
     // Refused before the password was even tried: no token, a bad one, or Cloudflare didn't answer.
     else if (error instanceof AppError && error.code !== "UNAUTHORIZED" && humanCheck) log.record("login_human_check", client, { reason: humanCheck });
@@ -106,6 +120,33 @@ async function finishSignIn(c: Context<AppEnv>, client: ClientInfo, signed: Sign
   return c.json({ authenticated: true, expires_at: expiresAt.toISOString() });
 }
 
+// ---------- "Forgot password" by e-mail ----------
+
+/** Always the same answer, sent or not: nobody learns from it whether the address was the owner's. */
+authRoutes.post("/recovery", async (c) => {
+  const { email, turnstile_token } = await body(c, recoveryRequestSchema, 8192);
+  const s = c.env.agent.services;
+  const client = await clientInfo(c);
+  const proof = { token: turnstile_token, ip: c.req.header("cf-connecting-ip") ?? undefined };
+  const outcome = await logged(c, client, "recovery_failure", "request", () => s.auth.requestRecovery(email, clientId(c), proof));
+  s.authLog.record("recovery_requested", client, { reason: outcome });
+  return c.json({ requested: true });
+});
+
+/** Sets the new password from the link. Every session ends, this browser's too: it signs in again. */
+authRoutes.post("/recovery/complete", async (c) => {
+  const { token, new_password, code } = await body(c, recoveryCompleteSchema, 4096);
+  const s = c.env.agent.services;
+  const client = await clientInfo(c);
+  const reason = code !== undefined ? "wrong_code" : "link";
+  const { factor } = await logged(c, client, "recovery_failure", reason, () => s.auth.completeRecovery(token, new_password, code, clientId(c)));
+  s.authLog.record("password_reset", client, { reason: factor ?? "link" });
+  s.activity.record("auth.password_reset", "Password reset with the e-mailed link; all sessions signed out and access tokens revoked");
+  raiseSecurityAlert(s.alerts, "password_reset");
+  c.header("set-cookie", sessionCookie(c, null));
+  return c.json({ reset: true });
+});
+
 authRoutes.post("/logout", async (c) => {
   const sessionId = c.get("sessionId");
   if (sessionId) {
@@ -131,6 +172,8 @@ authRoutes.get("/session", (c) => {
     email_required: authenticated ? undefined : s.auth.emailRequired(),
     // The robot check's public key, and whether this network must solve it before signing in.
     human_check: authenticated ? undefined : humanCheckFor(c),
+    // Whether "Forgot password" can e-mail a link (never to which address).
+    recovery: authenticated ? undefined : s.auth.recoveryAvailable(),
     password_change_required: authenticated ? s.auth.passwordChangeRequired() : undefined,
     agent_name: authenticated ? settings.agentName : undefined,
     theme: authenticated ? settings.theme : undefined,

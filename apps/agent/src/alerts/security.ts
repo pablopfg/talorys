@@ -11,6 +11,10 @@ export const SECURITY_EVENTS = {
     title: "Password changed",
     body: "Your Talorys password was changed and the other sessions were signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide).",
   },
+  password_reset: {
+    title: "Password reset by e-mail",
+    body: "Your Talorys password was reset with the link sent to your e-mail, and every session was signed out. If it wasn't you, reset the owner password on Cloudflare right away (see the security guide) and check your e-mail account.",
+  },
   remote_enabled: {
     title: "Remote access on",
     body: "Remote access was turned on: apps with an access token can now reach your data. If it wasn't you, turn it off in Settings → Security → Remote access and change your password.",

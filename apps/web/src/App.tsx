@@ -5,6 +5,7 @@ import { AppShell } from "./components/AppShell";
 import { ConfirmPasswordDialog } from "./components/ConfirmPasswordDialog";
 import { ChangePasswordForm } from "./components/ChangePasswordForm";
 import { LoginPage } from "./pages/LoginPage";
+import { RecoverPage } from "./pages/RecoverPage";
 import { ChatPage } from "./pages/ChatPage";
 import { Button, Card, Spinner, ErrorNotice } from "./components/ui";
 import { Logo } from "./components/Logo";
@@ -43,7 +44,19 @@ export function App() {
       </FullScreen>
     );
   }
-  if (!session.authenticated) return <LoginPage configured={session.configured} ended={session.ended} emailRequired={session.email_required} humanCheck={session.human_check} />;
+  // The e-mailed link opens here, signed in or not: setting the new password ends every session anyway.
+  if (window.location.pathname === "/recover") return <RecoverPage />;
+  if (!session.authenticated) {
+    return (
+      <LoginPage
+        configured={session.configured}
+        ended={session.ended}
+        emailRequired={session.email_required}
+        humanCheck={session.human_check}
+        canRecover={session.recovery}
+      />
+    );
+  }
   if (session.password_change_required) {
     // The server refuses everything else until the password meets the current rules.
     return (

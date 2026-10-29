@@ -38,7 +38,12 @@ function loadTurnstile(): Promise<TurnstileApi> {
  * Cloudflare's "not a robot" check on the sign-in form. Gives the token through onToken, and null
  * when it expires or fails. A token works once: remount (change the key) after each try.
  */
-export function TurnstileWidget({ siteKey, onToken, onError }: { siteKey: string; onToken: (token: string | null) => void; onError: () => void }) {
+export function TurnstileWidget({
+  siteKey,
+  action = "login",
+  onToken,
+  onError,
+}: { siteKey: string; action?: "login" | "recovery"; onToken: (token: string | null) => void; onError: () => void }) {
   const { language } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   // The latest callbacks, without drawing the widget again when they change.
@@ -53,7 +58,7 @@ export function TurnstileWidget({ siteKey, onToken, onError }: { siteKey: string
         if (cancelled || !ref.current) return;
         widgetId = turnstile.render(ref.current, {
           sitekey: siteKey,
-          action: "login",
+          action,
           theme: "auto",
           size: "flexible",
           language: language.toLowerCase(),
@@ -72,7 +77,7 @@ export function TurnstileWidget({ siteKey, onToken, onError }: { siteKey: string
       cancelled = true;
       if (widgetId !== null) window.turnstile?.remove(widgetId);
     };
-  }, [siteKey, language]);
+  }, [siteKey, action, language]);
 
   return <div ref={ref} className="min-h-[65px]" />;
 }

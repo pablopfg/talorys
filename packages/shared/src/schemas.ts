@@ -408,6 +408,17 @@ export const signInSchema = loginSchema.extend({
   /** The Turnstile widget's answer, when the sign-in form showed it (GET /api/auth/session says when). */
   turnstile_token: z.string().max(2048).optional(),
 });
+/** "Forgot password": the address (when the sign-in asks for one) and the robot check's answer. */
+export const recoveryRequestSchema = z.object({
+  email: z.string().max(254).optional(),
+  turnstile_token: z.string().max(2048).optional(),
+});
+/** The e-mailed link's token, the new password and, with two-step sign-in on, a code. */
+export const recoveryCompleteSchema = z.object({
+  token: z.string().min(16).max(128),
+  new_password: z.string().min(1).max(256),
+  code: z.string().min(1).max(40).optional(),
+});
 /** Step-up: the password, or with two-step sign-in on, a current authenticator code. */
 export const confirmSchema = z
   .object({ password: z.string().min(1).max(256).optional(), code: z.string().min(1).max(40).optional() })

@@ -92,12 +92,14 @@ export function createServices(
     security: (event) => raiseSecurityAlert(alerts, event),
   }, activity, background);
   const appHost = env.TALORYS_ALLOWED_HOSTS?.split(",")[0]?.trim();
+  // The app's own address, from the deploy's configuration only (never from a request's Host header).
+  const appUrl = appHost && /^[a-z0-9.-]{1,253}$/i.test(appHost) ? `https://${appHost}/` : undefined;
   const email = new EmailAlerts({
     binding: env.SEND_EMAIL,
     from: env.ALERT_EMAIL_FROM?.trim(),
     // An empty ALERT_EMAIL_TO falls back too.
     to: env.ALERT_EMAIL_TO?.trim() || env.OWNER_EMAIL?.trim(),
-    appUrl: appHost && /^[a-z0-9.-]{1,253}$/i.test(appHost) ? `https://${appHost}/` : undefined,
+    appUrl,
   }, settings, background);
   const channels = {
     push: pushChannel(push),
@@ -146,6 +148,15 @@ export function createServices(
     {
       breached: env.TALORYS_HIBP === "off" && env.TALORYS_ENV === "development" ? undefined : (password) => isBreachedPassword(password),
       human: turnstile(env.TURNSTILE_SITE_KEY, env.TURNSTILE_SECRET_KEY, [...(allowedHosts(env) ?? [])]),
+      recovery:
+        appUrl && email.configured()
+          ? {
+              appUrl,
+              address: env.OWNER_EMAIL?.trim() || email.address()!,
+              room: () => email.canSendRecovery(),
+              send: (link) => email.sendRecovery(link),
+            }
+          : undefined,
     },
     ),
     authLog,

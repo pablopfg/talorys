@@ -26,6 +26,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Eventos do n8n e de outras automações.** Um token de acesso remoto com o escopo novo **events** envia avisos para `POST /api/remote/events`: cada evento vira um aviso na categoria Eventos, com título, corpo, prioridade (baixa, normal ou alta; nunca crítica), origem, tipo e um id para descartar repetições em 24 horas. No máximo 60 eventos por hora e 100 por dia, corpo de até 2 KB, título sempre com a origem e links não clicáveis em nenhum canal. Para não abafar os seus avisos, eventos usam só metade do limite de cada canal e no máximo 3 insistem ao mesmo tempo. O token **events** não lê nem altera nenhum dado, e só ele envia eventos. A prioridade aprende por origem e tipo. O guia mostra o nó HTTP Request do n8n e o Service Token do Cloudflare Access. Veja [docs/alerts.md](docs/alerts.md#eventos-do-n8n-e-de-outras-automações).
 
+- **Esqueci a senha, por e-mail.** Com os avisos por e-mail configurados, a tela de login ganha **Esqueceu a senha?**: um link de uso único, válido por 30 minutos, chega ao seu endereço verificado. Com a verificação em duas etapas ligada, a senha nova também pede o código do app autenticador ou um código de recuperação. Trocar a senha pelo link encerra todas as sessões e os tokens de acesso e gera o alerta de segurança "Senha redefinida por e-mail". O pedido exige o seu e-mail e sempre responde do mesmo jeito (ninguém descobre se acertou o endereço), com no máximo 3 pedidos por rede a cada 15 minutos e 3 e-mails por dia, e com o Turnstile ligado todo pedido passa pela verificação contra robôs. Veja [docs/security.md](docs/security.md#password-recovery-by-e-mail).
+
 ### Alterado
 
 - Cadastrar um aparelho novo no push passa a pedir a senha digitada há pouco (um login recente conta; a renovação do mesmo navegador não pede).
@@ -45,6 +47,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
 
 ### Atualização
+
+- A recuperação de senha por e-mail não pede migração nem segredo novo: aparece sozinha na tela de login quando os avisos por e-mail estão configurados e o deploy tem `TALORYS_CUSTOM_DOMAIN` ou `TALORYS_PUBLIC_URL` (o link usa só esse endereço).
 
 - A migração 23 roda sozinha depois do deploy e passa os tokens de acesso remoto para uma tabela nova que aceita o escopo `events` (a antiga fica vazia, como `tal_remote_tokens_v8`); os tokens existentes continuam valendo, com o mesmo escopo e validade.
 
