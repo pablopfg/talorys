@@ -16,11 +16,16 @@ export const AUTH_EVENT_KINDS = [
   "confirm_success",
   "confirm_failure",
   "remote_token_rejected",
+  "mfa_challenge",
+  "mfa_failure",
+  "mfa_enabled",
+  "mfa_disabled",
+  "mfa_codes_regenerated",
 ] as const;
 export type AuthEventKind = (typeof AUTH_EVENT_KINDS)[number];
 
 /** Kinds that mean someone was refused; these are the ones counted as failures. */
-export const AUTH_FAILURE_KINDS: readonly AuthEventKind[] = ["login_failure", "login_rate_limited", "confirm_failure", "remote_token_rejected"];
+export const AUTH_FAILURE_KINDS: readonly AuthEventKind[] = ["login_failure", "login_rate_limited", "confirm_failure", "remote_token_rejected", "mfa_failure"];
 
 /** Detailed rows (with IP and user agent) are kept this many days by default, then only daily counts. */
 export const AUTH_LOG_DEFAULT_RETENTION_DAYS = 90;

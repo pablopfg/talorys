@@ -1,11 +1,13 @@
-import { authEventsQuerySchema, authLogSettingsSchema, changePasswordSchema, heartbeatSchema, loginSchema, randomToken, signInSchema } from "@talorys/shared";
+import { authEventsQuerySchema, authLogSettingsSchema, changePasswordSchema, confirmSchema, heartbeatSchema, mfaCodeSchema, randomToken, signInSchema } from "@talorys/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { AppEnv } from "../app";
 import type { AuthEventKind } from "@talorys/shared";
 import type { ClientInfo } from "../../auth/auth-log";
-import { body, clientId, clientInfo, deviceCookie, readDeviceCookie, readSessionToken, requireRecentAuth, sessionCookie } from "../middleware";
-import { AppError, ValidationError } from "../errors";
+import type { SignedIn } from "../../auth/auth-service";
+import type { MfaFactor } from "../../auth/mfa";
+import { body, clientId, clientInfo, deviceCookie, mfaCookie, readDeviceCookie, readMfaCookie, readSessionToken, requireRecentAuth, sessionCookie } from "../middleware";
+import { AppError, ValidationError, errorResponse } from "../errors";
 
 export const authRoutes = new Hono<AppEnv>();
 
@@ -25,9 +27,43 @@ authRoutes.post("/login", async (c) => {
   const { password, email } = await body(c, signInSchema, 4096);
   const s = c.env.agent.services;
   const client = await clientInfo(c);
-  const { token, expiresAt, sessionId } = await logged(c, client, "login_failure", "wrong_credentials", () =>
+  const result = await logged(c, client, "login_failure", "wrong_credentials", () =>
     s.auth.login(password, clientId(c), c.req.header("user-agent") ?? "", email),
   );
+  if (result.mfa) {
+    // The password was right; the code comes next. This line is worth seeing if the code never does.
+    s.authLog.record("mfa_challenge", client);
+    c.header("set-cookie", mfaCookie(c, result.mfa.token));
+    return c.json({ authenticated: false, mfa_required: true, expires_at: result.mfa.expiresAt.toISOString() });
+  }
+  return finishSignIn(c, client, result, "password");
+});
+
+/** The second step of a sign-in: the code for the challenge in the cookie. */
+authRoutes.post("/mfa", async (c) => {
+  const { code } = await body(c, mfaCodeSchema, 1024);
+  const s = c.env.agent.services;
+  const client = await clientInfo(c);
+  try {
+    const result = await s.auth.completeMfa(readMfaCookie(c), code, c.req.header("user-agent") ?? "", clientId(c), (reason) =>
+      s.authLog.record("mfa_failure", client, { reason }),
+    );
+    c.header("set-cookie", mfaCookie(c, null), { append: true });
+    return finishSignIn(c, client, result, result.factor);
+  } catch (error) {
+    // Once the challenge is over, its cookie goes too: the next try starts from the password.
+    // Built here, because the error handler's own response would drop headers set on the context.
+    if (!(error instanceof AppError) || (error.details as { mfa?: string } | undefined)?.mfa !== "expired") throw error;
+    const res = errorResponse(error);
+    res.headers.append("set-cookie", mfaCookie(c, null));
+    return res;
+  }
+});
+
+/** Everything after a complete sign-in: the old session ends, the device is noted, the cookie is set. */
+async function finishSignIn(c: Context<AppEnv>, client: ClientInfo, signed: SignedIn, factor: "password" | MfaFactor) {
+  const s = c.env.agent.services;
+  const { token, expiresAt, sessionId } = signed;
   // A session cookie this browser already had ends here, so a planted one can't outlive the sign-in.
   const previous = c.get("sessionId");
   if (previous) s.auth.revoke(previous);
@@ -37,7 +73,7 @@ authRoutes.post("/login", async (c) => {
     const knownDevice = s.authLog.isKnownDevice(client.device);
     const newCountry = s.authLog.isNewCountry(client.geo.country);
     const earlier = s.authLog.hadEarlierSignIn();
-    s.authLog.record("login_success", client, { session: sessionId.slice(0, 16), knownDevice });
+    s.authLog.record("login_success", client, { session: sessionId.slice(0, 16), knownDevice, reason: factor });
     // A browser without a known device cookie gets a new one; a known one is sent again, so its 180 days restart.
     let device = client.device;
     const current = readDeviceCookie(c);
@@ -61,7 +97,7 @@ authRoutes.post("/login", async (c) => {
   }
   c.header("set-cookie", sessionCookie(c, token), { append: true });
   return c.json({ authenticated: true, expires_at: expiresAt.toISOString() });
-});
+}
 
 authRoutes.post("/logout", async (c) => {
   const sessionId = c.get("sessionId");
@@ -109,9 +145,11 @@ authRoutes.post("/heartbeat", async (c) => {
 authRoutes.post("/confirm", async (c) => {
   const sessionId = c.get("sessionId");
   if (!sessionId) throw new AppError("UNAUTHORIZED", "Please sign in.");
-  const { password } = await body(c, loginSchema, 4096);
+  const proof = await body(c, confirmSchema, 4096);
   const client = await clientInfo(c);
-  const until = await logged(c, client, "confirm_failure", "wrong_password", () => c.env.agent.services.auth.confirm(sessionId, password, clientId(c)));
+  const until = await logged(c, client, "confirm_failure", proof.code !== undefined ? "wrong_code" : "wrong_password", () =>
+    c.env.agent.services.auth.confirm(sessionId, proof, clientId(c)),
+  );
   c.env.agent.services.authLog.record("confirm_success", client, { session: sessionId.slice(0, 16) });
   return c.json({ confirmed: true, until: until.toISOString() });
 });
@@ -182,3 +220,68 @@ authRoutes.put("/activity/settings", async (c) => {
   if (retention_days !== before) c.env.agent.services.activity.record("auth.activity_retention_changed", "Sign-in activity retention changed");
   return c.json(log.summary());
 });
+
+// ---------- Two-step sign-in (owner session only) ----------
+
+authRoutes.get("/mfa/status", (c) => c.json(c.env.agent.services.auth.mfa.status()));
+
+/** A new secret to scan. Nothing changes until /mfa/enable gets a code made from it. */
+authRoutes.post("/mfa/setup", async (c) => {
+  requireRecentAuth(c);
+  const s = c.env.agent.services;
+  if (s.auth.mfa.enabled()) throw new AppError("CONFLICT", "Two-step sign-in is already on. Turn it off first to use another app.");
+  return c.json(await s.auth.mfa.beginSetup(s.settings.get().agentName));
+});
+
+/** Turns it on with a code from the new secret. The recovery codes come back once, here. */
+authRoutes.post("/mfa/enable", async (c) => {
+  requireRecentAuth(c);
+  const { code } = await body(c, mfaCodeSchema, 1024);
+  const s = c.env.agent.services;
+  if (s.auth.mfa.enabled()) throw new AppError("CONFLICT", "Two-step sign-in is already on.");
+  const codes = await s.auth.mfa.enable(code);
+  if (!codes) throw new ValidationError("Incorrect code. Check that your phone's clock is right and try again.");
+  return c.json({ recovery_codes: codes, ...(await afterMfaChange(c, "mfa_enabled")) });
+});
+
+/** Turns it off: needs the password typed recently and a current code (or a recovery code). */
+authRoutes.post("/mfa/disable", async (c) => {
+  requireRecentAuth(c);
+  const { code } = await body(c, mfaCodeSchema, 1024);
+  const s = c.env.agent.services;
+  if (!s.auth.mfa.enabled()) return c.json({ disabled: true, signed_out: 0 });
+  const client = await clientInfo(c);
+  await logged(c, client, "mfa_failure", "disable", () => s.auth.checkMfaCode(code, clientId(c), { recovery: true }));
+  s.auth.mfa.disable();
+  return c.json({ disabled: true, ...(await afterMfaChange(c, "mfa_disabled")) });
+});
+
+/** New recovery codes; the old ones stop working. */
+authRoutes.post("/mfa/recovery-codes", async (c) => {
+  requireRecentAuth(c);
+  const { code } = await body(c, mfaCodeSchema, 1024);
+  const s = c.env.agent.services;
+  if (!s.auth.mfa.enabled()) throw new AppError("CONFLICT", "Two-step sign-in is off.");
+  const client = await clientInfo(c);
+  await logged(c, client, "mfa_failure", "recovery_codes", () => s.auth.checkMfaCode(code, clientId(c), { recovery: false }));
+  const codes = await s.auth.mfa.regenerateCodes();
+  s.authLog.record("mfa_codes_regenerated", client, { session: c.get("sessionId")!.slice(0, 16) });
+  s.activity.record("auth.mfa_codes", "New recovery codes made");
+  return c.json({ recovery_codes: codes });
+});
+
+/** Turning the second step on or off signs out every other session, and the owner is told. */
+async function afterMfaChange(c: Context<AppEnv>, kind: "mfa_enabled" | "mfa_disabled"): Promise<{ signed_out: number }> {
+  const s = c.env.agent.services;
+  const sessionId = c.get("sessionId")!;
+  const signedOut = s.auth.revokeAllExcept(sessionId);
+  s.authLog.record(kind, await clientInfo(c), { session: sessionId.slice(0, 16) });
+  const on = kind === "mfa_enabled";
+  s.activity.record(on ? "auth.mfa_enabled" : "auth.mfa_disabled", on ? "Two-step sign-in turned on" : "Two-step sign-in turned off");
+  s.notifications.create(
+    on
+      ? { title: "Two-step sign-in on", body: "Signing in now also asks for a code from your authenticator app. Other sessions were signed out." }
+      : { title: "Two-step sign-in off", body: "Signing in no longer asks for a code. If it wasn't you, change your password now and turn it back on in Settings → Security." },
+  );
+  return { signed_out: signedOut };
+}

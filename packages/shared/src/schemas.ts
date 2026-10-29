@@ -385,6 +385,10 @@ export const settingsUpdateSchema = settingsSchema
 export const loginSchema = z.object({ password: z.string().min(1).max(256) });
 /** Signing in: the e-mail address is asked for only when OWNER_EMAIL is set. */
 export const signInSchema = loginSchema.extend({ email: z.string().max(254).optional() });
+/** Step-up: the password, or with two-step sign-in on, a current authenticator code. */
+export const confirmSchema = z
+  .object({ password: z.string().min(1).max(256).optional(), code: z.string().min(1).max(40).optional() })
+  .refine((v) => (v.password === undefined) !== (v.code === undefined), { message: "Send the password or a code." });
 export const heartbeatSchema = z.object({ active: z.boolean() });
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1).max(256),

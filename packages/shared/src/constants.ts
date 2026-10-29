@@ -17,6 +17,9 @@ export const DEV_SESSION_COOKIE = "talorys_session";
 /** Marks a browser that completed a sign-in, for "new device" alerts. It never signs anyone in. */
 export const DEVICE_COOKIE = "__Host-talorys_device";
 export const DEV_DEVICE_COOKIE = "talorys_device";
+/** Holds a sign-in waiting for its two-step code, for 5 minutes. */
+export const MFA_COOKIE = "__Host-talorys_mfa";
+export const DEV_MFA_COOKIE = "talorys_mfa";
 /**
  * Set only by the Worker's entry point from Cloudflare's `request.cf` (any copy a client sends is
  * dropped there): country, region, city, network operator and data center of the request.

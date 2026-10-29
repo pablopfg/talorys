@@ -35,6 +35,31 @@ const PT_BR: Catalog = {
 
   // Sign-in and passwords
   "Incorrect password.": "Senha incorreta.",
+  "Incorrect code.": "Código incorreto.",
+  "This sign-in has expired. Enter your password again.": "Este login expirou. Digite sua senha de novo.",
+  "Too many wrong codes. Enter your password again.": "Códigos errados demais. Digite sua senha de novo.",
+  "Send the password or a code.": "Envie a senha ou um código.",
+  "Two-step sign-in is already on. Turn it off first to use another app.": "A verificação em duas etapas já está ativa. Desative-a antes para usar outro app.",
+  "Two-step sign-in is already on.": "A verificação em duas etapas já está ativa.",
+  "Two-step sign-in is off.": "A verificação em duas etapas está desativada.",
+  "Incorrect code. Check that your phone's clock is right and try again.": "Código incorreto. Confira se o relógio do celular está certo e tente de novo.",
+  "Wrong sign-in codes": "Códigos de login errados",
+  "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.":
+    "Alguém digitou sua senha certa, mas errou o código da verificação em duas etapas 3 vezes seguidas. Se não foi você, troque a senha agora.",
+  "Recovery code used": "Código de recuperação usado",
+  "A recovery code was used to sign in. Recovery codes left: {count}. If it wasn't you, change your password now.":
+    "Um código de recuperação foi usado para entrar. Códigos restantes: {count}. Se não foi você, troque a senha agora.",
+  "Your last recovery code was used to sign in. Make new ones in Settings → Security. If it wasn't you, change your password now.":
+    "Seu último código de recuperação foi usado para entrar. Gere novos em Configurações → Segurança. Se não foi você, troque a senha agora.",
+  "Two-step sign-in on": "Verificação em duas etapas ativada",
+  "Signing in now also asks for a code from your authenticator app. Other sessions were signed out.":
+    "Agora o login também pede um código do seu app autenticador. As outras sessões foram encerradas.",
+  "Two-step sign-in off": "Verificação em duas etapas desativada",
+  "Signing in no longer asks for a code. If it wasn't you, change your password now and turn it back on in Settings → Security.":
+    "O login não pede mais o código. Se não foi você, troque a senha agora e ative de novo em Configurações → Segurança.",
+  "Two-step sign-in turned on": "Verificação em duas etapas ativada",
+  "Two-step sign-in turned off": "Verificação em duas etapas desativada",
+  "New recovery codes made": "Novos códigos de recuperação gerados",
   "Confirm your password to continue.": "Confirme sua senha para continuar.",
   "Current password is incorrect.": "A senha atual está incorreta.",
   "Too many failed attempts. Please wait before trying again.": "Muitas tentativas sem sucesso. Aguarde antes de tentar novamente.",

@@ -41,14 +41,61 @@ Talorys is single-user. The threat model assumes the internet can reach your
 - Changing the password in the UI ends every session and access token,
   the current one too, and signs this browser back in on a new session.
 - `reset-password` (CLI) replaces the secret; the Durable Object detects the
-  changed fingerprint, discards any UI-set password and revokes every session.
+  changed fingerprint, discards any UI-set password, turns two-step sign-in
+  off (so a lost phone never locks the owner out for good) and revokes every
+  session.
 - Sensitive actions need the password typed within the last 15 minutes in
   this session: exporting or importing a backup, turning remote access on, and
   creating an access token. Signing in counts; after that the app asks for the
   password again (`POST /api/auth/confirm`, under the same rate limit as
-  sign-in). A stolen session cookie alone can't take the data or open a back
-  door. Turning remote access off and revoking tokens never ask.
+  sign-in). With two-step sign-in on, a current authenticator code works
+  instead of the password (recovery codes don't). A stolen session cookie
+  alone can't take the data or open a back door. Turning remote access off and revoking tokens never ask.
 - There is no signup, setup or ownership-claim endpoint.
+
+## Two-step sign-in
+
+Optional, and recommended: while it is off, the app shows a reminder on every
+screen but Settings (it can be put off for 3 days on a browser, never for good).
+
+- **Authenticator app (TOTP, RFC 6238).** HMAC-SHA1, 6 digits, 30-second
+  steps, as every authenticator app expects. A code from the step before or
+  after also counts, for a phone clock a little off; a step already used never
+  counts again, so a code seen over a shoulder can't be replayed. Turning it on
+  shows a QR code (drawn in the browser, never sent anywhere) and the key as
+  text, and takes effect only after a first right code.
+- **The secret** is stored encrypted with AES-256-GCM under a key derived
+  (HKDF) from `SESSION_SECRET`, so a copy of the Durable Object's storage alone
+  can't make codes. It is never shown again after setup and never goes into a
+  backup. If `SESSION_SECRET` changes, the app's codes stop working; recovery
+  codes still do, and `reset-password` turns the second step off.
+- **Recovery codes.** 10 single-use codes of 80 random bits, shown once (copy
+  or download) and stored only as SHA-256 hashes. Each one signs in once in
+  place of the app code; using one notifies the owner. Settings shows how many
+  are left and asks for new ones at 2 or fewer.
+- **Sign-in.** A right password with the second step on opens no session: it
+  sets `__Host-talorys_mfa` (random, 5 minutes, `HttpOnly; Secure;
+  SameSite=Strict`), whose HMAC names a challenge row in the database. The
+  challenge allows 5 wrong codes, then the password is asked again; at most 5
+  challenges are kept. The password attempt keeps counting as a failure in the
+  [brute-force limit](#brute-force) until the code is right too, so knowing the
+  password doesn't buy extra guesses. Each try is taken from the challenge
+  before the code is checked, so parallel requests can't share one count.
+  Past 10 wrong codes in 15 minutes across every network, only networks the
+  owner signed in from in the last 30 days may try codes until the window
+  clears, so opening challenges from many addresses buys no extra guesses
+  either. Three wrong codes in a row notify the owner, since they mean the
+  password is known. Changing the password ends every sign-in waiting for its
+  code.
+- **Changing it.** Turning it on or off and making new recovery codes need the
+  password typed within the last 15 minutes and a current code (turning off
+  also takes a recovery code). Turning it on or off ends every other session
+  and notifies the owner. Wrong codes when turning it off or making new codes
+  count in the sign-in rate limit.
+- **Activity.** Each step is in the [sign-in activity](#sign-in-activity):
+  code asked, wrong code (and why), which factor signed in, turned on or off,
+  new codes. Codes themselves are never logged.
+- Passkeys come later, once the deployment has its own domain.
 
 ## Brute force
 

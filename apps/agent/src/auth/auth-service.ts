@@ -1,4 +1,5 @@
 import {
+  MFA_MAX_ATTEMPTS,
   type SessionInfo,
   type SessionTimeouts,
   checkPasswordStrength,
@@ -15,6 +16,7 @@ import {
 import type { Database } from "../db/database";
 import type { SettingsService } from "../services/settings";
 import { AppError, ValidationError } from "../api/errors";
+import { type MfaFactor, MfaService } from "./mfa";
 
 /** A session's use and presence are written at most this often (writes on the Free plan are counted). */
 export const TOUCH_INTERVAL_MS = 60_000;
@@ -79,6 +81,21 @@ export interface AuthSecrets {
   ownerEmail?: string;
 }
 
+/** A finished sign-in: the session to set as a cookie. */
+export interface SignedIn {
+  token: string;
+  expiresAt: Date;
+  sessionId: string;
+  mfa?: undefined;
+}
+
+/** A right password with the second step on: no session yet, only the challenge cookie. */
+export interface MfaPending {
+  mfa: { token: string; expiresAt: Date };
+  token?: undefined;
+  sessionId?: undefined;
+}
+
 export interface AuthChecks {
   /** Whether a new password is in a known breach (null: unknown). Off when not given. */
   breached?: (password: string) => Promise<boolean | null>;
@@ -97,6 +114,9 @@ export interface AuthChecks {
  * database stores HMAC(SESSION_SECRET, token), so a storage leak cannot be replayed.
  */
 export class AuthService {
+  /** The second sign-in step (authenticator app, recovery codes). */
+  readonly mfa: MfaService;
+
   constructor(
     private readonly db: Database,
     private readonly settings: SettingsService,
@@ -104,7 +124,9 @@ export class AuthService {
     private readonly alert: OwnerAlert = () => {},
     private readonly ended: (reason: SessionEnd) => void = () => {},
     private readonly checks: AuthChecks = {},
-  ) {}
+  ) {
+    this.mfa = new MfaService(db, settings, () => this.requireConfigured().sessionSecret);
+  }
 
   private pepper(): string | undefined {
     return usablePepper(this.secrets.pepper);
@@ -176,6 +198,10 @@ export class AuthService {
         this.settings.delete(WEAK_PASSWORD_KEY);
         this.db.run(`DELETE FROM tal_sessions`);
         this.db.run(`DELETE FROM tal_remote_tokens`);
+        // `reset-password` is also the way back in after losing the authenticator: it turns 2FA off.
+        this.settings.delete("auth.mfa");
+        this.settings.delete("auth.mfa_pending");
+        this.db.run(`DELETE FROM tal_mfa_challenges`);
       }
       this.settings.setJson(FINGERPRINT_KEY, fingerprint);
     });
@@ -314,16 +340,86 @@ export class AuthService {
   /**
    * With OWNER_EMAIL set, the address must match too. Both are always checked (the PBKDF2 runs
    * even for a wrong address) and a failure never says which one was wrong.
+   *
+   * With the second step on, a right password opens no session: it starts a challenge, and the
+   * attempt keeps counting as a failure in the rate limit until the code is right too.
    */
-  async login(password: string, client: string, userAgent: string, email?: string): Promise<{ token: string; expiresAt: Date; sessionId: string }> {
+  async login(password: string, client: string, userAgent: string, email?: string): Promise<SignedIn | MfaPending> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
     const [passwordOk, emailOk] = await Promise.all([this.checkPassword(password), this.checkEmail(email)]);
     if (!passwordOk || !emailOk) throw new AppError("UNAUTHORIZED", this.emailRequired() ? "Incorrect email or password." : "Incorrect password.");
+    if (this.mfa.enabled()) {
+      return { mfa: await this.mfa.createChallenge(attempt, this.passwordProblem(password) !== null, userAgent) };
+    }
     this.markAttemptSucceeded(attempt);
     this.notePasswordStrength(password);
     return this.createSession(userAgent);
+  }
+
+  /**
+   * The second step: an authenticator code or a recovery code for the challenge in the cookie.
+   * Five wrong codes end the challenge (the password is asked again); three wrong codes in a row,
+   * across challenges, tell the owner.
+   */
+  async completeMfa(
+    challengeToken: string | null,
+    code: string,
+    userAgent: string,
+    client: string,
+    noteFailure: (reason: "expired" | "wrong_code" | "too_many" | "rate_limited") => void = () => {},
+  ): Promise<SignedIn & { factor: MfaFactor }> {
+    this.requireConfigured();
+    await this.syncSecretFingerprint();
+    const row = await this.mfa.findChallenge(challengeToken);
+    if (row === null || row === "expired") {
+      // Only a challenge that existed is worth a line in the activity; a made-up cookie isn't.
+      if (row === "expired") noteFailure("expired");
+      throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
+    }
+    const blockedUntil = this.mfa.wrongCodesBlockedUntil();
+    if (blockedUntil !== null && !this.isTrustedClient(client)) {
+      noteFailure("rate_limited");
+      const retryAfter = Math.max(1, Math.ceil((blockedUntil - Date.now()) / 1000));
+      throw new AppError("RATE_LIMITED", "Too many failed attempts. Please wait before trying again.", { retry_after: retryAfter }, {
+        "retry-after": String(retryAfter),
+      });
+    }
+    const attempts = this.mfa.reserveAttempt(row.id);
+    if (attempts === null) {
+      noteFailure("expired");
+      throw new AppError("UNAUTHORIZED", "This sign-in has expired. Enter your password again.", { mfa: "expired" });
+    }
+    const factor = await this.mfa.verify(code, { recovery: true });
+    if (!factor) {
+      this.mfa.noteWrongCode();
+      const left = Math.max(0, MFA_MAX_ATTEMPTS - attempts);
+      if (left === 0) this.mfa.deleteChallenge(row.id);
+      if (this.mfa.consecutiveFailures() === 3) {
+        this.alert(
+          "Wrong sign-in codes",
+          "Someone typed your password correctly but got the two-step code wrong 3 times in a row. If it wasn't you, change your password now.",
+        );
+      }
+      noteFailure(left === 0 ? "too_many" : "wrong_code");
+      if (left === 0) throw new AppError("UNAUTHORIZED", "Too many wrong codes. Enter your password again.", { mfa: "expired" });
+      throw new AppError("UNAUTHORIZED", "Incorrect code.", { mfa: "retry", attempts_left: left });
+    }
+    this.mfa.deleteChallenge(row.id);
+    if (row.login_attempt !== null) this.markAttemptSucceeded(row.login_attempt);
+    if (row.weak_password) this.settings.setJson(WEAK_PASSWORD_KEY, true);
+    else this.settings.delete(WEAK_PASSWORD_KEY);
+    if (factor === "recovery_code") {
+      const left = this.mfa.status().recovery_codes_left;
+      this.alert(
+        "Recovery code used",
+        left > 0
+          ? `A recovery code was used to sign in. Recovery codes left: ${left}. If it wasn't you, change your password now.`
+          : "Your last recovery code was used to sign in. Make new ones in Settings → Security. If it wasn't you, change your password now.",
+      );
+    }
+    return { ...(await this.createSession(userAgent)), factor };
   }
 
   private async sessionId(token: string): Promise<string> {
@@ -414,15 +510,29 @@ export class AuthService {
     return this.db.run(`DELETE FROM tal_sessions WHERE id != ?`, sessionId ?? "").changes;
   }
 
+  /** A current code for changing the second step itself (under the sign-in rate limit). FORBIDDEN when wrong. */
+  async checkMfaCode(code: string, client: string, opts: { recovery: boolean }): Promise<MfaFactor> {
+    const attempt = this.beginAttempt(client);
+    const factor = await this.mfa.verify(code, opts);
+    if (!factor) throw new AppError("FORBIDDEN", "Incorrect code.");
+    this.markAttemptSucceeded(attempt);
+    return factor;
+  }
+
   /**
    * Checks the password again for a signed-in session (same rate limit as sign-in) and opens
    * the step-up window. A wrong password is FORBIDDEN, not UNAUTHORIZED: the session stays valid.
    */
-  async confirm(sessionId: string, password: string, client: string): Promise<Date> {
+  async confirm(sessionId: string, proof: { password?: string; code?: string }, client: string): Promise<Date> {
     this.requireConfigured();
     await this.syncSecretFingerprint();
     const attempt = this.beginAttempt(client);
-    if (!(await this.checkPassword(password))) throw new AppError("FORBIDDEN", "Incorrect password.");
+    if (proof.code !== undefined) {
+      // With the second step on, a current authenticator code proves it's the owner as well as the password does.
+      if (!this.mfa.enabled() || !(await this.mfa.verify(proof.code, { recovery: false }))) throw new AppError("FORBIDDEN", "Incorrect code.");
+    } else if (!(await this.checkPassword(proof.password ?? ""))) {
+      throw new AppError("FORBIDDEN", "Incorrect password.");
+    }
     this.markAttemptSucceeded(attempt);
     const at = new Date();
     this.db.run(`UPDATE tal_sessions SET confirmed_at = ? WHERE id = ?`, at.toISOString(), sessionId);
@@ -476,6 +586,8 @@ export class AuthService {
       this.settings.delete(WEAK_PASSWORD_KEY);
       this.db.run(`DELETE FROM tal_sessions`);
       this.db.run(`DELETE FROM tal_remote_tokens`);
+      // A sign-in started with the old password must not finish with it.
+      this.db.run(`DELETE FROM tal_mfa_challenges`);
     });
   }
 }
