@@ -100,8 +100,10 @@ mcpRoutes.patch("/mcp/servers/:id/tools/:toolId", async (c) => {
   const before = mcp.storedTool(c.req.param("id"), c.req.param("toolId"));
   // Calls that run without asking send what the model writes with no card to stop them: turning
   // that on (policy, an enabled "auto" tool, or scheduled runs) needs the password typed recently.
+  // So does accepting a changed description of an "auto" tool: enabling it again marks it reviewed.
   const auto = (patch.policy ?? before.policy) === "auto";
-  if (auto && (patch.policy === "auto" || patch.scheduled === true || (patch.enabled === true && before.enabled !== 1))) requireRecentAuth(c);
+  const enabling = patch.enabled === true && (before.enabled !== 1 || before.reviewed_hash !== before.schema_hash);
+  if (auto && (patch.policy === "auto" || patch.scheduled === true || enabling)) requireRecentAuth(c);
   return c.json({ tool: mcp.updateTool(c.req.param("id"), c.req.param("toolId"), patch) });
 });
 

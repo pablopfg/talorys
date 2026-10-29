@@ -49,6 +49,8 @@ interface BaseTool<S extends z.ZodType> {
  * a search query is short, and a hidden instruction trying to send your data out is not.
  */
 export const MAX_UNATTENDED_ARGS_CHARS = 1_000;
+/** The most argument text all of a turn's unattended MCP calls may send together. */
+export const MAX_UNATTENDED_TURN_CHARS = 4_000;
 
 export interface ImmediateTool<S extends z.ZodType = z.ZodType, R = unknown> extends BaseTool<S> {
   permission: "read" | "write";
@@ -109,13 +111,19 @@ export class ToolExecutor {
   /** Task plan drafts proposed this turn, by provider tool-call id. */
   private readonly plans = new Map<string, string>();
   /** MCP servers whose results entered this turn: third-party text the model has now read. */
-  private readonly externalSources = new Set<string>();
+  private readonly externalSources: Set<string>;
+  /** Characters MCP calls sent without asking this turn: many short calls can carry data out too. */
+  private unattendedChars = 0;
 
   constructor(
     private readonly tools: ToolDefinition[],
     private readonly ctx: ToolContext,
     private readonly limits: ExecutorLimits,
-  ) {}
+    /** MCP servers whose results earlier turns of the conversation already brought in. */
+    options: { externalSources?: Iterable<string> } = {},
+  ) {
+    this.externalSources = new Set(options.externalSources ?? []);
+  }
 
   get callCount(): number {
     return this.calls;
@@ -193,7 +201,10 @@ export class ToolExecutor {
         if (error instanceof ToolError) this.perTool.set(name, used);
         throw error;
       }
-      if (tool.external) this.externalSources.add(tool.external.serverId);
+      if (tool.external) {
+        this.externalSources.add(tool.external.serverId);
+        this.unattendedChars += stableStringify(parsed.data).length;
+      }
       if (callId && result && typeof result === "object" && "plan_id" in result && typeof result.plan_id === "string") {
         this.plans.set(callId, result.plan_id);
       }
@@ -210,7 +221,9 @@ export class ToolExecutor {
    */
   private approvalReason(serverId: string, args: unknown): string | null {
     if ([...this.externalSources].some((source) => source !== serverId)) return "another server's content entered this conversation turn";
-    if (stableStringify(args).length > MAX_UNATTENDED_ARGS_CHARS) return "its arguments are longer than calls that run without asking may send";
+    const size = stableStringify(args).length;
+    if (size > MAX_UNATTENDED_ARGS_CHARS) return "its arguments are longer than calls that run without asking may send";
+    if (this.unattendedChars + size > MAX_UNATTENDED_TURN_CHARS) return "calls that ran without asking already sent a lot of text this turn";
     return null;
   }
 

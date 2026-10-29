@@ -718,8 +718,11 @@ MCP Server Trigger do próprio n8n.
    vírgula: `https://n8n.exemplo.com.br` ou `https://*.exemplo.com.br` para
    qualquer subdomínio. Qualquer outro servidor é recusado, inclusive os que
    já estavam adicionados. Uma entrada mal escrita recusa todos até ser
-   corrigida. Use segredo, não variável, para o endereço do seu n8n ficar fora
-   do GitHub.
+   corrigida. Se o servidor entra com OAuth, inclua também a origem do
+   servidor de login. Não use curinga em domínios compartilhados, como
+   `https://*.workers.dev`: ele libera os servidores de todos os outros
+   clientes ali. Use segredo, não variável, para o endereço do seu n8n ficar
+   fora do GitHub.
 
 O Talorys só se conecta a endereços **públicos** e `https://`: um n8n na sua
 rede local precisa estar publicado (por exemplo por um Cloudflare Tunnel).

@@ -86,21 +86,28 @@ conversation.
   tool set that way, or allowing it in scheduled automations) needs your
   password typed in the last 15 minutes, with the second factor when it is on.
   Even then, a call is proposed on an approval card instead of sent when:
-  - a result from **another** MCP server already came into the same turn. A
-    hidden instruction in that result could have the model put your data in
-    the arguments of a call to a second server. Calls to the server whose
-    result is already there still run;
+  - a result from **another** MCP server is already in the conversation, in
+    this turn or an earlier one. A hidden instruction in that result could
+    have the model put your data in the arguments of a call to a second
+    server. Calls to the server whose result is already there still run;
   - its arguments are longer than 1,000 characters as JSON. A search query is
-    short; data being sent out is not.
+    short; data being sent out is not;
+  - the calls that ran without asking in this turn already sent 4,000
+    characters of arguments together.
 
   Approving runs exactly the proposed call, once. Scheduled automations can't
   ask, so there the call is refused.
 - **Allowed servers.** With `TALORYS_MCP_ALLOWED_ORIGINS` set, only the servers
-  on it can be added, connected or called (see [Configuration](#configuration)).
+  on it can be added, connected or called, and a server taken off it stops
+  offering its tools at once (see [Configuration](#configuration)). A server
+  that signs in with OAuth needs its sign-in server's origin on the list too.
   With it pointing at hosts on your own domain, DNS rebinding can only reach
-  your own hosts.
+  your own hosts. Avoid wildcards on shared domains such as
+  `https://*.workers.dev` or a hosted n8n's domain: they admit every other
+  customer's server there too.
 - **Changed tools.** When a server changes a tool's description, inputs or
-  labels, Talorys stops using it until you turn it on again. Tools the server
+  labels, Talorys stops using it until you turn it on again (for a "Run
+  without asking" tool, with your password typed recently). Tools the server
   stops listing are marked as no longer offered.
 - **Limits.** Every MCP call goes through the same pipeline as built-in tools:
   input validation, the per-turn call budget, at most 3 calls per tool per turn,

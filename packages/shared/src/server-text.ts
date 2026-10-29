@@ -409,6 +409,8 @@ const PT_BR: Catalog = {
   "Schedule quiet AI routine {title}": "Agendar a rotina de IA silenciosa {title}",
   "Run “{tool}” on {where}": "Executar “{tool}” em {where}",
   "This MCP server isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).": "Este servidor MCP não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",
+  "This server's sign-in address ({origin}) isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).":
+    "O endereço de login deste servidor ({origin}) não está na lista de servidores permitidos (TALORYS_MCP_ALLOWED_ORIGINS).",
   "TALORYS_MCP_ALLOWED_ORIGINS has an entry that isn't an origin like https://mcp.example.com, so no MCP server is allowed until it is fixed.":
     "TALORYS_MCP_ALLOWED_ORIGINS tem uma entrada que não é uma origem como https://mcp.example.com, então nenhum servidor MCP é permitido até ela ser corrigida.",
   "Saving to memory": "Salvando na memória",

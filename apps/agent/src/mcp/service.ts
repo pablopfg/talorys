@@ -87,6 +87,13 @@ export class McpService {
     return originAllowed(url, allowed) ? null : "This MCP server isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).";
   }
 
+  /** With a list of allowed servers, the sign-in (OAuth) server must be on it too. */
+  private assertAuthAllowed(url: URL): void {
+    if (this.allowedProblem(url)) {
+      throw new McpEndpointError(`This server's sign-in address (${url.origin}) isn't on the list of allowed servers (TALORYS_MCP_ALLOWED_ORIGINS).`);
+    }
+  }
+
   /** A new or changed address must be on the list. */
   private allowedEndpoint(raw: string): string {
     const url = validateEndpoint(raw, { development: this.development });
@@ -262,7 +269,7 @@ export class McpService {
       redirect,
       { load: () => this.loadOAuth(server.id), save: (patch) => this.saveOAuth(server.id, patch) },
       (url) => {
-        validateEndpoint(url.href, { development: this.development });
+        this.assertAuthAllowed(validateEndpoint(url.href, { development: this.development }));
       },
     );
   }
@@ -270,6 +277,7 @@ export class McpService {
   /** Authorization servers get the same checks as MCP endpoints: public HTTPS hosts only, checked in DNS. */
   private async allowAuthOrigin(url: URL): Promise<void> {
     const checked = validateEndpoint(url.origin, { development: this.development });
+    this.assertAuthAllowed(checked);
     const until = this.vettedHosts.get(checked.host);
     if (until && until > Date.now()) return;
     await assertPublicHost(checked, this.network.resolve, { development: this.development });
@@ -433,7 +441,11 @@ export class McpService {
     try {
       const out: ToolDefinition[] = [];
       let chars = 0;
+      const blocked = new Map<string, boolean>();
       for (const { server, tool } of this.repo.activeTools()) {
+        // A server taken off the list stops offering tools at once, not at its next reconnect.
+        if (!blocked.has(server.id)) blocked.set(server.id, this.allowedProblem(new URL(server.url)) !== null);
+        if (blocked.get(server.id)) continue;
         if (mode === "scheduled" && !(tool.policy === "auto" && tool.scheduled === 1)) continue;
         if (out.length >= this.maxTools) break;
         chars += tool.input_schema.length + tool.description.length;
