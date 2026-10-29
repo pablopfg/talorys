@@ -15,7 +15,7 @@ Nenhum servidor, banco de dados ou conta operados pelos desenvolvedores do Talor
 [![Compatível com o plano Free](https://img.shields.io/badge/plano%20Free%20da%20Cloudflare-compat%C3%ADvel-1f6f63)](#-o-que-é-gratuito-e-o-que-pode-custar-dinheiro)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-1f6f63)](#-onde-ficam-seus-dados)
 
-[Site](https://rociiu.github.io/talorys/) · [Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+[Implantação](#-implantação) · [Documentação](docs/) · [Segurança](docs/security.md) · [Como contribuir](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 </div>
 

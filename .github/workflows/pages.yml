@@ -1,12 +1,9 @@
 name: Pages
 
+# Manual only for now: GitHub Pages is not turned on for this repository, and site/ is
+# still the original project's page. Run it from the Actions tab once Pages is enabled
+# (Settings → Pages → Source: GitHub Actions) and the site is adapted to this fork.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - "docs/screenshots/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions: {}

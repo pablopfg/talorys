@@ -28,6 +28,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - Apagar um alerta de segurança da central passa a pedir a senha digitada há pouco, e os 200 alertas de segurança mais recentes ficam guardados à parte dos outros avisos (que continuam nos 500 mais recentes).
 
+- O site do projeto no GitHub Pages fica desligado por enquanto: o workflow *Pages* só roda à mão, pela aba Actions, e o README não leva mais ao site do Talorys original. Um merge na `main` não falha mais por o Pages não estar ativado.
+
 - Alertas de segurança não podem mais ter a prioridade baixada: são sempre críticos (antes dava para mudar o selo na central, embora continuassem insistindo).
 
 - O histórico de entregas fala em "aparelho ou chat" nos motivos de não envio, porque vale também para o Telegram.
