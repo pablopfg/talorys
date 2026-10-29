@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
 import { body, requireRecentAuth } from "../api/middleware";
+import { raiseSecurityAlert } from "../alerts/security";
 import { isTelegramWebhook } from "./client";
 import type { TgUpdate } from "./service";
 
@@ -59,5 +60,9 @@ telegramRoutes.post("/telegram/test", async (c) => {
 
 telegramRoutes.delete("/telegram", async (c) => {
   requireRecentAuth(c);
-  return c.json({ status: await c.env.agent.services.telegram.disconnect() });
+  const s = c.env.agent.services;
+  const linked = s.telegram.target() !== null;
+  const status = await s.telegram.disconnect();
+  if (linked) raiseSecurityAlert(s.alerts, "telegram_unlinked");
+  return c.json({ status });
 });

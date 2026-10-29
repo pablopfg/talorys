@@ -56,6 +56,10 @@ export class PushSubscriptionRepository {
     return this.devices().find((d) => d.id === id)!;
   }
 
+  hasEndpoint(endpoint: string): boolean {
+    return !!this.db.one<{ id: string }>(`SELECT id FROM tal_push_subscriptions WHERE endpoint = ?`, endpoint);
+  }
+
   remove(id: string): boolean {
     return this.db.run(`DELETE FROM tal_push_subscriptions WHERE id = ?`, id).changes > 0;
   }

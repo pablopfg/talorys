@@ -128,6 +128,7 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `TALORYS_DEFAULT_TIMEZONE` | não | `America/Sao_Paulo` | Fuso padrão do agente. |
 | `TALORYS_AGENT_NAME` | não | `Iris` | Nome padrão do agente. |
 | `TALORYS_VAPID_SUBJECT` | não | `mailto:voce@exemplo.com.br` | Contato que os serviços de push (Google, Apple, Mozilla) podem usar. Sem ela, vai o endereço do app. Não crie também um segredo `VAPID_SUBJECT` no Worker. |
+| `TALORYS_ALERT_EMAIL_FROM` | não | `talorys@exemplo.com.br` | Remetente dos avisos por e-mail, num domínio com o Cloudflare Email Routing ligado. Com ela, o deploy acrescenta o binding `send_email` (só esse remetente) e a variável `ALERT_EMAIL_FROM`. Veja [alerts.md](alerts.md#configurar-o-e-mail). |
 | `TALORYS_ACCESS_TEAM_DOMAIN` | não | `minhaequipe.cloudflareaccess.com` | Cloudflare Access (passo 6). Só junto com a próxima. |
 | `TALORYS_ACCESS_AUD` | não | 64 caracteres hexadecimais | A *Application Audience (AUD) Tag* do Access (passo 6). |
 
@@ -188,6 +189,7 @@ de novo.
 | `MCP_CREDENTIAL_KEY` | não | 48+ caracteres aleatórios. Só para guardar tokens de servidores MCP. |
 | `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | não | Notificações push. Podem ficar para depois (veja [deployment.md](deployment.md)). |
 | `TELEGRAM_BOT_TOKEN` | não | Token do bot do Telegram (criado no @BotFather) para receber avisos no Telegram. Veja [alerts.md](alerts.md#configurar-o-telegram). |
+| `ALERT_EMAIL_TO` | não | O seu e-mail, verificado no Email Routing, para receber os avisos por e-mail (sem ele, vale o `OWNER_EMAIL`). Veja [alerts.md](alerts.md#configurar-o-e-mail). |
 
 5. Volte ao GitHub → **Actions** → a execução que falhou → **Re-run failed
    jobs**. Agora o health check responde 200 e o job fica verde.
@@ -212,6 +214,7 @@ npx wrangler secret put MCP_CREDENTIAL_KEY --name talorys # opcional
 npx wrangler secret put VAPID_PUBLIC_KEY --name talorys   # opcional (push)
 npx wrangler secret put VAPID_PRIVATE_KEY --name talorys  # opcional (push)
 npx wrangler secret put TELEGRAM_BOT_TOKEN --name talorys # opcional (Telegram)
+npx wrangler secret put ALERT_EMAIL_TO --name talorys     # opcional (e-mail)
 ```
 
 Para gerar um valor aleatório: `openssl rand -base64 48`. Digite os valores

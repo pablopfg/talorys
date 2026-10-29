@@ -55,6 +55,10 @@ export interface AlertChannelAdapter {
   readonly id: AlertChannel;
   /** Why the channel can't send right now, or null when it can. */
   unavailable(): Extract<AlertDeliveryReason, "not_configured" | "no_device"> | null;
+  /** Sends only an insistent alert's first try (e-mail): the later ones go to the other channels. */
+  readonly firstTryOnly?: boolean;
+  /** A cap of the channel's own that holds back every alert, security ones included (e-mail). */
+  full?(n: Notification): boolean;
   send(n: Notification, done: (reached: number) => void, attempt?: AlertAttempt): void;
 }
 
@@ -71,6 +75,8 @@ export interface AlertServiceDeps {
   activity?: ActivityLog;
   /** The priority that learns from the owner's use; without it alerts keep what they ask for. */
   learning?: AlertLearning;
+  /** The e-mail channel's recipient (masked) and today's count, for the settings page. */
+  email?: { recipient(): string | null; sentToday(): number };
 }
 
 export interface RaiseInput {
@@ -150,7 +156,10 @@ export class AlertService {
     return n;
   }
 
-  /** The channels an alert goes to. Returns how many sends were started. */
+  /**
+   * The channels an alert goes to. Returns how many sends were started on channels that also carry
+   * the later tries (e-mail only gets the first), so an alert only insists where it can.
+   */
   private dispatch(n: Notification, attempt?: AlertAttempt): number {
     const prefs = this.preferences();
     // Security and critical alerts always reach every channel: someone in the owner's session must
@@ -162,7 +171,7 @@ export class AlertService {
       if (!adapter) continue;
       // A broken channel must never stop the others or the work that raised the alert.
       try {
-        if (this.deliver(n, adapter, prefs, attempt)) sending++;
+        if (this.deliver(n, adapter, prefs, attempt) && !adapter.firstTryOnly) sending++;
       } catch (error) {
         console.warn("Alert delivery failed", channel, error instanceof Error ? error.message : String(error));
       }
@@ -172,6 +181,7 @@ export class AlertService {
   }
 
   private deliver(n: Notification, channel: AlertChannelAdapter, prefs: AlertPreferences, attempt?: AlertAttempt): boolean {
+    if (attempt && channel.firstTryOnly) return false;
     if (n.priority === "low") {
       this.deliveries.record(n, channel.id, "skipped", "low_priority");
       return false;
@@ -179,6 +189,10 @@ export class AlertService {
     const unavailable = channel.unavailable();
     if (unavailable) {
       this.deliveries.record(n, channel.id, "skipped", unavailable);
+      return false;
+    }
+    if (channel.full?.(n)) {
+      this.deliveries.record(n, channel.id, "skipped", "rate_limited");
       return false;
     }
     // A later try is never held back: the owner asked to be reminded until they confirm.
@@ -434,6 +448,7 @@ export class AlertService {
           return [id, { available: !!c && c.unavailable() !== "not_configured" }];
         }),
       ) as AlertsOverview["channels"],
+      email: { to: this.deps.email?.recipient() ?? null, sentToday: this.deps.email?.sentToday() ?? 0 },
     };
   }
 }

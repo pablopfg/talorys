@@ -339,14 +339,20 @@ describe("alerts on Telegram", () => {
       const code = await linkChat(agent, fake);
       await t.handle(groupMessage(`/start ${code}`, OWNER, { is_forum: true }));
       expect(t.status().topics).toBe(true);
+      // Linking the chat and then the group each told the owner, out of band.
+      expect(agent.services.notifications.list().filter((n) => n.category === "security").map((n) => [n.title, n.priority])).toEqual([
+        ["Telegram group linked", "critical"],
+        ["Telegram linked", "critical"],
+      ]);
       agent.services.alerts.raise({ title: "a", body: "b", category: "reminder" });
       await t.idle();
       agent.services.alerts.raise({ title: "c", body: "d", category: "reminder" });
       await t.idle();
       agent.services.alerts.raise({ title: "e", body: "f", category: "routine" });
       await t.idle();
-      expect(fake.calls.filter((c) => c.method === "createForumTopic").map((c) => c.params.name)).toEqual(["Reminders", "Routines"]);
-      expect(fake.sent().slice(-3).map((c) => c.params.message_thread_id)).toEqual([41, 41, 42]);
+      // Linking the group is itself a security alert, in its own topic.
+      expect(fake.calls.filter((c) => c.method === "createForumTopic").map((c) => c.params.name)).toEqual(["Security", "Reminders", "Routines"]);
+      expect(fake.sent().slice(-3).map((c) => c.params.message_thread_id)).toEqual([42, 42, 43]);
 
       threadGone = true;
       agent.services.alerts.raise({ title: "g", body: "h", category: "reminder" });

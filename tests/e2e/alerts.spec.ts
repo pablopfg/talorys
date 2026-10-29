@@ -56,6 +56,24 @@ test.describe("Alerts", () => {
     await page.request.delete(`/api/automations/${automation.id}`, { headers: CSRF });
   });
 
+  test("shows e-mail as a channel that is not set up, with security always on", async ({ page }) => {
+    await login(page);
+    await page.goto("/settings?tab=Alerts");
+    // The e2e deploy has no send_email binding.
+    await expect(page.getByText(/Not set up on this deployment. With Cloudflare Email Routing/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send a test e-mail" })).toHaveCount(0);
+    const security = page.getByRole("switch", { name: "Send Security alerts by E-mail" });
+    await expect(security).toHaveAttribute("aria-checked", "true");
+    await expect(security).toBeDisabled();
+    const reminders = page.getByRole("switch", { name: "Send Reminders alerts by E-mail" });
+    await expect(reminders).toHaveAttribute("aria-checked", "false");
+    await reminders.click();
+    await expect(reminders).toHaveAttribute("aria-checked", "true");
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences.routes.reminder).toContain("email");
+    await reminders.click();
+    await expect.poll(async () => (await (await page.request.get("/api/alerts")).json()).preferences.routes.reminder).not.toContain("email");
+  });
+
   test("sets the daily summary time and turns the watchers off and on", async ({ page }) => {
     await login(page);
     await page.goto("/settings?tab=Alerts");
@@ -87,7 +105,7 @@ test.describe("Alerts", () => {
     await expect(page.getByText(/Telegram is not set up on this deployment/)).toBeVisible();
     const tg = page.getByRole("switch", { name: "Send Reminders alerts by Telegram" });
     await expect(tg).toHaveAttribute("aria-checked", "true");
-    const full = page.getByRole("switch", { name: "Send the full text of Reminders alerts to Telegram" });
+    const full = page.getByRole("switch", { name: "Send the full text of Reminders alerts to Telegram and e-mail" });
     await expect(full).toHaveAttribute("aria-checked", "false");
     await full.click();
     await expect(full).toHaveAttribute("aria-checked", "true");

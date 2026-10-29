@@ -46,6 +46,8 @@ export interface TelegramAlerts {
   /** The owner corrects an alert's priority from its buttons; the alert center learns from it. */
   setPriority(id: string, priority: AlertPriority): Notification | null;
   get(id: string): Notification | null;
+  /** A change that gives Telegram access to the owner's alerts or agent (always told out of band). */
+  security(event: "telegram_chat" | "telegram_group" | "telegram_conversation"): void;
 }
 
 /** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
@@ -189,7 +191,9 @@ export class TelegramService {
 
   /** Turns the conversation in the private chat on or off. */
   setConversation(on: boolean): TelegramStatus {
+    const was = this.link().conversation;
     this.save({ conversation: on });
+    if (on && !was) this.alerts.security("telegram_conversation");
     this.activity.record("telegram.conversation", on ? "Turned on the Telegram conversation" : "Turned off the Telegram conversation");
     return this.status();
   }
@@ -356,6 +360,7 @@ export class TelegramService {
         if (link.userId !== null && link.userId !== from.id) return;
         this.save({ userId: from.id, chatId: m.chat.id, linkedAt: new Date().toISOString() });
         this.activity.record("telegram.linked_chat", "Linked the Telegram chat");
+        this.alerts.security("telegram_chat");
         await this.reply(m.chat.id, this.text("Talorys is linked to this chat. Alerts will arrive here until you link a group."));
         return;
       }
@@ -367,6 +372,7 @@ export class TelegramService {
         this.save({ groupId: m.chat.id, groupTitle: clip(m.chat.title ?? "", 120), isForum: !!m.chat.is_forum, topics: {}, topicsUnavailable: false });
         this.settings.delete(CODE_KEY);
         this.activity.record("telegram.linked_group", "Linked a Telegram group");
+        this.alerts.security("telegram_group");
         await this.reply(m.chat.id, this.text("This group now receives Talorys alerts."));
         return;
       }

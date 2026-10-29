@@ -3,6 +3,7 @@ import { type Context, Hono, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
 import { body } from "../api/middleware";
+import { raiseSecurityAlert } from "../alerts/security";
 
 /** Owner sessions only: the remote allowlist already refuses these paths to access tokens, this refuses them again. */
 const ownerOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -37,7 +38,9 @@ mcpRoutes.get("/mcp/servers", (c) => {
 
 mcpRoutes.post("/mcp/servers", async (c) => {
   const input = await body(c, mcpServerCreateSchema, 16 * 1024);
-  return c.json({ server: await c.env.agent.services.mcp.create(input, appOrigin(c)) }, 201);
+  const server = await c.env.agent.services.mcp.create(input, appOrigin(c));
+  raiseSecurityAlert(c.env.agent.services.alerts, "mcp_added");
+  return c.json({ server }, 201);
 });
 
 mcpRoutes.get("/mcp/servers/:id", (c) => {

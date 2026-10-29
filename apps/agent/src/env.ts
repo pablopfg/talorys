@@ -35,6 +35,14 @@ export interface Env {
    * unavailable and nothing else changes. The webhook secret is derived from SESSION_SECRET.
    */
   TELEGRAM_BOT_TOKEN?: string;
+  /**
+   * E-mail alerts: Cloudflare Email Routing's send_email binding, the sender on a domain with Email
+   * Routing (a plain variable) and the owner's address, verified in Email Routing (a Worker secret;
+   * OWNER_EMAIL when unset). Without all three the e-mail channel is unavailable and nothing else changes.
+   */
+  SEND_EMAIL?: SendEmail;
+  ALERT_EMAIL_FROM?: string;
+  ALERT_EMAIL_TO?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
   /** Most MCP tools enabled at once (default 20, at most 64). */
