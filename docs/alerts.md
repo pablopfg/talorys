@@ -79,9 +79,9 @@ alguém que entre na sua sessão não consegue calar os avisos sobre o que fizer
 
 ## Telegram
 
-O bot do Telegram é o canal principal fora do app. Nesta entrega ele **envia** avisos e
-entende os **botões** embaixo deles; conversar com o Talorys pelo chat e mandar áudio
-chegam nas próximas entregas.
+O bot do Telegram é o canal principal fora do app. Ele **envia** avisos, entende os
+**botões** embaixo deles e, no chat privado, **conversa** com o Talorys como o chat do app.
+Mandar áudio chega na próxima entrega.
 
 ### Como funciona
 
@@ -110,6 +110,35 @@ chegam nas próximas entregas.
   botões." e mensagens de outras contas são ignoradas.
 - **Segurança e críticos** também saem pelo Telegram mesmo com a categoria desligada,
   como em todos os canais.
+
+### Conversar pelo chat privado
+
+Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat do app:
+
+- **Mesmo agente.** Ele usa as mesmas memórias, ferramentas, instruções e limites diários
+  de IA do app. Cada mensagem conta um pedido de IA, como no app.
+- **Mesma conversa.** A conversa do Telegram é uma conversa comum do app (aparece na lista
+  do chat), e as mensagens seguintes continuam nela. `/new` começa uma conversa nova; se
+  você apagar a conversa no app, a próxima mensagem começa outra. O cartão do Telegram tem
+  o link **Abrir a conversa**.
+- **Confirmações só no app.** Ações que pedem aprovação (apagar uma tarefa, ferramentas MCP
+  que perguntam antes) e planos de tarefas **nunca** são confirmados pelo Telegram. A
+  resposta avisa "Algo aqui precisa da sua confirmação" com o botão **Abrir no Talorys**.
+  Assim, quem tomar a sua conta do Telegram não consegue apagar nada.
+- **Uma de cada vez.** Enquanto o Talorys responde, uma nova mensagem recebe "O Talorys
+  ainda está respondendo sua última mensagem". Uma resposta que passa de 3 minutos é
+  interrompida e chega com o aviso "O Talorys demorou demais para responder"; se você
+  tocar em **Parar** no app, o que já foi escrito chega com "A resposta foi interrompida".
+  O bot mostra "digitando…" no primeiro minuto.
+- **Formatação.** Negrito, itálico, código e listas aparecem formatados; links ficam como
+  texto (sem prévia), para não esconder o endereço. Respostas longas são divididas em
+  várias mensagens.
+- **Comandos:** `/new` (conversa nova) e `/help` (o que o bot faz). Por enquanto o bot lê só
+  texto; áudio chega na próxima entrega.
+- **Liga e desliga** em **Configurações → Avisos → Telegram → Conversar com o Talorys pelo
+  chat**. Ela é ligada ao tocar em **Conectar** (que já pede a senha); quem vinculou o bot
+  antes desta versão encontra a conversa desligada e liga quando quiser. Ligar pede a senha.
+  Desligado, o bot só envia avisos.
 
 ### Configurar o Telegram
 
@@ -177,6 +206,10 @@ no Worker; para desligar o bot de vez, apague o segredo
   o grupo é vinculado. A primeira conta que vincula o chat privado vira a dona; outra conta
   com o mesmo código não toma o lugar.
 - Tokens de acesso remoto não alcançam nenhuma rota `/api/telegram`.
+- **A sua conta do Telegram passa a falar com o agente.** Proteja-a com a verificação em
+  duas etapas do Telegram (Configurações → Privacidade e Segurança → Verificação em duas
+  etapas). Mesmo assim, aprovações e planos só são confirmados no app, e você pode desligar
+  a conversa a qualquer momento.
 - O histórico de entregas guarda só metadados; o texto vai ao Telegram apenas nas
   categorias com **Texto completo**.
 - Custos: a Bot API do Telegram é gratuita, e cada aviso ou toque num botão é uma
@@ -240,9 +273,10 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...] }` (todas as categorias, até 8 KB; `fullText` opcional, padrão vazio) | `{ preferences }`; 400 se inválido |
 | `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }`; 404 se não existir |
 | `GET /api/notifications` | — | Agora cada notificação traz `priority` e `category` |
-| `GET /api/telegram` | — | `{ status: { configured, bot, chat, group, topics, linked_at } }` |
+| `GET /api/telegram` | — | `{ status: { configured, bot, chat, group, topics, linked_at, conversation, conversation_id } }` |
 | `POST /api/telegram/connect` | — | Registra o webhook e devolve `{ code, expires_at, chat_link, group_link, status }`; pede a senha recente; 503 sem token ou com o Telegram fora do ar |
 | `POST /api/telegram/test` | — | `{ sent, status }`; 503 sem chat vinculado |
+| `PATCH /api/telegram` | `{ conversation: true \| false }` | Liga ou desliga a conversa no chat privado; `{ status }`; ligar pede a senha recente |
 | `DELETE /api/telegram` | — | Desvincula; `{ status }`; pede a senha recente |
 | `POST /api/telegram/webhook` | Atualização do Telegram | Só para o Telegram: sem sessão, exige o cabeçalho secreto; sempre `{ ok: true }` |
 
@@ -258,7 +292,8 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   Telegram) ficam em `packages/shared/src/alerts.ts`.
 - O bot fica em `apps/agent/src/telegram/`: `client.ts` (chamadas à Bot API, sem seguir
   redirecionamentos, com tempo limite de 10 s; o erro nunca leva o token), `service.ts`
-  (vinculação, envio, tópicos, botões) e `routes.ts` (webhook e rotas do dono). O estado
+  (vinculação, envio, tópicos, botões, conversa), `format.ts` (Markdown para o HTML do
+  Telegram e divisão de respostas longas) e `routes.ts` (webhook e rotas do dono). O estado
   fica nas configurações, chaves `telegram.link` e `telegram.code`.
 - Testes: `apps/agent/test/alerts.test.ts` (regras, preferências, API),
   `apps/agent/test/telegram.test.ts` (Bot API falsa: vinculação, envio, tópicos, botões,

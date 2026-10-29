@@ -175,10 +175,10 @@ describe("linking", () => {
       await t.handle(groupMessage(`/start ${code}`));
       await t.handle(update({ message: { message_id: 2, chat: { id: GROUP, type: "group" }, migrate_to_chat_id: -100777 } }));
       expect(t.target()).toBe(-100777);
-      const hello = privateMessage("hello");
-      await t.handle(hello);
-      await t.handle(hello);
-      expect(fake.sent().filter((c) => c.params.text?.startsWith("Talorys only sends alerts"))).toHaveLength(1);
+      const help = privateMessage("/help");
+      await t.handle(help);
+      await t.handle(help);
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write to talk to Talorys"))).toHaveLength(1);
     });
   });
 
@@ -187,12 +187,12 @@ describe("linking", () => {
       const fake = fakeTelegram();
       const t = agent.services.telegram;
       await linkChat(agent, fake);
-      await t.handle({ ...privateMessage("a"), update_id: 900_000 });
-      await t.handle({ ...privateMessage("b"), update_id: 5 });
-      await t.handle({ ...privateMessage("c"), update_id: 899_999 });
-      expect(fake.sent().filter((c) => c.params.text?.startsWith("Talorys only sends alerts"))).toHaveLength(3);
+      await t.handle({ ...privateMessage("/help"), update_id: 900_000 });
+      await t.handle({ ...privateMessage("/help"), update_id: 5 });
+      await t.handle({ ...privateMessage("/help"), update_id: 899_999 });
+      expect(fake.sent().filter((c) => c.params.text?.startsWith("Write to talk to Talorys"))).toHaveLength(3);
       // Only the last 100 ids are kept.
-      for (let i = 0; i < 120; i++) await t.handle({ ...privateMessage("x"), update_id: 1_000_000 + i });
+      for (let i = 0; i < 120; i++) await t.handle({ ...privateMessage("/help"), update_id: 1_000_000 + i });
       expect(t.link().seenUpdates).toHaveLength(100);
     });
   });
@@ -216,11 +216,12 @@ describe("linking", () => {
       const fake = fakeTelegram();
       await linkChat(agent, fake);
       const before = fake.sent().length;
-      await agent.services.telegram.handle(privateMessage("hello"));
-      await agent.services.telegram.handle(privateMessage("hello", STRANGER));
+      await agent.services.telegram.handle(privateMessage("/help"));
+      await agent.services.telegram.handle(privateMessage("/help", STRANGER));
       const replies = fake.sent().slice(before);
       expect(replies).toHaveLength(1);
-      expect(replies[0]!.params).toMatchObject({ chat_id: OWNER, text: "Talorys only sends alerts here for now. Use the app to talk to it." });
+      expect(replies[0]!.params).toMatchObject({ chat_id: OWNER });
+      expect(replies[0]!.params.text).toMatch(/^Write to talk to Talorys/);
     });
   });
 
@@ -442,6 +443,164 @@ describe("buttons", () => {
   });
 });
 
+describe("conversation in the private chat", () => {
+  it("answers through the agent, in an app conversation that the next messages continue", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const before = fake.sent().length;
+      await t.handle(privateMessage("hello there"));
+      const reply = fake.sent().slice(before);
+      expect(reply).toHaveLength(1);
+      expect(reply[0]!.params).toMatchObject({ chat_id: OWNER, parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+      expect(reply[0]!.params.text).toContain("You said: &quot;hello there&quot;".replace(/&quot;/g, '"'));
+      expect(fake.calls.some((c) => c.method === "sendChatAction" && c.params.action === "typing")).toBe(true);
+      const conversationId = t.status().conversation_id!;
+      expect(conversationId).toBeTruthy();
+      expect(agent.services.conversations.messages(conversationId).map((m) => [m.role, m.content.slice(0, 11)])).toEqual([
+        ["user", "hello there"],
+        ["assistant", "(Demo mode)"],
+      ]);
+      await t.handle(privateMessage("second message"));
+      expect(t.status().conversation_id).toBe(conversationId);
+      expect(agent.services.conversations.messages(conversationId)).toHaveLength(4);
+      // /new starts another conversation.
+      await t.handle(privateMessage("/new"));
+      expect(t.status().conversation_id).toBeNull();
+      await t.handle(privateMessage("third"));
+      expect(t.status().conversation_id).not.toBe(conversationId);
+      // A conversation deleted in the app is replaced by a new one.
+      const third = t.status().conversation_id!;
+      agent.services.conversations.delete(third);
+      await t.handle(privateMessage("fourth"));
+      expect(t.status().conversation_id).not.toBe(third);
+      expect(agent.services.conversations.get(t.status().conversation_id!)).not.toBeNull();
+    });
+  });
+
+  it("uses the agent's tools, like the app's chat", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      const before = agent.services.tasks.list({ status: "open", limit: 500 }).length;
+      await agent.services.telegram.handle(privateMessage("add task Buy coffee beans"));
+      expect(agent.services.tasks.list({ status: "open", limit: 500 }).length).toBe(before + 1);
+      expect(fake.sent().at(-1)!.params.text).toMatch(/Buy coffee beans/);
+      // Approvals are given in the app: the reply says so and links the conversation.
+      await agent.services.telegram.handle(privateMessage("delete task Buy coffee beans"));
+      const last = fake.sent().at(-1)!.params;
+      expect(last.text).toBe("Something here needs your confirmation. Open Talorys to review it.");
+      expect(last.reply_markup.inline_keyboard[0][0]).toEqual({ text: "Open in Talorys", url: `${BASE}/chat/${agent.services.telegram.status().conversation_id}` });
+      expect(agent.services.tasks.list({ status: "open", limit: 500 }).length).toBe(before + 1);
+    });
+  });
+
+  it("says when the conversation is busy, off, or the message is not text", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const first = t.handle(privateMessage("a fairly long message so the reply takes a while to stream"));
+      await t.handle(privateMessage("again"));
+      await first;
+      expect(fake.sent().map((c) => c.params.text)).toContain("Talorys is still answering your last message. Wait for it, then write again.");
+
+      await t.handle(update({ message: { message_id: 5, from: { id: OWNER }, chat: { id: OWNER, type: "private" } } }));
+      expect(fake.sent().at(-1)!.params.text).toBe("Talorys reads text messages here for now.");
+
+      t.setConversation(false);
+      const before = agent.services.conversations.list().length;
+      await t.handle(privateMessage("hello"));
+      expect(fake.sent().at(-1)!.params.text).toBe("The conversation through Telegram is off. Turn it on in Settings → Alerts → Telegram.");
+      expect(agent.services.conversations.list().length).toBe(before);
+    });
+  });
+
+  it("keeps the conversation off for a link made before it existed, until the owner turns it on", async () => {
+    await inAgent(async (agent) => {
+      const t = agent.services.telegram;
+      await linkChat(agent);
+      const { conversation: _, ...old } = t.link();
+      agent.services.settings.setJson("telegram.link", old);
+      expect(t.status().conversation).toBe(false);
+      t.setConversation(true);
+      expect(t.status().conversation).toBe(true);
+    });
+  });
+
+  it("says when the answer was stopped from the app", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const turn = t.handle(privateMessage("a long message that takes a while to answer word by word"));
+      await new Promise((r) => setTimeout(r, 60));
+      for (const controller of agent.activeRuns.values()) controller.abort();
+      await turn;
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ The answer was stopped.");
+      expect(agent.activeRuns.size).toBe(0);
+    });
+  });
+
+  it("tells the owner when the agent can't answer", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      await linkChat(agent, fake);
+      const s = agent.services;
+      s.usage.increment({ ai_requests: 100_000 });
+      await s.telegram.handle(privateMessage("hello"));
+      expect(fake.sent().at(-1)!.params.text).toMatch(/^⚠️ .*daily limit/);
+      s.usage.increment({ ai_requests: -100_000 });
+    });
+  });
+
+  it("falls back to plain text when Telegram can't parse the markup, and splits long replies", async () => {
+    await inAgent(async (agent) => {
+      let refuse = true;
+      const fake = fakeTelegram({
+        sendMessage: (p) => (refuse && p.parse_mode === "HTML" ? { ok: false, error_code: 400, description: "Bad Request: can't parse entities" } : { message_id: 1 }),
+      });
+      await linkChat(agent, fake);
+      await agent.services.telegram.handle(privateMessage("hello"));
+      const last = fake.sent().at(-1)!.params;
+      expect(last.parse_mode).toBeUndefined();
+      expect(last.text).toMatch(/You said/);
+      refuse = false;
+    });
+  });
+
+  it("can be turned off and on from the API, asking for the password to turn it on", async () => {
+    const c = await loggedIn();
+    await inAgent(async (agent) => linkChat(agent));
+    expect((await c.json("/api/telegram", { method: "PATCH", body: { conversation: false } })).status).toMatchObject({ conversation: false });
+    await inAgent((agent) => agent.services.db.run(`UPDATE tal_sessions SET confirmed_at = '2000-01-01T00:00:00.000Z'`));
+    expect((await c.call("/api/telegram", { method: "PATCH", body: { conversation: true } })).status).toBe(403);
+    expect((await c.json("/api/telegram", { method: "PATCH", body: { conversation: false } })).status).toMatchObject({ conversation: false });
+    expect((await c.call("/api/telegram", { method: "PATCH", body: { conversation: "yes" } })).status).toBe(400);
+  });
+});
+
+describe("Telegram formatting", () => {
+  it("escapes everything and keeps only simple formatting", async () => {
+    const { markdownToTelegramHtml, splitMessage } = await import("../src/telegram/format");
+    expect(markdownToTelegramHtml("**Bold** and *it* and `a<b>` and <script>x</script>")).toBe(
+      "<b>Bold</b> and <i>it</i> and <code>a&lt;b&gt;</code> and &lt;script&gt;x&lt;/script&gt;",
+    );
+    expect(markdownToTelegramHtml("## Title\n- one\n- two")).toBe("<b>Title</b>\n• one\n• two");
+    expect(markdownToTelegramHtml("```js\nconst a = **1**;\n```")).toBe("<pre>const a = **1**;</pre>");
+    expect(markdownToTelegramHtml("[click](https://evil.example)")).toBe("[click](https://evil.example)");
+    // Text that looks like the internal placeholders stays as it is.
+    expect(markdownToTelegramHtml("\uE0000\uE000 and `x`")).toBe("\uE0000\uE000 and <code>x</code>");
+    expect(splitMessage(`${"a".repeat(9)}😀b`, 10)).toEqual(["a".repeat(9), "😀b"]);
+    const long = `${"word ".repeat(1000)}\n\n${"more ".repeat(500)}`;
+    const parts = splitMessage(long, 3800);
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.every((p) => p.length <= 3800)).toBe(true);
+    expect(parts.join(" ").replace(/\s+/g, " ").trim()).toBe(long.replace(/\s+/g, " ").trim());
+  });
+});
+
 describe("webhook", () => {
   const post = async (body: unknown, headers: Record<string, string> = {}, extra: Partial<Env> = {}) =>
     worker.fetch(
@@ -492,7 +651,7 @@ describe("Telegram API", () => {
     const c = await loggedIn();
     const fake = fakeTelegram();
     await inAgent((agent) => useFake(agent, fake));
-    expect(await c.json("/api/telegram")).toEqual({ status: { configured: true, bot: null, chat: false, group: null, topics: false, linked_at: null } });
+    expect(await c.json("/api/telegram")).toEqual({ status: { configured: true, bot: null, chat: false, group: null, topics: false, linked_at: null, conversation: false, conversation_id: null } });
     const link = await c.json("/api/telegram/connect", { method: "POST" });
     expect(link.code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
     expect((await c.call("/api/telegram/test", { method: "POST" })).status).toBe(503);

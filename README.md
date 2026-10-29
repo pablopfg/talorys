@@ -78,7 +78,7 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | ⏰ | **Automações** | Lembretes únicos e recorrentes, resumos diários de tarefas e rotinas de IA opcionais, entregues numa central de notificações dentro do app. Rodam com alarmes de Durable Objects, então nada precisa ficar online. |
 | 🔔 | **Notificações push** | Lembretes, resumos e rotinas chegam como notificações do sistema nos aparelhos em que você ativar, mesmo com o Talorys fechado (**Configurações → Avisos**). Usa Web Push padrão, com criptografia de ponta a ponta. |
 | 📣 | **Central de avisos** | Todo aviso tem prioridade (baixa, normal, alta ou crítica, editável em cada notificação) e categoria. Você escolhe quais categorias saem do app, limita quantas mensagens cada canal manda por hora e por dia e vê o histórico de entregas com o motivo de cada aviso não enviado. Avisos repetidos são descartados. [Saiba mais](docs/alerts.md) |
-| ✈️ | **Avisos no Telegram** | Um bot do Telegram registra os avisos num grupo (com um tópico por categoria, se o grupo tiver tópicos) ou no chat privado. Discreto por padrão, com texto completo por categoria, e botões para marcar como feito ou adiar 1 hora. Só a sua conta é ouvida. [Saiba mais](docs/alerts.md#telegram) |
+| ✈️ | **Avisos no Telegram** | Um bot do Telegram registra os avisos num grupo (com um tópico por categoria, se o grupo tiver tópicos) ou no chat privado. Discreto por padrão, com texto completo por categoria, e botões para marcar como feito ou adiar 1 hora. No chat privado, você conversa com o Talorys como no app. Só a sua conta é ouvida. [Saiba mais](docs/alerts.md#telegram) |
 
 > [!TIP]
 > No iPhone e no iPad, adicione o Talorys à Tela de Início antes de ativar as notificações push.
