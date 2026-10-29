@@ -56,6 +56,12 @@ export interface Env {
    */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /**
+   * Paid chat models, with the owner's own keys (Worker secrets). Without a key that provider
+   * can't be chosen and nothing else changes; spend is capped per day in Settings → AI.
+   */
+  ANTHROPIC_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   /** "off" turns remote MCP servers off for this deployment. */
   TALORYS_MCP?: string;
   /** Comma-separated origins MCP servers may use (https://n8n.example.com, https://*.example.com). Unset: any public host. */

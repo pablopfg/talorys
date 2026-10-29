@@ -3,6 +3,7 @@ import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
 import { AUTOMATION_PRIORITIES, type AlertCategory, type AlertEscalation, type AlertPriority, type AutomationPriority, type PriorityReason } from "./alerts";
+import { AI_FALLBACKS, AI_PROVIDERS, ANTHROPIC_MODEL_IDS, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL, OPENAI_MODEL_IDS } from "./ai-models";
 
 // ---------- Primitives ----------
 
@@ -350,6 +351,7 @@ export const limitsSchema = z.object({
   maxContextTokens: z.number().int().min(1000).max(LIMIT_CEILINGS.maxContextTokens),
   maxScheduledAiRunsPerDay: z.number().int().min(0).max(LIMIT_CEILINGS.maxScheduledAiRunsPerDay),
   maxAiRequestsPerDay: z.number().int().min(1).max(LIMIT_CEILINGS.maxAiRequestsPerDay),
+  maxPaidAiUsdPerDay: z.number().min(0).max(LIMIT_CEILINGS.maxPaidAiUsdPerDay),
 });
 export type Limits = z.infer<typeof limitsSchema>;
 
@@ -387,6 +389,14 @@ export const settingsSchema = z.object({
    */
   language: languagePreferenceSchema.catch("system"),
   model: z.string().regex(/^@(cf|hf)\/[\w.\-/]+$/, "Must be a Workers AI model id"),
+  /**
+   * The chat model's provider, its fallback, and the model of each paid provider. A value saved
+   * by a newer version reads as the default, so it can't reset every other setting.
+   */
+  aiProvider: z.enum(AI_PROVIDERS).catch("workers-ai"),
+  aiFallback: z.enum(AI_FALLBACKS).catch("none"),
+  anthropicModel: z.enum(ANTHROPIC_MODEL_IDS).catch(DEFAULT_ANTHROPIC_MODEL),
+  openaiModel: z.enum(OPENAI_MODEL_IDS).catch(DEFAULT_OPENAI_MODEL),
   temperature: z.number().min(0).max(1.5),
   limits: limitsSchema,
   autoMemory: z.boolean(),
@@ -407,6 +417,10 @@ export const settingsUpdateSchema = settingsSchema
     // Changes are still validated strictly; only reading stored settings is lenient.
     language: languagePreferenceSchema.optional(),
     customInstructions: customInstructionsSchema.optional(),
+    aiProvider: z.enum(AI_PROVIDERS).optional(),
+    aiFallback: z.enum(AI_FALLBACKS).optional(),
+    anthropicModel: z.enum(ANTHROPIC_MODEL_IDS).optional(),
+    openaiModel: z.enum(OPENAI_MODEL_IDS).optional(),
     limits: limitsSchema.partial().optional(),
     memoryHistory: memoryHistorySettingsSchema.partial().optional(),
     session: sessionTimeoutsSchema.partial().optional(),

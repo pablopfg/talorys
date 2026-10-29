@@ -21,6 +21,7 @@ import type {
   Settings,
   Task,
   UsageReport,
+  PaidAiProviderId,
 } from "@talorys/shared";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -208,7 +209,7 @@ export function useSystemInfo() {
   return useQuery({
     queryKey: keys.system,
     queryFn: () =>
-      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; environment: string }>("/system"),
+      api<{ version: string; deployed_version: string | null; installation_id: string | null; schema_version: number; ai_binding: boolean; ai_provider: string; paid_ai_keys?: Record<PaidAiProviderId, boolean>; environment: string }>("/system"),
   });
 }
 

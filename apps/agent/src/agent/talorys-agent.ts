@@ -1,5 +1,5 @@
 import { Agent } from "agents";
-import { type Automation, isSentinelNothing, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
+import { type AiProviderId, type Automation, isSentinelNothing, type PaidAiProviderId, TRANSCRIPTION_LIMITS, WATCH } from "@talorys/shared";
 import type { Env } from "../env";
 import { migrate } from "../db/migrations";
 import { createServices, type Services } from "../services/container";
@@ -8,6 +8,8 @@ import { AgentRunner } from "./runner";
 import { createApi } from "../api/app";
 import { CloudflareWorkersAIProvider } from "../ai/workers-ai";
 import { MockAIProvider } from "../ai/mock";
+import { FallbackProvider } from "../ai/fallback";
+import { type PaidBudget, PaidAIProvider } from "../ai/paid";
 import type { AIProvider } from "../ai/provider";
 import { localDayBounds, formatLocal } from "../services/time";
 import { defangLinks } from "../services/text";
@@ -144,18 +146,59 @@ export class TalorysAgent extends Agent<Env, AgentState> {
     return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
   }
 
-  /** Chooses the AI provider. The mock is only used in local development or explicit demo mode. */
+  /** Whether the mock provider answers instead of a real model: local development or explicit demo mode. */
+  private mockAi(): boolean {
+    return this.services.settings.get().demoMode || (this.env.TALORYS_ENV === "development" && this.env.TALORYS_MOCK_AI === "1");
+  }
+
+  /**
+   * Chooses the chat provider: the main one from Settings → AI and, when set, its fallback. A
+   * provider without its key (or Workers AI without its binding) is skipped.
+   */
   aiProvider(): AIProvider | null {
+    if (this.mockAi()) return new MockAIProvider();
+    const s = this.services;
+    const settings = s.settings.get();
+    const primary = this.chatProvider(settings.aiProvider);
+    const fallback = settings.aiFallback === "none" || settings.aiFallback === settings.aiProvider ? null : this.chatProvider(settings.aiFallback);
+    if (!primary || !fallback) return primary ?? fallback;
+    return new FallbackProvider(primary, fallback, (usage) => s.usage.record(usage), (from, to, error) => {
+      console.warn(`Chat model fell back from ${from.model} to ${to.model}`, error.code);
+    });
+  }
+
+  private chatProvider(id: AiProviderId): AIProvider | null {
     const settings = this.services.settings.get();
-    if (settings.demoMode) return new MockAIProvider();
-    if (this.env.TALORYS_ENV === "development" && this.env.TALORYS_MOCK_AI === "1") return new MockAIProvider();
-    if (!this.env.AI) return null;
-    return new CloudflareWorkersAIProvider(this.env.AI, settings.model);
+    if (id === "workers-ai") return this.env.AI ? new CloudflareWorkersAIProvider(this.env.AI, settings.model) : null;
+    const key = id === "anthropic" ? this.env.ANTHROPIC_API_KEY : this.env.OPENAI_API_KEY;
+    if (!key) return null;
+    const model = id === "anthropic" ? settings.anthropicModel : settings.openaiModel;
+    return new PaidAIProvider(id, key, model, this.paidBudget);
+  }
+
+  /** Worst-case cost of the paid calls in progress, shared by every turn (see PaidBudget). */
+  private paidInFlightUsd = 0;
+  private readonly paidBudget: PaidBudget = {
+    allows: () => this.services.usage.paidCostToday() + this.paidInFlightUsd < this.services.settings.get().limits.maxPaidAiUsdPerDay,
+    hold: (usd) => {
+      this.paidInFlightUsd += usd;
+      let held = true;
+      return () => {
+        if (!held) return;
+        held = false;
+        this.paidInFlightUsd = Math.max(0, this.paidInFlightUsd - usd);
+      };
+    },
+  };
+
+  /** Which paid providers have their key set on the Worker (never the keys themselves). */
+  paidAiKeys(): Record<PaidAiProviderId, boolean> {
+    return { anthropic: !!this.env.ANTHROPIC_API_KEY, openai: !!this.env.OPENAI_API_KEY };
   }
 
   /** Clef for the memory-history AI check: only with real Workers AI (not mock AI or demo mode). */
   clefRun(): ClefRun | null {
-    if (!this.env.AI || !(this.aiProvider() instanceof CloudflareWorkersAIProvider)) return null;
+    if (!this.env.AI || this.mockAi()) return null;
     const ai = this.env.AI;
     return (request, signal) => ai.run(CLEF_MODEL, { ...request }, { signal });
   }

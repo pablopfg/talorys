@@ -161,6 +161,16 @@ const PT_BR: Catalog = {
   "Workers AI is busy right now. Please try again in a moment.": "O Workers AI está ocupado agora. Tente novamente em instantes.",
   "The configured AI model is not available. Choose another model in Settings.": "O modelo de IA configurado não está disponível. Escolha outro modelo em Configurações.",
   "The response was cancelled.": "A resposta foi cancelada.",
+  "Talorys reached today's spending cap for paid AI models. Raise it in Settings → AI or wait until tomorrow.":
+    "O Talorys atingiu o teto de gasto de hoje com modelos de IA pagos. Aumente em Configurações → IA ou espere até amanhã.",
+  "Anthropic refused the API key. Check the key set on the Worker.": "A Anthropic recusou a chave de API. Confira a chave definida no Worker.",
+  "OpenAI refused the API key. Check the key set on the Worker.": "A OpenAI recusou a chave de API. Confira a chave definida no Worker.",
+  "The Anthropic account has no credit left. Add credit there or choose another model in Settings.":
+    "A conta da Anthropic está sem crédito. Adicione crédito lá ou escolha outro modelo em Configurações.",
+  "The OpenAI account has no credit left. Add credit there or choose another model in Settings.":
+    "A conta da OpenAI está sem crédito. Adicione crédito lá ou escolha outro modelo em Configurações.",
+  "Anthropic is busy right now. Please try again in a moment.": "A Anthropic está ocupada agora. Tente novamente em instantes.",
+  "OpenAI is busy right now. Please try again in a moment.": "A OpenAI está ocupada agora. Tente novamente em instantes.",
   "The AI model could not respond. Please try again.": "O modelo de IA não conseguiu responder. Tente novamente.",
   "Workers AI is not configured for this deployment. Everything else keeps working.": "O Workers AI não está configurado nesta instalação. Todo o resto continua funcionando.",
   "Workers AI is not configured.": "O Workers AI não está configurado.",

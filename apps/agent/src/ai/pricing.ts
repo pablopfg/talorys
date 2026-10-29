@@ -1,3 +1,4 @@
+import { paidModel } from "@talorys/shared";
 import type { Usage } from "./provider";
 
 /** Published token-based rates only; never infer a rate for an unknown model. */
@@ -76,7 +77,17 @@ export function estimateAudioConsumption(model: string, seconds: number): { neur
 }
 
 export function estimateConsumption(usage: Usage): { neurons: number; costUsd: number } | null {
-  if (!usage.billable || !Object.hasOwn(RATES, usage.model)) return null;
+  if (!usage.billable) return null;
+  const paid = paidModel(usage.model);
+  if (paid) {
+    // Anthropic and OpenAI bill in US$ per token; no Neurons are involved.
+    const { input: inRate, cachedInput, output: outRate } = paid.usdPerMillion;
+    const input = usage.inputTokens.reported + usage.inputTokens.estimated;
+    const output = usage.outputTokens.reported + usage.outputTokens.estimated;
+    const cached = usage.cachedInputTokens;
+    return { neurons: 0, costUsd: ((input - cached) * inRate + cached * cachedInput + output * outRate) / 1_000_000 };
+  }
+  if (!Object.hasOwn(RATES, usage.model)) return null;
   const [inputRate, outputRate, cachedRate] = RATES[usage.model]!;
   const input = usage.inputTokens.reported + usage.inputTokens.estimated;
   const output = usage.outputTokens.reported + usage.outputTokens.estimated;

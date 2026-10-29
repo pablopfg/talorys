@@ -45,6 +45,8 @@ export const DEFAULT_LIMITS = {
   maxContextTokens: 6000,
   maxScheduledAiRunsPerDay: 6,
   maxAiRequestsPerDay: 200,
+  /** Daily cap, in US$, on the paid providers (Anthropic, OpenAI). Workers AI isn't counted. */
+  maxPaidAiUsdPerDay: 2,
 } as const;
 
 /**
@@ -99,6 +101,7 @@ export const LIMIT_CEILINGS = {
   maxContextTokens: 32000,
   maxScheduledAiRunsPerDay: 48,
   maxAiRequestsPerDay: 2000,
+  maxPaidAiUsdPerDay: 50,
 } as const;
 
 /** Defined here rather than in schemas.ts so plans.ts can use it without an import cycle. */
