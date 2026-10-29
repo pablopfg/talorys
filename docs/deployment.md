@@ -180,6 +180,10 @@ A Global API Key is never required.
 
 ## Publishing the npm package (maintainers)
 
+This fork publishes the installer automatically, as the private
+`@pablopfg/create-talorys` on GitHub Packages, after each release: see
+[releases.md](releases.md#instalador-no-github-packages). By hand:
+
 ```bash
 npm run build -w create-talorys   # builds dist/ and templates/
 npm run test:pack                 # verifies the tarball outside the monorepo

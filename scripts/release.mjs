@@ -8,9 +8,10 @@
 //   node scripts/release.mjs current                                prints the current version
 //   node scripts/release.mjs check-changelog <base CHANGELOG.md>    fails unless the PR updated "Não lançado"
 //   node scripts/release.mjs check-title "<pull request title>"     fails unless the title is a Conventional Commit
+//   node scripts/release.mjs github-package <owner/repo>            renames the installer for GitHub Packages (CI only)
 //
 // Uses only Node built-ins, so CI can run it without `npm ci`.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -194,6 +195,40 @@ export function prepareRelease(root, target, date) {
   return version;
 }
 
+/**
+ * Turns the installer into @<owner>/create-talorys, private on GitHub Packages. Run only on the
+ * release runner, never committed: the repository keeps upstream's name so syncing stays clean.
+ * The command stays `create-talorys`; its dependencies still come from the public npm registry.
+ * The built CLI's hints (`npx create-talorys@latest update`...) are pointed at the new name.
+ */
+export function githubPackage(root, repository) {
+  const m = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})$/.exec(repository ?? "");
+  if (!m) throw new Error("github-package needs the repository as owner/name");
+  const name = `@${m[1].toLowerCase()}/create-talorys`;
+  const path = (key) => join(root, VERSION_FILES[key]);
+
+  const pkg = JSON.parse(readFileSync(path("installer"), "utf8"));
+  pkg.name = name;
+  pkg.repository = { type: "git", url: `git+https://github.com/${m[1]}/${m[2]}.git`, directory: "packages/create-talorys" };
+  pkg.publishConfig = { registry: "https://npm.pkg.github.com", access: "restricted" };
+  writeFileSync(path("installer"), `${JSON.stringify(pkg, null, 2)}\n`);
+
+  const shrinkwrap = JSON.parse(readFileSync(path("shrinkwrap"), "utf8"));
+  if (!shrinkwrap.packages?.[""]) throw new Error(`No root entry in ${VERSION_FILES.shrinkwrap}`);
+  shrinkwrap.name = name;
+  shrinkwrap.packages[""].name = name;
+  writeFileSync(path("shrinkwrap"), `${JSON.stringify(shrinkwrap, null, 2)}\n`);
+
+  const dist = join(dirname(path("installer")), "dist");
+  if (existsSync(dist)) {
+    for (const file of readdirSync(dist, { recursive: true }).filter((f) => f.endsWith(".js"))) {
+      const text = readFileSync(join(dist, file), "utf8");
+      writeFileSync(join(dist, file), text.replaceAll("npx create-talorys@", `npx ${name}@`));
+    }
+  }
+  return name;
+}
+
 function main(argv) {
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   const [command, arg = "auto", ...rest] = argv;
@@ -221,8 +256,10 @@ function main(argv) {
       if (problem) throw new Error(problem);
       return "Título OK.";
     }
+    case "github-package":
+      return githubPackage(root, arg);
     default:
-      throw new Error("Usage: node scripts/release.mjs <current|next|prepare|notes|check-changelog|check-title> [arg]");
+      throw new Error("Usage: node scripts/release.mjs <current|next|prepare|notes|check-changelog|check-title|github-package> [arg]");
   }
 }
 

@@ -55,6 +55,10 @@ feature/* ──PR──▶ develop ──(Prepare release)──▶ release/vX.
    changelog. Versões com sufixo (`1.1.0-rc.1`) saem como *pre-release*.
    Rodar de novo não duplica nada.
 
+5. **Instalador:** em seguida, o mesmo workflow publica o instalador da tag
+   no GitHub Packages, privado (veja
+   [Instalador no GitHub Packages](#instalador-no-github-packages)).
+
 ### Sem GitHub Actions
 
 ```bash
@@ -84,8 +88,10 @@ O repositório é público, então os workflows seguem estas regras:
 
 - **Permissões mínimas:** `permissions: {}` no topo e, em cada job, só o que
   ele usa. Só *Prepare release* (`contents`, `pull-requests` e `actions` de
-  escrita) e *Release* (`contents: write`) escrevem algo, e os dois só rodam
-  na `develop` e na `main`, respectivamente, nunca em código de um PR.
+  escrita) e *Release* (`contents: write`; e `packages: write` no job que
+  publica o instalador, no ambiente protegido `packages`) escrevem algo, e os
+  dois só rodam na `develop` e na `main`, respectivamente, nunca em código de
+  um PR.
 - **Nenhum segredo:** apenas o `GITHUB_TOKEN` temporário de cada execução.
   Nenhum token pessoal, nem da Cloudflare ou do npm.
 - **Actions fixadas por SHA** do commit, com a versão em comentário. O
@@ -123,6 +129,65 @@ O repositório é público, então os workflows seguem estas regras:
    mensagem padrão **Pull request title**, e use **Squash and merge** nos PRs
    de funcionalidade: o título em Conventional Commits vira o commit. Para
    `develop → main`, use **Create a merge commit**, que preserva o histórico.
+
+## Instalador no GitHub Packages
+
+O instalador do fork é publicado como **`@pablopfg/create-talorys`**, um
+pacote **privado** no GitHub Packages (gratuito para pacotes privados até
+500 MB de armazenamento e 1 GB de download por mês; cada versão tem cerca de
+1,3 MB). Ele serve para a primeira instalação pela linha de comando; depois
+disso, o sistema é atualizado pelo merge na `main` e pelo deploy do GitHub.
+
+**Como é publicado.** O job `package` do workflow **Release** roda só quando
+uma versão nova é lançada (ou quando você o roda à mão em **Actions →
+Release → Run workflow**, na `main`, para publicar a versão atual se ela
+ainda não estiver lá). Ele:
+
+- faz checkout da **tag** `vX.Y.Z`, nunca da ponta da `main`;
+- roda `npm ci` e `npm run test:pack` (monta o instalador e testa o pacote
+  instalado fora do repositório);
+- troca só no runner, sem commit, o nome para `@<dono>/create-talorys`, o
+  registro para `npm.pkg.github.com` e os comandos que o instalador sugere
+  (`npx @pablopfg/create-talorys@latest update`...). O repositório mantém o
+  nome do original, para a sincronização continuar limpa;
+- publica com o `GITHUB_TOKEN` da própria execução (`packages: write`), sem
+  token pessoal, sem rodar scripts do pacote. Versões com sufixo saem com a
+  tag `next`, as outras com `latest`.
+
+**Configuração única:**
+
+1. Em **Settings → Environments**, crie o ambiente **`packages`** e, em
+   *Deployment branches and tags*, escolha **Selected branches and tags** e
+   adicione só `main`. Opcionalmente, marque **Required reviewers** com você
+   mesmo, para aprovar cada publicação.
+2. Depois da primeira publicação, abra o pacote em **Your profile →
+   Packages → create-talorys → Package settings** e confira que a
+   visibilidade é **Private**.
+
+**Instalar na sua máquina:**
+
+1. Crie um token **clássico** em **Settings → Developer settings → Personal
+   access tokens → Tokens (classic)** com **só** o escopo `read:packages` e
+   validade curta. Não o salve no repositório nem em arquivos do projeto.
+2. No terminal (Linux, macOS ou Git Bash no Windows):
+
+   ```bash
+   printf '%s\n' '@pablopfg:registry=https://npm.pkg.github.com' \
+     '//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}' > ~/.npmrc-talorys
+   read -rs GH_PACKAGES_TOKEN && export GH_PACKAGES_TOKEN   # cole o token e tecle Enter
+   NPM_CONFIG_USERCONFIG=~/.npmrc-talorys npx @pablopfg/create-talorys@latest
+   unset GH_PACKAGES_TOKEN
+   ```
+
+   O arquivo `~/.npmrc-talorys` guarda só a referência
+   `${GH_PACKAGES_TOKEN}`, nunca o token, e o `read -s` não deixa o token no
+   histórico do terminal. Seu `~/.npmrc` normal não é alterado. Apague o
+   token no GitHub quando não for mais usá-lo.
+
+O pacote só depende de pacotes públicos do npm (Wrangler e `@clack/prompts`),
+travados pelo `npm-shrinkwrap.json`. O aviso de atualização dentro do app
+ainda consulta a versão do original no npm; para não vê-lo, desligue
+**Verificar atualizações** em Configurações.
 
 ## Sincronizar com o original
 

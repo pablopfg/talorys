@@ -3,6 +3,9 @@ name: Release
 # Publishes a GitHub release when main reaches a version that has no tag yet.
 # The version comes from packages/create-talorys/package.json and the notes
 # from its CHANGELOG.md section, both set by prepare-release.yml.
+# The installer of that tag is then published, private, to GitHub Packages as
+# @<owner>/create-talorys (docs/releases.md#instalador-no-github-packages).
+# Running it by hand publishes the current version if it isn't there yet.
 on:
   push:
     branches: [main]
@@ -21,6 +24,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # create the tag and the release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,3 +62,59 @@ jobs:
           gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
           echo "### Released [v$VERSION](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$VERSION)" >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    needs: release
+    if: needs.release.outputs.new == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Protected environment: in Settings → Environments → packages, allow only the main branch.
+    environment: packages
+    permissions:
+      contents: read
+      packages: write # publish to GitHub Packages, with this run's token only
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      # The release's tag, not whatever main has now.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/v${{ needs.release.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      # The token goes only into a config file outside the checkout, read by the steps that need it.
+      - name: Configure GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "NAME=@$owner/create-talorys" >> "$GITHUB_ENV"
+          umask 077
+          printf '@%s:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' "$owner" "$NODE_AUTH_TOKEN" > "$RUNNER_TEMP/packages.npmrc"
+      - name: Already published?
+        id: published
+        run: |
+          if npm view "$NAME@$VERSION" version --userconfig "$RUNNER_TEMP/packages.npmrc" >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on GitHub Packages."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.published.outputs.done != 'true'
+        run: npm ci
+      # Builds the installer and checks the tarball installs and runs, as CI does.
+      - if: steps.published.outputs.done != 'true'
+        run: npm run test:pack
+      - name: Publish
+        if: steps.published.outputs.done != 'true'
+        run: |
+          set -euo pipefail
+          node scripts/release.mjs github-package "$GITHUB_REPOSITORY"
+          tag=latest
+          case "$VERSION" in *-*) tag=next ;; esac
+          npm publish ./packages/create-talorys --tag "$tag" --ignore-scripts --userconfig "$RUNNER_TEMP/packages.npmrc"
+          echo "### Published $NAME@$VERSION to GitHub Packages" >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/packages.npmrc"
