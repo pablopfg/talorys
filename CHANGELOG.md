@@ -10,11 +10,19 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
   - **Monitor de sites**: confere até 10 endereços (padrão a cada 15 minutos) e avisa com prioridade alta quando um site cai (depois de duas execuções seguidas com falha) e quando volta.
   - Só a sessão do dono gerencia os workflows (tokens de acesso recebem 403); ligar ou trocar endereços pede a senha recente; só endereços `https://` públicos, conferidos no DNS antes de cada requisição. O deploy cria o Workflow `<nome do Worker>-workflow` sozinho, sem segredo novo. Veja [docs/workflows.md](docs/workflows.md) e a etapa 26 do [guia de instalação](docs/instalacao-cloudflare.md#26-workflows-rotinas-que-estavam-no-n8n).
 
+- **Limites de armazenamento e lixeira.** Cada tipo de dado tem um limite (10.000 memórias, 20.000 tarefas, 5.000 notas, 1.000 projetos, 5.000 conversas, 200.000 mensagens do chat e 500 automações), além de 4 GiB para o banco inteiro, o que mantém o Talorys bem dentro do plano gratuito da Cloudflare. No limite, o item novo é recusado com uma mensagem clara e nada é apagado para abrir espaço. **Configurações → Privacidade** mostra o uso de cada tipo e avisa a partir de 80%. Tarefas, notas e memórias excluídas vão para a **lixeira** por 30 dias (as arquivadas ficam um ano), de onde podem ser restauradas ou excluídas de vez. Veja [docs/security.md](docs/security.md#limites-de-armazenamento-e-lixeira).
+
 ### Removido
 
 - **Site de apresentação.** A pasta `site/` (a página de divulgação herdada do projeto original) e o workflow **Pages** do GitHub saem do repositório: o Talorys usa só a própria interface, publicada no Worker da Cloudflare. O logo do README passa a ser o ícone do app.
 
+### Segurança
+
+- **Armazenamento limitado e exclusões recuperáveis.** Um token de escrita vazado ou importações repetidas não conseguem mais fazer o banco crescer sem limite, e o que um token exclui pode ser restaurado da lixeira pelo dono. Os tokens têm um espaço próprio na lixeira; quando ele acaba, a exclusão por token é recusada, então um token nunca empurra para fora da lixeira o que apagou. Uma importação que passaria de um limite é desfeita inteira. Uma memória criada ou editada por token usa no máximo metade do limite diário de embeddings, como as buscas por token; ela é salva do mesmo jeito e indexada depois. Apagar todas as memórias também apaga as que estavam na lixeira.
+
 ### Atualização
+
+- **Lixeira.** A migração 29 roda sozinha depois do deploy e cria a tabela `tal_trash`. Não há segredo nem variável nova.
 
 - **Workflows.** A migração 28 roda sozinha depois do deploy e cria as tabelas `tal_workflows` e `tal_workflow_runs`. O deploy passa a criar um Workflow da Cloudflare, `<nome do Worker>-workflow` (binding `TALORYS_WORKFLOW`, classe `TalorysWorkflow`), com o mesmo token de antes; não há segredo nem variável nova, e todos os workflows começam desligados. Incluído no plano gratuito do Workers. Quem instalou pelo `create-talorys` ganha o mesmo binding no próximo `update`.
 

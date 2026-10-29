@@ -509,6 +509,8 @@ export type ApiErrorCode =
   | "HUMAN_CHECK_REQUIRED"
   /** A service the request depends on (such as the breach check) did not answer; retry later. */
   | "SERVICE_UNAVAILABLE"
+  /** A storage limit (one kind of record, or the whole database) is full: free space first. */
+  | "STORAGE_LIMIT_REACHED"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {

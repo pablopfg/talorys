@@ -17,6 +17,8 @@ export interface NeighborOptions {
   limit: number;
   /** Ids never returned. */
   exclude: ReadonlySet<string>;
+  /** The write came with an access token: its own embed may use only half the daily cap. */
+  remote?: boolean;
 }
 
 /**
@@ -24,7 +26,8 @@ export interface NeighborOptions {
  * at most `opts.limit`, each at or above `opts.minCosine`. Only memories whose stored vector
  * matches their current text are scored; the rest wait for the background index. The saved
  * memory's own vector is reused when current, otherwise it alone is embedded, under the daily
- * cap. Empty when semantic recall is off, there is no embedder, or the embed is capped or fails.
+ * cap (half of it for a memory sent with an access token). Empty when semantic recall is off,
+ * there is no embedder, or the embed is capped or fails.
  */
 export async function semanticNeighbors(
   services: Services,
@@ -50,7 +53,11 @@ export async function semanticNeighbors(
     const day = UsageService.day();
     // Check and count in one synchronous step before the call, so concurrent saves cannot all
     // pass the cap. A failed call still counts, because it was reserved first.
-    if (!reserveEmbedding(db, day, config.maxEmbeddingsPerDay, estimateTokens(text))) return [];
+    // A memory sent with an access token may spend only half the daily cap, as token searches do,
+    // so a leaked token can't use up the owner's own recall. It is saved anyway and waits for the
+    // background index, which embeds pending memories in batches.
+    const cap = opts.remote || memory.source === "remote" ? Math.floor(config.maxEmbeddingsPerDay / 2) : config.maxEmbeddingsPerDay;
+    if (!reserveEmbedding(db, day, cap, estimateTokens(text))) return [];
     try {
       const vectors = await embedder.embed([text]);
       if (vectors.length !== 1 || vectors[0]!.length !== embedder.dims) throw new Error(`Embedder returned ${vectors.length} vectors for 1 text`);

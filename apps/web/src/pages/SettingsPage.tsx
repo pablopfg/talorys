@@ -30,6 +30,7 @@ import { GoogleCalendarCard } from "../components/GoogleCalendarCard";
 import { AuthActivityCard } from "../components/AuthActivityCard";
 import { TwoFactorCard } from "../components/TwoFactorCard";
 import { PasskeysCard } from "../components/PasskeysCard";
+import { StorageCard } from "../components/StorageCard";
 import { UsageBreakdown, UsagePricingNote } from "../components/UsageBreakdown";
 import { keys, useApiMutation, useMfaStatus, useSessions, useSettings, useSystemInfo, useUpdateStatus, useUsage } from "../hooks/queries";
 import { useSession } from "../hooks/session";
@@ -567,6 +568,7 @@ function PrivacyTab() {
           </Button>
         </Row>
       </Section>
+      <StorageCard />
       <Section title={t("settings.dangerZone")}>
         <Row label={t("settings.deleteHistory")} hint={t("settings.deleteHistoryHint")}>
           <Button variant="outline" className="w-full justify-center text-danger" onClick={() => setConfirm("history")}>

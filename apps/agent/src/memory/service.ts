@@ -90,14 +90,15 @@ export class MemoryHistoryService {
 
   // ---------- Writes ----------
 
-  async create(input: { content: string; category?: MemoryCategory; source?: Memory["source"] }, opts: { signal?: AbortSignal } = {}): Promise<WriteResult> {
+  /** `remote`: the write came with an access token, so its embedding work counts against the token half of the cap. */
+  async create(input: { content: string; category?: MemoryCategory; source?: Memory["source"] }, opts: { signal?: AbortSignal; remote?: boolean } = {}): Promise<WriteResult> {
     const { duplicate, ...memory } = this.repo.create({ ...input, valid_from: extractStatedDate(input.content) });
     // Saved first: nothing below can lose the memory.
     if (duplicate) return { memory, superseded: [], reviews: [] };
-    return this.afterWrite(memory, opts.signal);
+    return this.afterWrite(memory, opts.signal, opts.remote);
   }
 
-  async update(id: string, patch: { content?: string; category?: MemoryCategory }, opts: { signal?: AbortSignal } = {}): Promise<WriteResult> {
+  async update(id: string, patch: { content?: string; category?: MemoryCategory }, opts: { signal?: AbortSignal; remote?: boolean } = {}): Promise<WriteResult> {
     const before = this.repo.require(id);
     const memory = this.repo.update(id, patch);
     if (memory.content === before.content) return { memory, superseded: [], reviews: [] };
@@ -106,7 +107,7 @@ export class MemoryHistoryService {
       `UPDATE tal_activity SET summary = ? WHERE type = 'memory.created' AND summary = ?`,
       `Agent remembered: ${memory.content}`.slice(0, 500), `Agent remembered: ${before.content}`.slice(0, 500),
     );
-    return this.afterWrite(memory, opts.signal);
+    return this.afterWrite(memory, opts.signal, opts.remote);
   }
 
   /** Records a newer version of a fact. The old memory is kept as history and linked to the new one. */
@@ -125,12 +126,13 @@ export class MemoryHistoryService {
   }
 
   /**
-   * Permanent deletion: the memory, its semantic vector, conflict reviews, links from other
-   * memories, and the activity entry that quoted it.
+   * Deletes the memory, its semantic vector, conflict reviews, links from other memories, and the
+   * activity entry that quoted it. A copy waits in the trash, where the owner can restore it or
+   * delete it for good.
    */
-  delete(id: string): void {
+  delete(id: string, opts: { actor?: "owner" | "remote" } = {}): void {
     const memory = this.repo.require(id);
-    this.repo.delete(id);
+    this.repo.delete(id, { keep: "deleted", actor: opts.actor });
     deleteVector(this.db, id);
     this.db.run(`DELETE FROM tal_activity WHERE type = 'memory.created' AND summary = ?`, `Agent remembered: ${memory.content}`.slice(0, 500));
   }
@@ -149,10 +151,10 @@ export class MemoryHistoryService {
     return result;
   }
 
-  private async afterWrite(memory: Memory, signal?: AbortSignal): Promise<WriteResult> {
+  private async afterWrite(memory: Memory, signal?: AbortSignal, remote = false): Promise<WriteResult> {
     if (!this.settings.get().memoryHistory.conflictReview) return { memory, superseded: [], reviews: [] };
     try {
-      return await this.detectConflicts(memory, signal);
+      return await this.detectConflicts(memory, signal, remote);
     } catch (error) {
       // Conflict detection is best-effort; the memory itself is already saved.
       console.warn("Memory conflict detection skipped", error instanceof Error ? error.name : "error");
@@ -166,7 +168,7 @@ export class MemoryHistoryService {
    * every replacement or unclear case for the owner to review. Runs only on memory writes, never
    * per chat message.
    */
-  private async detectConflicts(memory: Memory, signal?: AbortSignal): Promise<WriteResult> {
+  private async detectConflicts(memory: Memory, signal?: AbortSignal, remote = false): Promise<WriteResult> {
     const candidates = new Map<string, Memory>();
     for (const m of this.repo.search(memory.content, CONFLICT_CANDIDATES, undefined, "current")) candidates.set(m.id, m);
     // Same topic without shared words ("I moved to Paris" vs "I live in London").
@@ -178,7 +180,7 @@ export class MemoryHistoryService {
     const assessments: ConflictAssessment[] = [...candidates.values()]
       .filter((c) => c.status !== "historical" && c.created_at <= memory.updated_at)
       .map((c) => classifyRelationship(memory.content, c));
-    if (this.settings.get().memoryHistory.aiConflictCheck) return this.detectWithAi(memory, candidates, assessments, signal);
+    if (this.settings.get().memoryHistory.aiConflictCheck) return this.detectWithAi(memory, candidates, assessments, signal, remote);
 
     return this.applyDecisions(memory, assessments.flatMap((a) => ruleDecision(a)));
   }
@@ -194,6 +196,7 @@ export class MemoryHistoryService {
     candidates: Map<string, Memory>,
     assessments: ConflictAssessment[],
     signal?: AbortSignal,
+    remote = false,
   ): Promise<WriteResult> {
     const nominated = new Map<string, ConflictAssessment>();
     for (const a of assessments) if (decide(a) !== "none") nominated.set(a.oldMemoryId, a);
@@ -205,7 +208,7 @@ export class MemoryHistoryService {
 
     const pool = new Map<string, Memory>();
     for (const id of nominated.keys()) pool.set(id, candidates.get(id)!);
-    for (const m of await this.semanticCandidates(memory, new Set(nominated.keys()))) pool.set(m.id, m);
+    for (const m of await this.semanticCandidates(memory, new Set(nominated.keys()), remote)) pool.set(m.id, m);
     if (pool.size === 0) return { memory: this.repo.get(memory.id) ?? memory, superseded: [], reviews: [] };
     if (signal?.aborted || !this.usage.reserveAi(limits)) return fallback();
 
@@ -261,11 +264,11 @@ export class MemoryHistoryService {
    * Current, older memories closest in meaning (semantic recall on), in the hook's best-first order:
    * at most AI_CANDIDATE_LIMIT at or above AI_CANDIDATE_MIN_COSINE, not counting ids rules already nominated.
    */
-  private async semanticCandidates(memory: Memory, exclude: Set<string>): Promise<Memory[]> {
+  private async semanticCandidates(memory: Memory, exclude: Set<string>, remote: boolean): Promise<Memory[]> {
     if (!this.hooks.neighbors) return [];
     let neighbors: { id: string; cosine: number }[];
     try {
-      neighbors = await this.hooks.neighbors(memory, { minCosine: AI_CANDIDATE_MIN_COSINE, limit: AI_CANDIDATE_LIMIT, exclude });
+      neighbors = await this.hooks.neighbors(memory, { minCosine: AI_CANDIDATE_MIN_COSINE, limit: AI_CANDIDATE_LIMIT, exclude, ...(remote ? { remote } : {}) });
     } catch (error) {
       console.warn("memory.neighbors_failed", (error as Error).name);
       return [];

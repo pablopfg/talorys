@@ -144,6 +144,15 @@ não podem supor que a lista está completa. Não há paginação nova na v1.
   embeddings (memórias e itens). Passado isso, elas devolvem só resultados por
   palavra-chave (`cosine: null`) pelo resto do dia, enquanto o chat do dono
   fica com a outra metade.
+- Uma memória criada ou editada por token também usa no máximo **metade** do
+  limite diário de embeddings na conferência de conflitos. Passado isso, ela é salva do mesmo
+  jeito e espera a indexação em segundo plano, que embeda as memórias pendentes
+  em lotes.
+- O que um token de escrita exclui vai para a **lixeira** por 30 dias, num
+  espaço só dos tokens (2.000 itens, 64 MB). Quando ele acaba, a exclusão por
+  token é recusada com 409 `STORAGE_LIMIT_REACHED`, e nada sai da lixeira para
+  abrir espaço. Só a sessão do dono vê, restaura ou esvazia a lixeira
+  (`/api/trash` e `/api/storage` ficam fora da allowlist de tokens).
 - Os resultados são enxutos (ids / pontuações / campos curtos). Depois, use
   `GET /api/…/:id` para o conteúdo completo.
 - Tarefas concluídas e automações inativas **não** são filtradas da busca de

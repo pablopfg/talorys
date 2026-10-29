@@ -16,3 +16,4 @@ export * from "./passkeys";
 export * from "./calendar";
 export * from "./workflows";
 export * from "./ai-models";
+export * from "./storage";

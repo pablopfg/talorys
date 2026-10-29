@@ -122,7 +122,7 @@ test.describe("Talorys owner experience", () => {
     await expect(page.getByText("e2e water the plants twice")).toBeVisible();
     await page.getByText("e2e water the plants twice").click();
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByRole("dialog")).toContainText("“e2e water the plants twice” will be permanently deleted.");
+    await expect(page.getByRole("dialog")).toContainText("“e2e water the plants twice” will go to the trash.");
     await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.getByText("e2e water the plants twice")).toHaveCount(0);
   });

@@ -1,6 +1,7 @@
 import { type ChatMessage, type Conversation, type ToolActivity, toolActivitySchema } from "@talorys/shared";
 import { type Database, likePattern, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
+import type { StorageService } from "../../services/storage";
 
 interface MessageRow {
   id: string;
@@ -41,7 +42,11 @@ function toMessage(row: MessageRow): ChatMessage {
 }
 
 export class ConversationRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    /** Limits; without it, new conversations and turns are unlimited (tests). */
+    private readonly storage?: StorageService,
+  ) {}
 
   list(opts: { q?: string; limit?: number } = {}): Conversation[] {
     if (opts.q) {
@@ -75,6 +80,7 @@ export class ConversationRepository {
   }
 
   create(title = "New conversation"): ConversationRecord {
+    this.storage?.assertRoom("conversations");
     const ts = now();
     const c: ConversationRecord = { id: newId(), title, created_at: ts, updated_at: ts, summary: null, summary_upto: null };
     this.db.run(
@@ -136,6 +142,8 @@ export class ConversationRepository {
     error?: string | null;
     id?: string;
   }): ChatMessage {
+    // Only a new turn is refused: the answer to one already under way is always saved.
+    if (input.role === "user") this.storage?.assertRoom("messages", 2);
     const message: ChatMessage = {
       id: input.id ?? newId(),
       conversation_id: input.conversation_id,

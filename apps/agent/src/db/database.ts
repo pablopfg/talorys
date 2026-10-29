@@ -24,6 +24,16 @@ export class Database {
     return { changes: cursor.rowsWritten };
   }
 
+  /** Size of the database file in bytes, or null where the runtime does not report it. */
+  size(): number | null {
+    try {
+      const bytes = this.storage.sql.databaseSize;
+      return typeof bytes === "number" ? bytes : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Runs `fn` atomically. Throwing rolls the transaction back. */
   transaction<T>(fn: () => T): T {
     return this.storage.transactionSync(fn);

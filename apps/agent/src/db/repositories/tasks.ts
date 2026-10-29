@@ -1,6 +1,7 @@
 import type { Task, TaskPriority, TaskStatus } from "@talorys/shared";
 import { type Database, likePattern, newId, now } from "../database";
 import { NotFoundError } from "../../api/errors";
+import type { StorageService } from "../../services/storage";
 
 export interface TaskInput {
   title: string;
@@ -29,6 +30,8 @@ export class TaskRepository {
     private readonly db: Database,
     /** Called after a task becomes done (the alert center learns that its alert was acted upon). */
     private readonly onCompleted?: (id: string) => void,
+    /** Limits and the trash; without it, creates are unlimited and deletes are permanent (tests). */
+    private readonly storage?: StorageService,
   ) {}
 
   list(query: TaskQuery = {}): Task[] {
@@ -90,6 +93,7 @@ export class TaskRepository {
   }
 
   create(input: TaskInput): Task {
+    this.storage?.assertRoom("tasks");
     const ts = now();
     const status = input.status ?? "todo";
     const task: Task = {
@@ -134,9 +138,13 @@ export class TaskRepository {
     return this.update(id, { status: "done" });
   }
 
-  delete(id: string): void {
-    this.require(id);
-    this.db.run(`DELETE FROM tal_tasks WHERE id = ?`, id);
+  /** Moves the task to the trash (or, with `reason: "archived"`, the archive). `actor` is who asked. */
+  delete(id: string, opts: { reason?: "deleted" | "archived"; actor?: "owner" | "remote" } = {}): void {
+    const task = this.require(id);
+    this.db.transaction(() => {
+      this.storage?.keep("task", task, task.title, opts);
+      this.db.run(`DELETE FROM tal_tasks WHERE id = ?`, id);
+    });
   }
 
   /**
