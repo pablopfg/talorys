@@ -183,7 +183,7 @@ curl -sS -H "Authorization: Bearer $TALORYS_TOKEN" \
 
 ## Smoke script
 
-Dependency-free check (Node ≥ 22):
+Dependency-free check (Node ≥ 24):
 
 ```bash
 TALORYS_URL="$TALORYS_URL" TALORYS_TOKEN="$TALORYS_TOKEN" \

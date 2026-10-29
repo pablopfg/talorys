@@ -10,6 +10,7 @@ import {
   Copy,
   History,
   Loader2,
+  Mic,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -17,6 +18,7 @@ import {
   Search,
   Square,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import { ApprovalCard } from "../components/ApprovalCard";
@@ -26,7 +28,9 @@ import { Markdown } from "../components/Markdown";
 import { Button, ConfirmDialog, Dialog, Input, Spinner } from "../components/ui";
 import { Logo } from "../components/Logo";
 import { keys, useApiMutation, useConversation, useConversations, useSettings, useTimezone } from "../hooks/queries";
-import { api, ApiError, streamChat } from "../lib/api";
+import { api, ApiError, streamChat, transcribe } from "../lib/api";
+import { errorMessage, useToast } from "../hooks/toast";
+import { blobToBase64, useVoiceRecorder, voiceSupported } from "../hooks/voice";
 import { cn, copyText, relativeTime } from "../lib/utils";
 import { useI18n } from "../lib/i18n";
 
@@ -581,8 +585,31 @@ function AssistantBubble({
 
 function Composer({ streaming, onSend, onStop, autoFocus }: { streaming: boolean; onSend: (t: string) => void; onStop: () => void; autoFocus?: boolean }) {
   const { t } = useI18n();
+  const toast = useToast();
   const [value, setValue] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [canRecord] = useState(voiceSupported);
+  const voice = useVoiceRecorder({
+    onClip: (clip) => {
+      setTranscribing(true);
+      void blobToBase64(clip)
+        .then((audio) => transcribe(audio, value.trim() || undefined))
+        .then(({ text }) => {
+          if (!text) {
+            toast(t("chat.voice.nothingHeard"), "error");
+            return;
+          }
+          // The text joins what was already typed, for review before sending.
+          setValue((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text));
+          ref.current?.focus();
+        })
+        .catch((error: unknown) => toast(errorMessage(error, t("chat.voice.failed")), "error"))
+        .finally(() => setTranscribing(false));
+    },
+    onError: (error) => toast(t(error === "denied" ? "chat.voice.denied" : "chat.voice.unavailable"), "error"),
+  });
+  const recording = voice.state !== "idle";
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -592,7 +619,7 @@ function Composer({ streaming, onSend, onStop, autoFocus }: { streaming: boolean
 
   function submit() {
     const text = value.trim();
-    if (!text || streaming) return;
+    if (!text || streaming || recording || transcribing) return;
     onSend(text);
     setValue("");
   }
@@ -614,11 +641,34 @@ function Composer({ streaming, onSend, onStop, autoFocus }: { streaming: boolean
           onKeyDown={onKeyDown}
           autoFocus={autoFocus}
           maxLength={16000}
-          placeholder={t("chat.placeholder")}
+          readOnly={recording || transcribing}
+          placeholder={recording ? t("chat.voice.listening") : transcribing ? t("chat.voice.transcribing") : t("chat.placeholder")}
           aria-label={t("chat.message")}
           className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 placeholder:text-fg-subtle focus:outline-none"
         />
-        {streaming ? (
+        {recording ? (
+          <>
+            <span className="flex h-10 shrink-0 items-center gap-1.5 px-1 text-xs tabular-nums text-fg-muted" aria-live="polite">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-danger" aria-hidden />
+              {formatClock(voice.seconds)}
+            </span>
+            <Button variant="ghost" size="icon" onClick={voice.cancel} aria-label={t("chat.voice.cancel")} className="rounded-xl">
+              <X className="h-4 w-4" />
+            </Button>
+            <Button size="icon" onClick={voice.stop} disabled={voice.state !== "recording"} aria-label={t("chat.voice.stop")} className="rounded-xl">
+              <Check className="h-4 w-4" />
+            </Button>
+          </>
+        ) : transcribing ? (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center text-fg-muted" role="status" aria-label={t("chat.voice.transcribing")}>
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        ) : canRecord ? (
+          <Button variant="ghost" size="icon" onClick={() => void voice.start()} aria-label={t("chat.voice.start")} className="rounded-xl">
+            <Mic className="h-4 w-4" />
+          </Button>
+        ) : null}
+        {recording || transcribing ? null : streaming ? (
           <Button variant="secondary" size="icon" onClick={onStop} aria-label={t("chat.stop")} className="rounded-xl">
             <Square className="h-3.5 w-3.5 fill-current" />
           </Button>
@@ -633,4 +683,9 @@ function Composer({ streaming, onSend, onStop, autoFocus }: { streaming: boolean
       </p>
     </div>
   );
+}
+
+/** Recording time as m:ss. */
+function formatClock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }

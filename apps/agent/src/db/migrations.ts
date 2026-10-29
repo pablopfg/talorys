@@ -424,6 +424,14 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE tal_sessions ADD COLUMN last_presence_at TEXT`,
     ],
   },
+  {
+    version: 16,
+    name: "chat voice input",
+    statements: [
+      // Audio seconds transcribed per day, capped by TRANSCRIPTION_LIMITS.maxSecondsPerDay.
+      `ALTER TABLE tal_usage_daily ADD COLUMN transcription_seconds INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

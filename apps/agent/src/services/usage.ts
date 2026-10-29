@@ -1,9 +1,9 @@
 import type { Limits, UsageCounters } from "@talorys/shared";
 import type { Database } from "../db/database";
 import type { Usage } from "../ai/provider";
-import { estimateConsumption } from "../ai/pricing";
+import { estimateAudioConsumption, estimateConsumption } from "../ai/pricing";
 
-type Counter = "ai_requests" | "tool_calls" | "scheduled_ai_runs" | "ai_errors";
+type Counter = "ai_requests" | "tool_calls" | "scheduled_ai_runs" | "ai_errors" | "transcription_seconds";
 
 const modelCounterColumns = [
   "input_tokens_reported", "output_tokens_reported",
@@ -61,6 +61,21 @@ export class UsageService {
     );
   }
 
+  /** One speech-to-text call: the audio seconds for the daily cap, and its estimate per audio minute. */
+  recordTranscription(model: string, billable: boolean, seconds: number, day = this.day()): void {
+    const estimate = billable ? estimateAudioConsumption(model, seconds) : null;
+    this.increment({ transcription_seconds: Math.ceil(seconds) });
+    this.db.run(
+      recordModelUsageSql,
+      day, model, billable, 0, 0, 0, 0, 0, estimate?.neurons ?? 0, estimate?.costUsd ?? 0,
+      estimate ? 1 : 0, billable && !estimate ? 1 : 0, billable ? 0 : 1,
+    );
+  }
+
+  transcriptionSecondsToday(): number {
+    return this.dailyRow(this.day())?.transcription_seconds ?? 0;
+  }
+
   today(): UsageCounters {
     const day = this.day();
     return this.sum(day, day);
@@ -73,7 +88,7 @@ export class UsageService {
 
   private dailyRow(day: string): Record<string, number | null> | null {
     return this.db.one<Record<string, number | null>>(
-      `SELECT ai_requests, input_tokens, output_tokens, tool_calls, scheduled_ai_runs, ai_errors
+      `SELECT ai_requests, input_tokens, output_tokens, tool_calls, scheduled_ai_runs, ai_errors, transcription_seconds
        FROM tal_usage_daily WHERE day = ?`,
       day,
     );
@@ -82,7 +97,8 @@ export class UsageService {
   private sum(from: string, to: string): UsageCounters {
     const row = this.db.one<Record<string, number | null>>(
       `SELECT sum(ai_requests) AS ai_requests, sum(input_tokens) AS input_tokens, sum(output_tokens) AS output_tokens,
-              sum(tool_calls) AS tool_calls, sum(scheduled_ai_runs) AS scheduled_ai_runs, sum(ai_errors) AS ai_errors
+              sum(tool_calls) AS tool_calls, sum(scheduled_ai_runs) AS scheduled_ai_runs, sum(ai_errors) AS ai_errors,
+              sum(transcription_seconds) AS transcription_seconds
        FROM tal_usage_daily WHERE day >= ? AND day <= ?`,
       from, to,
     );
@@ -109,6 +125,7 @@ export class UsageService {
       scheduled_ai_runs: row?.scheduled_ai_runs ?? 0,
       ai_errors: row?.ai_errors ?? 0,
       embedding_requests: metered?.embedding_requests ?? 0,
+      transcription_seconds: row?.transcription_seconds ?? 0,
       neurons_estimate: pricedCalls > 0 ? metered?.neurons_estimate ?? 0 : null,
       cost_usd_estimate: pricedCalls > 0 ? metered?.cost_usd_estimate ?? 0 : null,
       priced_calls: pricedCalls,

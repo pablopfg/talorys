@@ -37,6 +37,8 @@ export class TalorysAgent extends Agent<Env, AgentState> {
   private _services: Services | null = null;
   /** In-flight chat turns by conversation, for cancellation. */
   readonly activeRuns = new Map<string, AbortController>();
+  /** True while a voice clip is being transcribed: one at a time keeps the daily audio cap exact. */
+  transcribing = false;
 
   get services(): Services {
     if (!this._services) {
