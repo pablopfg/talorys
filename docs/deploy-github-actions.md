@@ -1,5 +1,9 @@
 # Deploy automático pelo GitHub
 
+> Instalando pela primeira vez? Siga o guia completo, etapa por etapa, em
+> [instalacao-cloudflare.md](instalacao-cloudflare.md). Este documento detalha
+> o deploy pelo GitHub Actions e o modelo de segurança dele.
+
 Cada merge na `main` publica o Talorys na Cloudflare pelo GitHub Actions
 (`.github/workflows/deploy.yml`). O que vai ao ar é o **Worker único**
 (`apps/agent/wrangler.standalone.jsonc`): o mesmo Worker serve a interface e a
