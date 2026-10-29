@@ -32,14 +32,87 @@ Este documento é atualizado a cada entrega do plano "Talorys proativo".
 
 | Prioridade | Sai do app? | Conta no limite do canal? | Usada por padrão em |
 | --- | --- | --- | --- |
-| Baixa | Não, fica só no app | — | (reservada para vigias e resumos futuros) |
+| Baixa | Não, fica só no app | — | Automações marcadas como **Baixa** e tipos de aviso que o Talorys [aprendeu](#prioridade-que-aprende) a deixar mais baixos |
 | Normal | Sim, nos canais da categoria | Sim | Lembretes, resumos, rotinas, avisos de sistema |
 | Alta | Sim, e **insiste** até você confirmar (veja [Insistência](#insistência)) | Sim (as novas tentativas, não) | Lembretes e automações marcados como **Alta** (lembretes insistentes) |
 | Crítica | Sim, **por todos os canais**, mesmo com a categoria desligada, e **insiste** | **Não**: nunca é segurada e não gasta o limite dos outros | Alertas de segurança |
 
-Você pode **mudar a prioridade de qualquer notificação** na própria central (o seletor
-embaixo de cada aviso). Essas correções são a base do aprendizado de prioridade, que
-chega numa próxima entrega.
+Você pode **corrigir a prioridade de qualquer notificação** na própria central (o seletor
+**Corrigir** embaixo de cada aviso) ou no Telegram (botão **Corrigir prioridade**). O
+Talorys aprende com essas correções e com o que você faz com os avisos; veja
+[Prioridade que aprende](#prioridade-que-aprende). Alertas de segurança são sempre
+críticos: a correção não aparece neles e a API recusa baixá-los.
+
+## Prioridade que aprende
+
+O Talorys ajusta sozinho a prioridade de cada **tipo de aviso** a partir do seu uso, sem
+gastar nenhuma chamada de IA. Funciona em três camadas, da mais barata para a mais cara:
+
+1. **Regras fixas**, que nada muda:
+   - alertas de segurança são sempre **Críticos** e nunca aprendem;
+   - eventos externos (categoria Eventos) nunca passam de **Alta**;
+   - um lembrete nunca aprende a ficar **Baixa** (ele ficaria só no app e você não seria
+     avisado na hora que pediu);
+   - o aprendizado só mexe em avisos que pediram Baixa ou Normal: um aviso que pediu
+     **Alta** (insistente) ou **Crítica** sai como pediu, e o aprendizado nunca cria um
+     aviso Crítico.
+2. **Perfil aprendido.** Cada aviso pertence a um perfil:
+   - um por automação (cada resumo, rotina ou lembrete recorrente aprende sozinho);
+   - um para todos os **lembretes avulsos** (os únicos, como "me lembre às 15h");
+   - um por tipo de aviso do sistema (por exemplo, todos os "tarefa atrasada");
+   - um por categoria para o resto.
+
+   Cada aviso dá **um sinal** ao seu perfil, o primeiro que acontecer:
+
+   | O que você fez | Sinal |
+   | --- | --- |
+   | Leu ou tocou em Feito em até 15 minutos | forte para cima (+0,7) |
+   | Leu entre 15 minutos e 4 horas | leve para cima (+0,1) |
+   | Leu só depois de 4 horas | para baixo (−0,3) |
+   | Adiou | leve para cima (+0,2) |
+   | Silenciou | para baixo (−0,6) |
+   | Deixou sem ler por 24 horas | forte para baixo (−0,8) |
+   | Concluiu a tarefa do aviso em até 1 hora (avisos de tarefa, que chegam com os vigias) | forte para cima (+0,8) |
+
+   Corrigir a prioridade é o sinal mais forte (+1 ou −1, com peso dobrado) e vale além do
+   sinal do aviso. Os sinais formam uma média móvel; quando ela passa de **0,5** (ou de
+   **−0,5**) com pelo menos 3 sinais, o perfil sobe (ou desce) **um nível**. Uma correção
+   sua basta para mover o perfil na hora; mudar de novo a prioridade do mesmo aviso só
+   atualiza a correção (voltar à original a desfaz), sem ensinar duas vezes. "Marcar todas
+   como lidas" não conta como sinal, e um aviso Baixa deixado sem ler também não (ele nem
+   saiu do app). Fixar um lembrete em Baixa é permitido: é escolha sua.
+3. **O agente escolhe no mesmo turno.** Quando você pede um lembrete no chat (app ou
+   Telegram), o agente escolhe a prioridade dele (Baixa, Normal ou Alta) guiado pelas suas
+   **20 últimas correções de lembretes** (dos últimos 90 dias), que vão no contexto como
+   dados. Não há chamada de IA extra.
+
+**Travas**
+
+- No máximo **um nível por semana** em cada perfil, e no máximo **2 níveis** de distância
+  do que os avisos pedem.
+- Depois de mudar, a média e a contagem de sinais recomeçam do zero: a próxima mudança
+  precisa de pelo menos 3 sinais novos (ou de uma correção sua).
+- Todo aviso mostra **por que tem essa prioridade** quando não é simplesmente a que ele
+  pediu ("Mais alta que o normal: aprendido com o que você faz com estes avisos", "A
+  prioridade que você fixou", "Regra fixa", "Você alterou esta prioridade"). No Telegram,
+  a explicação vai no rodapé do aviso.
+- Em **Configurações → Avisos → O que o Talorys aprendeu** ficam os perfis que já têm
+  sinais ou mudaram, com o efeito atual ("1 nível acima", "Fixada em Baixa"), quantos
+  sinais desde a última mudança e quando mudou. Para cada um:
+  - **Fixar** numa prioridade (Baixa, Normal ou Alta): o perfil para de aprender e todo
+    aviso dele sai nessa prioridade (as regras fixas continuam valendo);
+  - **Aprender sozinho** volta a aprender a partir de onde está;
+  - **Zerar** esquece tudo o que o perfil aprendeu, inclusive as correções.
+- Cada mudança de nível fica no **Registro de atividade** ("Prioridade aprendida: …"). O
+  resumo de sexta-feira, que chega com os vigias e o resumo do dia, vai contar o que mudou
+  na semana.
+- O aprendizado não entra no backup: depois de restaurar, o Talorys aprende de novo.
+
+**No Telegram:** todo aviso, menos os de segurança, traz o botão **Corrigir prioridade**.
+Ele troca os botões por **Baixa**, **Normal** e **Alta** (a atual com ✓) e **Voltar**.
+Escolher uma corrige o aviso, ensina o perfil e devolve os botões do aviso (um aviso que
+virou Alta ganha Feito, Adiar e Silenciar). Só a sua conta do Telegram consegue usar os
+botões.
 
 ## Categorias
 
@@ -134,8 +207,9 @@ em duas etapas, por exemplo, confirme o aviso no Telegram para ele parar.
 - No app: **Automações → Novo**, escolha **Prioridade do aviso: Alta**. A lista mostra o
   selo **Insistente**. Vale também para resumos e rotinas.
 - No chat (app ou Telegram): peça "me lembre às 15h de tomar o remédio **até eu
-  confirmar**". O agente só cria um lembrete insistente quando você pede, e só lembretes
-  únicos; um lembrete recorrente insistente é criado no app.
+  confirmar**". O agente cria um lembrete insistente quando você pede ou quando as suas
+  correções mostram que lembretes parecidos devem ser Alta, e só lembretes únicos; um
+  lembrete recorrente insistente é criado no app.
 - A prioridade **Crítica** fica reservada para os alertas de segurança.
 
 ## Telegram
@@ -344,7 +418,11 @@ salvo as preferências antes do Telegram existir ganha o Telegram ligado em toda
 que já saía do app; as que estavam só no app continuam só no app. A migração 20 acrescenta às
 notificações o estado da insistência (`escalation`, `attempts`, `next_attempt_at`) e às
 automações a prioridade (`priority`); as automações existentes ficam como Normal, então
-nada passa a insistir sozinho.
+nada passa a insistir sozinho. A migração 21 acrescenta às notificações o perfil
+(`profile`), o motivo da prioridade (`priority_reason`) e o sinal dado (`signal`), e cria
+as tabelas `tal_alert_profiles` (o que cada perfil aprendeu) e `tal_alert_corrections` (as
+100 correções mais recentes). Começa vazia: nada muda de prioridade até você usar os
+avisos. Não há variável nova.
 
 Para o Telegram, siga [Configurar o Telegram](#configurar-o-telegram). Para o push,
 depois do deploy:
@@ -365,8 +443,12 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
 | --- | --- | --- |
 | `GET /api/alerts` | — | `{ preferences, deliveries, channels }` |
 | `PUT /api/alerts/preferences` | `{ routes: { <categoria>: ["push", "telegram"] }, limits: { perHour, perDay }, fullText: [<categoria>...] }` (todas as categorias, até 8 KB; `fullText` opcional, padrão vazio) | `{ preferences }`; 400 se inválido |
-| `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }`; 404 se não existir |
-| `GET /api/notifications` | — | Cada notificação traz `priority`, `category`, `escalation` (`null`, `"active"`, `"acknowledged"`, `"muted"` ou `"unacknowledged"`), `attempts` e `next_attempt_at` |
+| `PATCH /api/notifications/:id` | `{ priority: "low" \| "normal" \| "high" \| "critical" }` | `{ notification }` com `priority_reason: "corrected"`; o perfil do aviso aprende com a correção; 400 para baixar um alerta de segurança; 404 se não existir |
+| `GET /api/notifications` | — | Cada notificação traz `priority`, `category`, `escalation` (`null`, `"active"`, `"acknowledged"`, `"muted"` ou `"unacknowledged"`), `attempts`, `next_attempt_at`, `profile` (chave do perfil; `null` em segurança) e `priority_reason` (`"default"`, `"rule"`, `"raised"`, `"lowered"`, `"pinned"`, `"corrected"` ou `null` nos avisos de antes) |
+| `POST /api/notifications/read` | `{ id? }` | Ler um aviso conta como sinal (rapidez); sem `id` marca todos, sem sinal |
+| `GET /api/alerts/profiles` | — | `{ profiles: [{ id, key, category, label, shift, pinned, score, samples, changed_at, last_change, updated_at }] }` (só os que têm sinais, mudaram ou foram fixados) |
+| `PUT /api/alerts/profiles/:id` | `{ pinned: "low" \| "normal" \| "high" \| null }` | `{ profile }`; `null` volta a aprender; `"critical"` é recusado (400); 404 se não existir |
+| `DELETE /api/alerts/profiles/:id` | — | Zera o perfil e apaga as correções dele; `{ profile }`; 404 se não existir |
 | `POST /api/notifications/:id/action` | `{ action: "done" \| "snooze" \| "mute" }` | `{ result: "done" \| "snoozed" \| "muted" \| "already", notification, unread }`; 404 se não existir. Usada pelos botões do push |
 | `POST/PATCH /api/automations` | Campo novo `priority: "low" \| "normal" \| "high"` (padrão `"normal"`) | `"critical"` é recusado (400) |
 | `GET /api/telegram` | — | `{ status: { configured, bot, chat, group, topics, linked_at, conversation, conversation_id } }` |
@@ -391,6 +473,13 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   marca `unacknowledged`, e não faz nada se o aviso já foi lido, silenciado, apagado ou
   rebaixado. `AlertService.respond()` trata Feito, Adiar e Silenciar para o Telegram, o
   push (`apps/web/public/sw.js`) e a central. `reconcile()` roda no `onStart`.
+- A prioridade que aprende fica em `apps/agent/src/alerts/learning.ts` (`AlertLearning`):
+  `profileKey()` monta o perfil, `decide()` aplica regras, fixação e o nível aprendido no
+  `raise()`, e `observe()`, `read()`, `corrected()`, `taskCompleted()` e `sweepIgnored()`
+  recebem os sinais. As constantes (`LEARNING`, `PRIORITY_REASONS`) ficam em
+  `packages/shared/src/alerts.ts`. Um aviso sobre uma tarefa deve usar a chave de repetição
+  `task-<tipo>:<id da tarefa>` para que concluir a tarefa conte como sinal. Lembretes
+  únicos passam `profileKind: "once"` para aprender juntos.
 - O bot fica em `apps/agent/src/telegram/`: `client.ts` (chamadas à Bot API, sem seguir
   redirecionamentos, com tempo limite de 10 s; o erro nunca leva o token), `service.ts`
   (vinculação, envio, tópicos, botões, conversa), `format.ts` (Markdown para o HTML do
@@ -398,5 +487,7 @@ Todas as rotas, menos o webhook do Telegram, exigem a sessão do dono e o cabeç
   fica nas configurações, chaves `telegram.link` e `telegram.code`.
 - Testes: `apps/agent/test/alerts.test.ts` (regras, preferências, API),
   `apps/agent/test/escalation.test.ts` (escada, confirmação, respostas, push com botões),
+  `apps/agent/test/learning.test.ts` (regras fixas, perfis, sinais, travas, fixar e zerar,
+  API, correções no contexto do agente),
   `apps/agent/test/telegram.test.ts` (Bot API falsa: vinculação, envio, tópicos, botões,
   webhook, Access) e `tests/e2e/alerts.spec.ts` (tela).

@@ -20,6 +20,7 @@ import { TaskPlanService } from "./task-plans";
 import { McpService } from "../mcp/service";
 import { AlertService } from "../alerts/service";
 import { AlertDeliveryRepository } from "../alerts/repository";
+import { AlertLearning } from "../alerts/learning";
 import { pushChannel, telegramChannel } from "../alerts/channels";
 import { TelegramService } from "../telegram/service";
 
@@ -78,6 +79,8 @@ export function createServices(
   const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.SESSION_SECRET, settings, {
     respond: (id, action, opts) => alerts.respond(id, action, opts),
     acknowledgeAll: () => alerts.acknowledgeAll(),
+    setPriority: (id, priority) => alerts.setPriority(id, priority),
+    get: (id) => notifications.get(id),
   }, activity, background);
   const channels = {
     push: pushChannel(push),
@@ -87,10 +90,11 @@ export function createServices(
     timers: alertTimers,
     automations,
     activity,
+    learning: new AlertLearning(db, notifications, activity),
   });
   const memories = new MemoryRepository(db);
   const usage = new UsageService(db, () => settings.get().timezone);
-  const tasks = new TaskRepository(db);
+  const tasks = new TaskRepository(db, (id) => alerts.taskCompleted(id));
   const projects = new ProjectRepository(db);
   const authLog = new AuthLog(db, settings, () => env.SESSION_SECRET);
   return {

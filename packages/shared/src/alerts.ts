@@ -168,3 +168,62 @@ export interface TelegramLinkCode {
 }
 
 export const TELEGRAM_LINK_TTL_MS = 10 * 60_000;
+
+/**
+ * Why an alert has its priority, as the app and Telegram explain it ("why this priority"):
+ * default: what the reminder, routine or event asked for; rule: a fixed rule (security is always
+ * critical, external events at most high); raised / lowered: the learned profile moved it one or
+ * more levels; pinned: the owner fixed this kind of alert at a priority; corrected: the owner
+ * changed this alert's priority.
+ */
+export const PRIORITY_REASONS = ["default", "rule", "raised", "lowered", "pinned", "corrected"] as const;
+export type PriorityReason = (typeof PRIORITY_REASONS)[number];
+
+/**
+ * How the learned priority behaves. Each alert of a profile adds one signal from what the owner
+ * did with it (a correction adds its own, stronger one); a moving average of the signals moves
+ * the profile one level up or down, at most once a week.
+ */
+export const LEARNING = {
+  /** Read or answered within this many minutes: the owner cares about these. */
+  fastMinutes: 15,
+  /** Read only after this many hours: they could wait. */
+  slowHours: 4,
+  /** Still unread after this many hours: ignored. */
+  ignoredHours: 24,
+  /** A task finished this many minutes after its alert counts as acted upon. */
+  taskMinutes: 60,
+  /** Signals a profile needs before its level moves; a correction counts on its own. */
+  minSamples: 3,
+  /** Moving-average value (from -1 to 1) that moves the level. */
+  threshold: 0.5,
+  /** Furthest a profile moves from the priority its alerts ask for, in levels. */
+  maxShift: 2,
+  /** Days between two moves of the same profile. */
+  lockDays: 7,
+} as const;
+
+/**
+ * What the alert center learned about one kind of alert (category + origin, e.g. one routine).
+ * shift: levels added to the priority its alerts ask for; pinned: the owner fixed it at a
+ * priority, and the learning stops for it.
+ */
+export interface AlertProfile {
+  id: string;
+  key: string;
+  category: AlertCategory;
+  /** The routine's or reminder's name when the profile is one automation, else null. */
+  label: string | null;
+  shift: number;
+  pinned: AutomationPriority | null;
+  /** Moving average of the signals since the last move, from -1 (quieter) to 1 (louder). */
+  score: number;
+  samples: number;
+  /** When the level last moved, and which way (1 up, -1 down). */
+  changed_at: string | null;
+  last_change: number | null;
+  updated_at: string;
+}
+
+/** Fix a profile at a priority (null lets it learn again). Critical stays for security alerts. */
+export const alertProfileUpdateSchema = z.object({ pinned: z.enum(AUTOMATION_PRIORITIES).nullable() });

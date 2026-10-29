@@ -266,6 +266,25 @@ const PT_BR: Catalog = {
   "Critical": "Crítica",
   "Test message: Telegram alerts work.": "Mensagem de teste: os avisos pelo Telegram funcionam.",
 
+  // Priority that learns
+  "Security alerts are always critical.": "Alertas de segurança são sempre críticos.",
+  "This alert profile no longer exists.": "Este perfil de aviso não existe mais.",
+  "Fixed the priority of a kind of alert": "Fixou a prioridade de um tipo de aviso",
+  "Let a kind of alert learn its priority again": "Deixou um tipo de aviso aprender a prioridade de novo",
+  "Reset what Talorys learned about a kind of alert": "Zerou o que o Talorys aprendeu sobre um tipo de aviso",
+  "Alert priority learned: {alert} one level louder": "Prioridade aprendida: {alert} um nível acima",
+  "Alert priority learned: {alert} one level quieter": "Prioridade aprendida: {alert} um nível abaixo",
+  "One-time reminders": "Lembretes avulsos",
+  "Change priority": "Corrigir prioridade",
+  "Back": "Voltar",
+  "Low": "Baixa",
+  "Normal": "Normal",
+  "High": "Alta",
+  "Priority changed to {priority}. Talorys learns from this.": "Prioridade alterada para {priority}. O Talorys aprende com isso.",
+  "Louder than usual: learned from how you handle these alerts": "Mais alta que o normal: aprendido com o que você faz com estes avisos",
+  "Quieter than usual: learned from how you handle these alerts": "Mais baixa que o normal: aprendido com o que você faz com estes avisos",
+  "The priority you fixed for these alerts": "A prioridade que você fixou para estes avisos",
+
   // Semantic recall
   "Semantic memory recall is turned off.": "A busca semântica de memórias está desligada.",
   "vectorFloor.backstop ({backstop}) must not be above vectorFloor.absolute ({absolute})": "vectorFloor.backstop ({backstop}) não pode ser maior que vectorFloor.absolute ({absolute})",

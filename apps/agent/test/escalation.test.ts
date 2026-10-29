@@ -15,6 +15,8 @@ beforeEach(async () => {
     const db = agent.services.db;
     db.run(`DELETE FROM tal_notifications`);
     db.run(`DELETE FROM tal_alert_deliveries`);
+    db.run(`DELETE FROM tal_alert_profiles`);
+    db.run(`DELETE FROM tal_alert_corrections`);
     db.run(`DELETE FROM tal_push_subscriptions`);
     db.run(`DELETE FROM tal_activity`);
     agent.services.settings.delete("alerts.preferences");
@@ -162,7 +164,9 @@ describe("insistent alerts", () => {
       s.notifications.markRead();
       s.notifications.markRead(n.id);
       expect(s.notifications.get(n.id)!.escalation).toBe("active");
-      expect(alerts.setPriority(n.id, "low")!.escalation).toBe("active");
+      // Security alerts are always critical: lowering one is refused, and it keeps insisting.
+      expect(() => alerts.setPriority(n.id, "low")).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
+      expect(s.notifications.get(n.id)).toMatchObject({ priority: "critical", escalation: "active" });
       await expect(alerts.respond(n.id, "mute")).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
       expect(await alerts.respond(n.id, "done")).toBe("already");
       expect(() => alerts.delete(n.id)).toThrow(expect.objectContaining({ code: "CONFLICT" }));
