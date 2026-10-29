@@ -35,6 +35,23 @@ dados pessoais, domínio ou segredos: o repositório é público).
 - **Auditoria obrigatória** ao fim de cada ajuste (skill
   `auditoria-seguranca`).
 
+## Armazenamento e limpeza (2026-10-29)
+
+- **Limites por tipo** (`packages/shared/src/storage.ts`) são a trava final: no
+  limite, recusar com `STORAGE_LIMIT_REACHED`, nunca apagar para abrir espaço.
+  Aviso em 80% em Configurações → Privacidade.
+- **Nada some sem passar pela lixeira** (30 dias; arquivo, 1 ano). A lixeira e
+  o arquivo são o ponto de restauração da limpeza automática; não há backup
+  separado. Exceção: mensagens do chat já cobertas pelo resumo sem lacunas.
+- **Tokens de acesso** têm espaço próprio na lixeira e são recusados quando ele
+  acaba; nunca empurram itens do dono para fora.
+- **Limpeza automática** ligada por padrão, primeira execução 7 dias depois do
+  deploy com aviso. A compactação só remove memórias que o agente salvou e
+  ninguém editou; nunca as do dono, importadas, por token, em revisão ou
+  ligadas a um fato passado. Sem IA.
+- Memória "fixada/importante" não existe como campo; se o dono pedir, entra
+  como recurso próprio.
+
 ## Entrega
 
 - **Deploy pelo GitHub Actions** (`.github/workflows/deploy.yml`), um Worker
