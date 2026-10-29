@@ -85,7 +85,8 @@ Two optional gates run in the Worker's entry point, before the Durable Object:
   model output are not loaded; links open with `noopener noreferrer`.
 - `_headers` sets a strict CSP (`script-src 'self'`, `connect-src 'self'`,
   `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, HSTS
-  (`max-age=63072000; includeSubDomains`) and a
+  (`max-age=63072000; includeSubDomains`; serve Talorys on a subdomain, not the
+  bare domain) and a
   restrictive `Permissions-Policy`.
 - API responses carry their own `Content-Security-Policy: default-src 'none';
   frame-ancestors 'none'`, `X-Frame-Options: DENY` and HSTS, so a JSON answer

@@ -56,6 +56,19 @@ describe("global limit and the owner's own networks (AUTH-02)", () => {
     expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(800);
   });
 
+  it("past 100 failures, unknown networks get no attempt at all, so more addresses buy no more guesses", async () => {
+    await inAgent((a) => {
+      for (let i = 0; i < 100; i++) a.services.db.run(`INSERT INTO tal_login_attempts (client, success, at) VALUES (?, 0, ?)`, `bot-${i}`, Date.now());
+    });
+    const res = await login(freshIp());
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(800);
+    // The owner's recent networks still get in.
+    const home = freshIp();
+    await recordAttempt(home, 1, Date.now() - DAY);
+    expect((await login(home)).status).toBe(200);
+  });
+
   it("tells the owner once, not on every attempt", async () => {
     const count = () => inAgent((a) => a.services.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE title = 'Many failed sign-ins'`)!.n);
     await inAgent((a) => a.services.settings.delete("auth.attack_alerted_at"));

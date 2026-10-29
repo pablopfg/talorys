@@ -59,8 +59,10 @@ export class PushService {
 
   /**
    * After a move to a new domain (DOM-02), devices subscribed on the old address would get
-   * notifications whose click opens an address that no longer answers. They are dropped, so the
-   * app on the new address shows push as off and the owner turns it on again there.
+   * notifications whose click opens an address that no longer answers. They are dropped when the
+   * owner opens the push settings on an allowed address, so the app there shows push as off and
+   * they turn it on again. Never from a scheduled send: a mistyped setting must not silently
+   * delete every device before anyone has reached the app.
    */
   private dropMovedDevices(): void {
     const hosts = allowedHosts(this.env);
@@ -89,9 +91,7 @@ export class PushService {
 
   /** Called for every new notification. Returns at once; delivery continues in the background. */
   notify(n: Notification): void {
-    if (!this.configured()) return;
-    this.dropMovedDevices();
-    if (this.subscriptions.all().length === 0) return;
+    if (!this.configured() || this.subscriptions.all().length === 0) return;
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
     const work: Promise<void> = this.sendToAll(toPushMessage(localized))

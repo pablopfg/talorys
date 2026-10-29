@@ -129,9 +129,13 @@ dashboard: Workers & Pages → your project → **Custom domains** → *Set up a
 custom domain*. Until the certificate is active the health check fails; re-run
 the same command a few minutes later.
 
+Use a subdomain such as `talorys.example.com`, not the bare domain: the app
+sends HSTS with `includeSubDomains`, so browsers would then insist on HTTPS for
+every host under that domain for two years.
+
 Push subscriptions belong to the address a device subscribed on. After a move,
-devices from the old address are dropped the next time a notification is sent
-or Settings is opened; turn push on again on the new address.
+devices from the old address are dropped when you open Settings on the new one;
+turn push on again there.
 
 ## Idempotency and recovery
 
