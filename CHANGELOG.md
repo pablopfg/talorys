@@ -20,7 +20,7 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 ### Atualização
 
-- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Para os avisos no Telegram, um segredo novo e opcional, `TELEGRAM_BOT_TOKEN` (token do bot criado no @BotFather); sem ele o canal aparece como não configurado e nada mais muda. Quem usa o Cloudflare Access precisa de uma regra *Bypass* para o caminho `api/telegram/webhook` (veja [docs/alerts.md](docs/alerts.md#configurar-o-telegram)). Preferências de avisos salvas antes do Telegram ganham o Telegram ligado nas categorias que já saíam do app.
+- A migração 19 do banco roda sozinha na primeira requisição depois do deploy: acrescenta prioridade, categoria e chave de repetição às notificações (as antigas ficam como Normal / Sistema) e cria a tabela `tal_alert_deliveries`. Para os avisos no Telegram, um segredo novo e opcional, `TELEGRAM_BOT_TOKEN` (token do bot criado no @BotFather); sem ele o canal aparece como não configurado e nada mais muda. Quem usa o Cloudflare Access precisa de uma regra *Bypass* para o caminho `api/telegram/webhook` (veja [docs/alerts.md](docs/alerts.md#configurar-o-telegram)). Preferências de avisos salvas antes do Telegram ganham o Telegram ligado nas categorias que já saíam do app. A conversa pelo chat do Telegram é ligada ao conectar o bot; um vínculo feito antes dela fica com a conversa desligada até você ligar em Configurações → Avisos → Telegram.
 
 ## 1.0.0 — 2026-10-29
 

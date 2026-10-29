@@ -517,6 +517,32 @@ describe("conversation in the private chat", () => {
     });
   });
 
+  it("keeps the conversation off for a link made before it existed, until the owner turns it on", async () => {
+    await inAgent(async (agent) => {
+      const t = agent.services.telegram;
+      await linkChat(agent);
+      const { conversation: _, ...old } = t.link();
+      agent.services.settings.setJson("telegram.link", old);
+      expect(t.status().conversation).toBe(false);
+      t.setConversation(true);
+      expect(t.status().conversation).toBe(true);
+    });
+  });
+
+  it("says when the answer was stopped from the app", async () => {
+    await inAgent(async (agent) => {
+      const fake = fakeTelegram();
+      const t = agent.services.telegram;
+      await linkChat(agent, fake);
+      const turn = t.handle(privateMessage("a long message that takes a while to answer word by word"));
+      await new Promise((r) => setTimeout(r, 60));
+      for (const controller of agent.activeRuns.values()) controller.abort();
+      await turn;
+      expect(fake.sent().at(-1)!.params.text).toBe("⚠️ The answer was stopped.");
+      expect(agent.activeRuns.size).toBe(0);
+    });
+  });
+
   it("tells the owner when the agent can't answer", async () => {
     await inAgent(async (agent) => {
       const fake = fakeTelegram();
@@ -564,6 +590,9 @@ describe("Telegram formatting", () => {
     expect(markdownToTelegramHtml("## Title\n- one\n- two")).toBe("<b>Title</b>\n• one\n• two");
     expect(markdownToTelegramHtml("```js\nconst a = **1**;\n```")).toBe("<pre>const a = **1**;</pre>");
     expect(markdownToTelegramHtml("[click](https://evil.example)")).toBe("[click](https://evil.example)");
+    // Text that looks like the internal placeholders stays as it is.
+    expect(markdownToTelegramHtml("\uE0000\uE000 and `x`")).toBe("\uE0000\uE000 and <code>x</code>");
+    expect(splitMessage(`${"a".repeat(9)}😀b`, 10)).toEqual(["a".repeat(9), "😀b"]);
     const long = `${"word ".repeat(1000)}\n\n${"more ".repeat(500)}`;
     const parts = splitMessage(long, 3800);
     expect(parts.length).toBeGreaterThan(1);
@@ -622,7 +651,7 @@ describe("Telegram API", () => {
     const c = await loggedIn();
     const fake = fakeTelegram();
     await inAgent((agent) => useFake(agent, fake));
-    expect(await c.json("/api/telegram")).toEqual({ status: { configured: true, bot: null, chat: false, group: null, topics: false, linked_at: null, conversation: true, conversation_id: null } });
+    expect(await c.json("/api/telegram")).toEqual({ status: { configured: true, bot: null, chat: false, group: null, topics: false, linked_at: null, conversation: false, conversation_id: null } });
     const link = await c.json("/api/telegram/connect", { method: "POST" });
     expect(link.code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
     expect((await c.call("/api/telegram/test", { method: "POST" })).status).toBe(503);

@@ -230,6 +230,7 @@ const PT_BR: Catalog = {
   "Talorys reads text messages here for now.": "Por enquanto o Talorys lê só mensagens de texto por aqui.",
   "Talorys is still answering your last message. Wait for it, then write again.": "O Talorys ainda está respondendo sua última mensagem. Espere a resposta e escreva de novo.",
   "Talorys took too long to answer. Try again.": "O Talorys demorou demais para responder. Tente de novo.",
+  "The answer was stopped.": "A resposta foi interrompida.",
   "Something here needs your confirmation. Open Talorys to review it.": "Algo aqui precisa da sua confirmação. Abra o Talorys para revisar.",
   "Open in Talorys": "Abrir no Talorys",
   "Only the owner can use these buttons.": "Só o dono pode usar estes botões.",

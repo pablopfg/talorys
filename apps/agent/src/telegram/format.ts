@@ -13,7 +13,9 @@ export function splitMessage(text: string, max = MAX_MESSAGE): string[] {
   while (rest.length > max) {
     const window = rest.slice(0, max);
     const cut = Math.max(window.lastIndexOf("\n\n"), window.lastIndexOf("\n"), window.lastIndexOf(" "));
-    const at = cut > max / 2 ? cut : max;
+    let at = cut > max / 2 ? cut : max;
+    // Never between the two halves of an emoji or other astral character.
+    if (at === max && /[\uD800-\uDBFF]/.test(rest[at - 1] ?? "")) at--;
     parts.push(rest.slice(0, at).trim());
     rest = rest.slice(at).trim();
   }
@@ -28,10 +30,13 @@ export function splitMessage(text: string, max = MAX_MESSAGE): string[] {
  */
 export function markdownToTelegramHtml(markdown: string): string {
   const blocks: string[] = [];
+  // Placeholders the model can't type: a private-use mark with a fresh random tag per call.
+  const tag = crypto.randomUUID().slice(0, 8);
+  const hold = (html: string) => `\uE000${tag}${blocks.push(html) - 1}\uE000`;
   // Code first, so markers inside code stay literal.
   let html = escapeHtml(markdown)
-    .replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, code: string) => `\uE000${blocks.push(`<pre>${code.replace(/\n$/, "")}</pre>`) - 1}\uE000`)
-    .replace(/`([^`\n]+)`/g, (_, code: string) => `\uE000${blocks.push(`<code>${code}</code>`) - 1}\uE000`);
+    .replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, code: string) => hold(`<pre>${code.replace(/\n$/, "")}</pre>`))
+    .replace(/`([^`\n]+)`/g, (_, code: string) => hold(`<code>${code}</code>`));
   html = html
     .replace(/^(\s*)[-*]\s+/gm, "$1• ")
     .replace(/^#{1,6}\s+(.+)$/gm, "<b>$1</b>")
@@ -39,5 +44,5 @@ export function markdownToTelegramHtml(markdown: string): string {
     .replace(/__([^_\n]+)__/g, "<b>$1</b>")
     .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<i>$2</i>")
     .replace(/(^|[^_\w])_([^_\n]+)_(?!\w)/g, "$1<i>$2</i>");
-  return html.replace(/\uE000(\d+)\uE000/g, (_, i: string) => blocks[Number(i)]!);
+  return html.replace(new RegExp(`\uE000${tag}(\\d+)\uE000`, "g"), (_, i: string) => blocks[Number(i)]!);
 }

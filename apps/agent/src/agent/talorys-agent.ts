@@ -70,6 +70,7 @@ export class TalorysAgent extends Agent<Env, AgentState> {
         turn: (input) => this.runner().chat(input),
         active: this.activeRuns,
         exists: (id) => services.conversations.get(id) !== null,
+        keepAliveWhile: (work) => this.keepAliveWhile(work),
       });
     }
     return this._services;

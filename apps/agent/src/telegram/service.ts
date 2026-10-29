@@ -31,6 +31,8 @@ export interface TelegramChat {
   active: Map<string, AbortController>;
   /** Whether a conversation still exists (the owner may delete it in the app). */
   exists: (conversationId: string) => boolean;
+  /** Keeps the Durable Object alive while a turn runs: work after the webhook's response is not enough. */
+  keepAliveWhile: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
 /** What Talorys remembers about the linked bot. Ids are Telegram's numeric ids. */
@@ -64,7 +66,7 @@ const LINK_KEY = "telegram.link";
 const CODE_KEY = "telegram.code";
 const EMPTY: TelegramLink = {
   bot: null, userId: null, chatId: null, groupId: null, groupTitle: null, isForum: false, topics: {},
-  topicsUnavailable: false, appUrl: null, conversation: true, conversationId: null, linkedAt: null, seenUpdates: [],
+  topicsUnavailable: false, appUrl: null, conversation: false, conversationId: null, linkedAt: null, seenUpdates: [],
 };
 /** Unambiguous letters and digits for the link code. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -77,8 +79,11 @@ const SEEN_UPDATES = 100;
 const MAX_CHAT_MESSAGE = 16_000;
 /** A turn still running after this long is stopped, so the chat never waits forever. */
 export const CHAT_TURN_TIMEOUT_MS = 3 * 60_000;
-/** Telegram shows "typing…" for 5 seconds per sendChatAction. */
-const TYPING_EVERY_MS = 4_500;
+/** Telegram shows "typing…" for 5 seconds per sendChatAction; a long turn stops showing it after a minute. */
+const TYPING_EVERY_MS = 5_000;
+const MAX_TYPING = 12;
+/** A turn that ignores the abort (a stuck tool) is given up this long after it, so the chat is never locked. */
+const ABORT_GRACE_MS = 10_000;
 const COMMAND = /^\/(new|help|start)(?:@\w+)?\s*$/i;
 
 /** English labels, translated with the server-text catalog like every other server text. */
@@ -215,7 +220,9 @@ export class TelegramService {
     const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
     const expiresAt = Date.now() + TELEGRAM_LINK_TTL_MS;
     this.settings.setJson(CODE_KEY, { hash: await sha256Hex(code), expiresAt });
-    this.save({ bot, appUrl: origin, topicsUnavailable: false, seenUpdates: [] });
+    // Connecting (which asks for the password) turns the conversation on; a link made before the
+    // conversation existed keeps it off until the owner turns it on.
+    this.save({ bot, appUrl: origin, topicsUnavailable: false, seenUpdates: [], conversation: true });
     this.activity.record("telegram.connect", "Started linking Telegram");
     return {
       code,
@@ -376,14 +383,25 @@ export class TelegramService {
     this.chatting = true;
     const controller = new AbortController();
     if (conversationId) chat.active.set(conversationId, controller);
-    const timeout = setTimeout(() => controller.abort(), CHAT_TURN_TIMEOUT_MS);
-    const typing = () => this.client?.call("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
-    void typing();
-    const ticker = setInterval(() => void typing(), TYPING_EVERY_MS);
+    let timedOut = false;
+    let giveUp: () => void = () => {};
+    const abandoned = new Promise<void>((resolve) => (giveUp = resolve));
+    let grace: ReturnType<typeof setTimeout> | undefined;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      grace = setTimeout(giveUp, ABORT_GRACE_MS);
+    }, CHAT_TURN_TIMEOUT_MS);
+    let pings = 0;
+    const typing = () => {
+      if (pings++ < MAX_TYPING) void this.client?.call("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+    };
+    typing();
+    const ticker = setInterval(typing, TYPING_EVERY_MS);
     let reply = "";
     let failure: string | null = null;
     let needsApp = false;
-    try {
+    const run = async () => {
       for await (const event of chat.turn({ conversationId, message, signal: controller.signal })) {
         if (event.type === "start") {
           if (conversationId !== event.conversation_id) {
@@ -399,15 +417,21 @@ export class TelegramService {
           needsApp = event.message.tools.some((t) => t.approval?.status === "pending" || t.plan?.status === "pending");
         }
       }
+    };
+    try {
+      await chat.keepAliveWhile(() => Promise.race([run(), abandoned]));
     } catch (error) {
       failure = error instanceof AppError ? error.message : "Something went wrong.";
     } finally {
       clearTimeout(timeout);
+      if (grace !== undefined) clearTimeout(grace);
       clearInterval(ticker);
       if (conversationId && chat.active.get(conversationId) === controller) chat.active.delete(conversationId);
       this.chatting = false;
     }
-    if (controller.signal.aborted && !reply.trim()) failure = "Talorys took too long to answer. Try again.";
+    // A partial answer says it was cut short: by the time limit, or by Stop in the app.
+    if (timedOut) failure = "Talorys took too long to answer. Try again.";
+    else if (controller.signal.aborted) failure = "The answer was stopped.";
     const parts = splitMessage(reply);
     if (failure) parts.push(`⚠️ ${this.text(failure)}`);
     if (needsApp) parts.push(this.text("Something here needs your confirmation. Open Talorys to review it."));
@@ -432,7 +456,9 @@ export class TelegramService {
         console.warn("Telegram reply failed", error instanceof TelegramError ? error.code : "error");
         return;
       }
-      await client.call("sendMessage", { ...base, text: markdown }).catch(() => undefined);
+      // Plain text, and without the button in case the button was what Telegram refused.
+      const { reply_markup: _, ...plain } = base as typeof base & { reply_markup?: unknown };
+      await client.call("sendMessage", { ...plain, text: markdown }).catch(() => undefined);
     }
   }
 

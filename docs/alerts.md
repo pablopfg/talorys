@@ -127,14 +127,18 @@ Tudo o que você escreve ao bot no chat privado vai para o agente, como no chat 
   Assim, quem tomar a sua conta do Telegram não consegue apagar nada.
 - **Uma de cada vez.** Enquanto o Talorys responde, uma nova mensagem recebe "O Talorys
   ainda está respondendo sua última mensagem". Uma resposta que passa de 3 minutos é
-  interrompida. O bot mostra "digitando…" enquanto pensa.
+  interrompida e chega com o aviso "O Talorys demorou demais para responder"; se você
+  tocar em **Parar** no app, o que já foi escrito chega com "A resposta foi interrompida".
+  O bot mostra "digitando…" no primeiro minuto.
 - **Formatação.** Negrito, itálico, código e listas aparecem formatados; links ficam como
   texto (sem prévia), para não esconder o endereço. Respostas longas são divididas em
   várias mensagens.
 - **Comandos:** `/new` (conversa nova) e `/help` (o que o bot faz). Por enquanto o bot lê só
   texto; áudio chega na próxima entrega.
 - **Liga e desliga** em **Configurações → Avisos → Telegram → Conversar com o Talorys pelo
-  chat** (ligado por padrão). Ligar de novo pede a senha. Desligado, o bot só envia avisos.
+  chat**. Ela é ligada ao tocar em **Conectar** (que já pede a senha); quem vinculou o bot
+  antes desta versão encontra a conversa desligada e liga quando quiser. Ligar pede a senha.
+  Desligado, o bot só envia avisos.
 
 ### Configurar o Telegram
 
