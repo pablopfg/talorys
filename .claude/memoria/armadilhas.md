@@ -16,6 +16,9 @@ repositório. Leia antes de mudar algo na área.
   trabalho, rode só o arquivo relevante
   (`npm test -w @talorys/agent -- test/<nome>.test.ts`); a suíte inteira no
   fim.
+- Os testes do instalador exigem **Node.js 24+** (`checkNodeVersion`). Num
+  ambiente com Node 22 eles falham todos com "Node.js 24.0 or newer is
+  required": não é bug do código, troque de Node (`nvm use`).
 - `npm run test:e2e` precisa do Chromium do Playwright. No CI ele é instalado
   com `npx playwright install --with-deps chromium`.
 
