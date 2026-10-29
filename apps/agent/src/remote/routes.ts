@@ -1,7 +1,7 @@
-import { MAX_REMOTE_TOKENS, remoteStatusSchema, remoteTokenCreateSchema } from "@talorys/shared";
+import { MAX_REMOTE_TOKENS, REMOTE_EVENTS, remoteEventSchema, remoteStatusSchema, remoteTokenCreateSchema } from "@talorys/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../api/app";
-import { NotFoundError } from "../api/errors";
+import { AppError, NotFoundError } from "../api/errors";
 import { body, requireRecentAuth } from "../api/middleware";
 import { raiseSecurityAlert } from "../alerts/security";
 
@@ -51,4 +51,15 @@ remoteRoutes.delete("/remote/tokens", (c) => {
   const revoked = s.remote.revokeAll();
   s.activity.record("remote.token_revoked_all", `Revoked all ${revoked} access tokens`);
   return c.json({ revoked });
+});
+
+/**
+ * An event from an outside system (n8n, a script, a monitor), as an alert. Only an `events` token
+ * reaches this (the remote middleware sends such tokens nowhere else), never the owner's session.
+ */
+remoteRoutes.post("/remote/events", async (c) => {
+  if (c.get("remote")?.scope !== "events") throw new AppError("FORBIDDEN", "Only an events access token can send events.");
+  const input = await body(c, remoteEventSchema, REMOTE_EVENTS.maxBodyBytes);
+  const result = c.env.agent.services.remoteEvents.receive(input);
+  return c.json(result, result.event ? 201 : 200);
 });

@@ -502,6 +502,7 @@ export const ptBR = {
   "remote.tokenNamePlaceholder": "ex.: Servidor de casa",
   "remote.scope": "Escopo",
   "remote.writeHint": "Escrita pode criar, atualizar e excluir tarefas, notas, lembretes e memórias.",
+  "remote.eventsHint": "Eventos só pode enviar avisos para POST /api/remote/events (para o n8n e outras automações): no máximo 60 por hora e 100 por dia, nunca críticos. Não lê nem altera nada.",
   "remote.generate": "Gerar token",
   "remote.newToken": "Novo token de acesso",
   "remote.copyNow": "Copie este token agora. Ele não será mostrado novamente.",

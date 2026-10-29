@@ -23,8 +23,9 @@ Admin routes (`/api/remote/*`) require the browser session and CSRF header. Toke
 | --- | --- |
 | `read` (default) | `GET` / `HEAD` on the allowlist only. Writes return **403**. |
 | `write` | Everything `read` can do, plus `POST` / `PATCH` / `DELETE` on allowlisted collections. **Owner-level** on that surface: replace content and delete. |
+| `events` | Only `POST /api/remote/events`, which turns an event from n8n or another automation into an alert. Every other route returns **403**, and no other token (nor the owner's session) can call this one. See [Events](#events). |
 
-Named tokens are the least-privilege knob (`home-assistant` = read, `voice-capture` = write). There is no third “capture” scope in v1.
+Named tokens are the least-privilege knob (`home-assistant` = read, `voice-capture` = write, `n8n` = events).
 
 ## Allowlist
 
@@ -103,6 +104,28 @@ Auth ordering: if `Authorization` is present, it must be a valid Bearer token. A
 - Token searches may use at most **half** of each daily embedding cap (memories and items). Past that, they return keyword-only hits (`cosine: null`) for the rest of the day, while the owner's chat keeps the other half.
 - Hits are thin (ids / scores / short fields). Follow up with `GET /api/…/:id` for full bodies.
 - Completed tasks and inactive automations are **not** filtered out of item search.
+
+## Events
+
+`POST /api/remote/events` with an `events` token raises an alert in the **Events** category.
+Body (JSON, at most 2 KB): `title` (1–120 characters, required), `body` (up to 1000),
+`priority` (`low`, `normal` default, or `high`; `critical` is refused), `source` and `kind`
+(up to 40 characters of letters, digits, `.`, `-`, `_`), and `id` (up to 100 characters; the
+same `source` + `id` within 24 hours is dropped).
+
+| Status | Meaning |
+| --- | --- |
+| **201** | `{ event: { id, priority }, duplicate: false }` |
+| **200** | `{ event: null, duplicate: true }`: a repeat of an `id` |
+| **400** | Invalid field |
+| **403** | Not an `events` token |
+| **429** | More than **60** events in an hour or **100** in 24 hours, across all tokens (`Retry-After` set) |
+
+The title starts with the source (`n8n: …`) and is kept to one line; links are defanged
+(`hxxps://`, in backticks) on every channel. Events use at most half of each alert channel's
+limits, at most 3 insist at once, and at most 50 source + kind pairs learn their own priority. The full guide, with the n8n
+HTTP Request node and Cloudflare Access service tokens, is in
+[alerts.md](alerts.md#eventos-do-n8n-e-de-outras-automações) (Portuguese).
 
 ## Rate limits and max tokens
 

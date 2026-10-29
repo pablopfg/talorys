@@ -17,6 +17,7 @@ import { AutomationService, type Scheduler } from "../agent/scheduling";
 import { MemoryHistoryService, type MemoryHistoryHooks } from "../memory";
 import { PushSubscriptionRepository } from "../push/repository";
 import { PushService } from "../push/service";
+import { RemoteEvents } from "../remote/events";
 import { RemoteTokenService } from "../remote/tokens";
 import { TaskPlanService } from "./task-plans";
 import { McpService } from "../mcp/service";
@@ -51,6 +52,8 @@ export interface Services {
   memoryHistory: MemoryHistoryService;
   push: PushService;
   remote: RemoteTokenService;
+  /** Events from outside systems (n8n), sent with an `events` access token. */
+  remoteEvents: RemoteEvents;
   taskPlans: TaskPlanService;
   mcp: McpService;
 }
@@ -150,6 +153,7 @@ export function createServices(
     memoryHistory: new MemoryHistoryService(db, memories, settings, usage, activity, memoryHooks),
     push,
     remote: new RemoteTokenService(db, settings, env.SESSION_SECRET),
+    remoteEvents: new RemoteEvents(alerts, settings, db),
     taskPlans: new TaskPlanService(db, tasks, projects, activity),
     mcp: new McpService(db, env, activity),
   };

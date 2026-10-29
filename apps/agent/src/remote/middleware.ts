@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnv } from "../api/app";
 import { AppError } from "../api/errors";
 import { clientId, clientInfo } from "../api/middleware";
-import { isRemoteAllowed, REMOTE_ID_PATTERN } from "./allowlist";
+import { isRemoteAllowed, REMOTE_EVENTS_PATH, REMOTE_ID_PATTERN } from "./allowlist";
 import type { RemoteCaller } from "./tokens";
 
 const BEARER = /^Bearer (\S+)$/;
@@ -82,7 +82,11 @@ export const remoteAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     if (write) await recordRequest(c, caller, 403);
     throw new AppError("FORBIDDEN", message);
   };
-  if (!isRemoteAllowed(method, new URL(c.req.url).pathname)) await deny("This route is not available to access tokens.");
+  // An events token sends events and nothing else; only an events token sends them.
+  const event = method === "POST" && new URL(c.req.url).pathname === REMOTE_EVENTS_PATH;
+  if (caller.scope === "events" ? !event : event || !isRemoteAllowed(method, new URL(c.req.url).pathname)) {
+    await deny(caller.scope === "events" ? "This access token can only send events." : "This route is not available to access tokens.");
+  }
   if (caller.scope === "read" && write) await deny("This access token is read-only.");
   c.set("remote", caller);
   if (!write) return next();

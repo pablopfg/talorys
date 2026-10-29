@@ -506,6 +506,7 @@ export const en = {
   "remote.tokenNamePlaceholder": "e.g. Home server",
   "remote.scope": "Scope",
   "remote.writeHint": "Write can create, update, and delete tasks, notes, reminders, and memories.",
+  "remote.eventsHint": "Events can only send alerts to POST /api/remote/events (for n8n and other automations): at most 60 an hour and 100 a day, never critical. It cannot read or change anything.",
   "remote.generate": "Generate token",
   "remote.newToken": "New access token",
   "remote.copyNow": "Copy this token now. It will not be shown again.",

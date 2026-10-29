@@ -24,6 +24,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 
 - **Verificação contra robôs nos logins arriscados.** Com o Cloudflare Turnstile configurado (gratuito), a tela de login mostra a verificação "não sou um robô" só quando o login parece arriscado: a rede errou a senha nos últimos 15 minutos, ou há muitas falhas vindas de várias redes e a rede não é uma das suas. No uso normal, o login continua só com a senha. A verificação é conferida antes de a senha ser testada, então um robô sem ela não gasta tentativas nem processamento, e cada recusa aparece na atividade de acesso como "Verificação contra robôs não aprovada". Veja [docs/security.md](docs/security.md#robot-check-turnstile).
 
+- **Eventos do n8n e de outras automações.** Um token de acesso remoto com o escopo novo **events** envia avisos para `POST /api/remote/events`: cada evento vira um aviso na categoria Eventos, com título, corpo, prioridade (baixa, normal ou alta; nunca crítica), origem, tipo e um id para descartar repetições em 24 horas. No máximo 60 eventos por hora e 100 por dia, corpo de até 2 KB, título sempre com a origem e links não clicáveis em nenhum canal. Para não abafar os seus avisos, eventos usam só metade do limite de cada canal e no máximo 3 insistem ao mesmo tempo. O token **events** não lê nem altera nenhum dado, e só ele envia eventos. A prioridade aprende por origem e tipo. O guia mostra o nó HTTP Request do n8n e o Service Token do Cloudflare Access. Veja [docs/alerts.md](docs/alerts.md#eventos-do-n8n-e-de-outras-automações).
+
 ### Alterado
 
 - Cadastrar um aparelho novo no push passa a pedir a senha digitada há pouco (um login recente conta; a renovação do mesmo navegador não pede).
@@ -43,6 +45,8 @@ Todas as mudanças relevantes do Talorys ficam registradas aqui, no formato [Kee
 - Alertas de segurança (login novo, verificação em duas etapas, muitas tentativas de login, código de recuperação usado) passam a ser avisos críticos, e o aviso de rotina de IA pulada por falta de orçamento sai no máximo uma vez por rotina por dia.
 
 ### Atualização
+
+- A migração 23 roda sozinha depois do deploy e passa os tokens de acesso remoto para uma tabela nova que aceita o escopo `events` (a antiga fica vazia, como `tal_remote_tokens_v8`); os tokens existentes continuam valendo, com o mesmo escopo e validade.
 
 - A migração 22 roda sozinha na primeira requisição depois do deploy: acrescenta o último acesso (`last_seen_at`) aos aparelhos do push, com a hora da migração para os que já existem, então nenhum é removido no dia da atualização. Quem já tinha mais de 3 aparelhos não perde nenhum na hora: os que ficarem 7 dias sem abrir o Talorys saem sozinhos, e um aparelho novo só entra quando houver vaga.
 
