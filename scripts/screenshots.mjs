@@ -79,6 +79,8 @@ try {
   const browser = await chromium.launch();
   const shoot = async (theme, viewport, name, fn) => {
     const ctx = await browser.newContext({ baseURL: BASE, viewport, colorScheme: theme, deviceScaleFactor: 2, timezoneId: "UTC" });
+    // New installations start in pt-BR; these shots keep the English UI unless one switches.
+    await ctx.addInitScript(() => localStorage.getItem("talorys.language") ?? localStorage.setItem("talorys.language", "en"));
     const page = await ctx.newPage();
     await fn(page);
     await page.waitForTimeout(400);
@@ -96,11 +98,23 @@ try {
   await shoot("light", desktop, "login", (p) => p.goto("/").then(() => p.getByPlaceholder("Owner password").waitFor()));
 
   const ctx = await browser.newContext({ baseURL: BASE });
+  await ctx.addInitScript(() => localStorage.setItem("talorys.language", "en"));
   const p0 = await ctx.newPage();
   await login(p0);
   await seed(ctx.request);
   await ctx.close();
 
+  // Voice input: the microphone next to the message box, in the default language (pt-BR).
+  await shoot("light", desktop, "voice", async (p) => {
+    await login(p);
+    const language = (value) =>
+      p.request.patch("/api/settings", { data: { language: value }, headers: { "x-talorys-request": "1", origin: BASE } });
+    await language("pt-BR");
+    await p.evaluate(() => localStorage.setItem("talorys.language", "pt-BR"));
+    await p.reload();
+    await p.getByRole("button", { name: "Ditar uma mensagem" }).waitFor();
+    await language("en");
+  });
   await shoot("light", desktop, "chat", async (p) => {
     await login(p);
     await p.getByRole("textbox", { name: "Message", exact: true }).fill("add task prepare slides for Monday");

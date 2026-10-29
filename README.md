@@ -64,6 +64,7 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
 | | Funcionalidade | O que faz |
 | :---: | --- | --- |
 | 💬 | **Chat privado** | Respostas em streaming, Markdown e indicadores da atividade das ferramentas. |
+| 🎙️ | **Entrada por voz** | Toque no microfone, fale (até 1 minuto) e o Whisper do Workers AI transcreve na sua conta; o texto cai na caixa para você revisar antes de enviar. O áudio não é guardado e há um teto próprio de 60 minutos de áudio por dia. |
 | 🧠 | **Memória** | Fatos e preferências pessoais duradouros, que você pode ver, editar e apagar. Só as memórias mais relevantes são enviadas ao modelo a cada mensagem. |
 | 🔎 | **Busca semântica** <sub>opcional</sub> | Encontra memórias pelo significado, além das palavras-chave, lista as mais recentes primeiro com a data em que foram salvas e permite que o agente encontre tarefas, notas e automações pelo significado. [Saiba mais](docs/semantic-recall.md) |
 | 🕰️ | **Histórico da memória** | Fatos que mudam com o tempo: quando você diz que vendeu o carro, o Talorys pergunta se o antigo agora é um fato passado. Com a verificação opcional por IA, uma resposta confiante já resolve por você; conflitos pouco claros aguardam sua revisão. [Saiba mais](docs/memory-history.md) |
@@ -111,6 +112,12 @@ Ou instale com o [Appflare](https://appflare.dev), que o implanta como um [únic
   <tr>
     <td><img src="docs/screenshots/memory.png" alt="Memória no modo escuro"></td>
     <td><img src="docs/screenshots/automations.png" alt="Automações"></td>
+  </tr>
+  <tr>
+    <th colspan="2">Entrada por voz: toque no microfone, fale e revise o texto antes de enviar</th>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/voice.png" alt="Chat com o botão de microfone ao lado da caixa de mensagem"></td>
   </tr>
 </table>
 
