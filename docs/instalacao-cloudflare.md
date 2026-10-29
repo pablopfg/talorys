@@ -582,7 +582,7 @@ redes) e em todo pedido de recuperação de senha.
    verificação aparece acima do botão de entrar.
 
 Precisa das duas chaves: só uma deixa o Turnstile desligado. Detalhes:
-[security.md](security.md#robot-check-turnstile).
+[security.md](security.md#verificação-contra-robôs-turnstile).
 
 ### 20. Avisos e recuperação de senha por e-mail (Email Routing)
 
@@ -742,6 +742,17 @@ Detalhes: [mcp.md](mcp.md).
 O Talorys pode ler as suas agendas do Google e propor eventos (cada alteração
 espera a sua aprovação no chat). Tudo pelo plano gratuito do Google Cloud.
 
+**Como funciona.** O cliente OAuth é a "identidade" do seu Talorys no Google.
+Ao clicar em **Conectar Google**, o Talorys manda você para a página de login
+do Google com o ID do cliente, as duas permissões e o endereço de volta. Você
+entra e autoriza; o Google devolve você para `/settings/google-calendar` com um
+código de uso único. O Worker troca esse código, junto com a chave secreta do
+cliente e uma prova PKCE, por um token de longa duração (refresh token), que é
+gravado cifrado com `MCP_CREDENTIAL_KEY`. A partir daí o Worker renova o acesso
+sozinho, sem pedir login de novo. A senha do Google nunca passa pelo Talorys, e
+você pode cortar o acesso a qualquer momento em
+<https://myaccount.google.com/permissions>.
+
 1. Em <https://console.cloud.google.com>, crie um projeto (por exemplo
    `talorys`). Não precisa ativar faturamento.
 2. **APIs e serviços → Biblioteca** → procure **Google Calendar API** →
@@ -759,7 +770,11 @@ espera a sua aprovação no chat). Tudo pelo plano gratuito do Google Cloud.
    redirecionamento autorizados**, o endereço do seu Talorys seguido de
    `/settings/google-calendar`, por exemplo
    `https://talorys.exemplo.com.br/settings/google-calendar`. Não precisa de
-   origem JavaScript.
+   origem JavaScript. O endereço tem de ser **idêntico** ao que você abre no
+   navegador (com `https://`, sem barra no fim): o Talorys monta o endereço de
+   volta a partir da página em que você está. Use o domínio próprio da etapa 2;
+   se também abrir o Talorys por outro endereço, cadastre cada um. A mudança
+   pode levar alguns minutos para valer no Google.
 5. Copie o **ID do cliente** e a **Chave secreta do cliente** e grave como
    segredos do Worker (como na etapa 15): `GOOGLE_CLIENT_ID` e
    `GOOGLE_CLIENT_SECRET`. O segredo `MCP_CREDENTIAL_KEY` também precisa
@@ -773,6 +788,17 @@ Para uma agenda de trabalho (a do consultório, por exemplo), compartilhe-a no
 Google Agenda com a sua conta pessoal como **Ver todos os detalhes do evento** e
 deixe-a em **Só leitura** no Talorys: assim o próprio Google impede qualquer
 alteração. Detalhes e modelo de segurança: [google-calendar.md](google-calendar.md).
+
+**Se der erro na conexão:**
+
+| O que aparece | O que fazer |
+| --- | --- |
+| `redirect_uri_mismatch` (página do Google) | O URI do passo 4 não bate com o endereço aberto no navegador. Corrija no cliente, espere alguns minutos e conecte de novo. |
+| `access_denied` ou "app em teste" (página do Google) | O app ficou em **Teste**: publique-o (passo 3) ou adicione o seu e-mail em **Público-alvo → Usuários de teste**. |
+| `invalid_client` ou "O Google recusou o login" | `GOOGLE_CLIENT_ID` ou `GOOGLE_CLIENT_SECRET` errado, com espaço sobrando ou de outro cliente. Grave os dois de novo. |
+| "Google Agenda não está configurada" | Falta um dos três segredos do passo 5 no Worker. |
+| "Permita as duas permissões" | Na página do Google, marque as duas caixas e conecte de novo. |
+| A conexão cai toda semana | O app ainda está em **Teste**. Publique-o (passo 3) e conecte de novo. |
 
 ### 26. Workflows (rotinas que estavam no n8n)
 
@@ -920,6 +946,7 @@ Outros casos: [troubleshooting.md](troubleshooting.md).
 | `TALORYS_MCP` (`off`), `TALORYS_MCP_MAX_TOOLS` | 24 | não |
 | `TALORYS_MCP_ALLOWED_ORIGINS` | 24 | não (recomendado) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 25 | para a Google Agenda |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | [modelos de IA](modelos-de-ia.md) | só para modelos pagos (geram cobrança) |
 
 Nunca defina `TALORYS_ENV`, `TALORYS_MOCK_AI`, `TALORYS_DEV_ORIGINS` nem
 `TALORYS_HIBP` em produção: são só para desenvolvimento local.

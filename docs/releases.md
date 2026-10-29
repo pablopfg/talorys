@@ -219,23 +219,8 @@ ainda consulta a versão do original no npm; para não vê-lo, desligue
 ## Sincronizar com o original
 
 Este repositório nasceu do [Talorys original](https://github.com/rociiu/talorys)
-e mantém o histórico dele. O workflow **Upstream sync**
-([`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml))
-roda toda segunda-feira às 09:00 UTC (ou à mão, em **Actions → Upstream sync →
-Run workflow**) e mantém uma única issue com o rótulo `upstream-sync`:
-
-- quantos commits do original ainda não estão na `develop`, com a lista, os
-  arquivos alterados e a última tag;
-- se a mesclagem é limpa ou quais arquivos têm conflito;
-- quando a `develop` alcança o original, a issue é fechada sozinha.
-
-Ele não usa segredos (só o `GITHUB_TOKEN`, com leitura do código e escrita em
-issues), não instala nem executa nada do original e nunca envia commits. O
-texto vindo do original (mensagens de commit, nomes de arquivos e tags) fica em
-blocos de código, sem crases nem menções. A mesclagem em si é um PR normal,
-para a CI rodar nele e os conflitos terem uma decisão humana. Um push feito
-com o `GITHUB_TOKEN` não poderia levar mudanças de workflows do original, e um
-PR aberto por ele não dispararia a CI.
+e mantém o histórico dele, então dá para trazer as mudanças dele quando
+quiser. Não há sincronização automática.
 
 Para sincronizar:
 

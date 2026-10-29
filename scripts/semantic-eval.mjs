@@ -102,38 +102,41 @@ export async function scoreCases(doc, embed, floor, cap = 3) {
 
 const fmt = (n) => (n === null ? "—" : n.toFixed(3));
 const cell = (s) => String(s).replaceAll("|", "\\|");
-const section = (n) => (n === 0 ? "none" : `${n} item${n === 1 ? "" : "s"}`);
+const section = (n) => (n === 0 ? "nenhum" : `${n} ${n === 1 ? "item" : "itens"}`);
+const KIND = { positive: "positivo", negative: "negativo" };
 
 /** The report: one row per case, then the informational rows. */
 export function renderMarkdown(results, { model, date, floor }) {
   const lines = [
-    "# Semantic surfaces eval",
+    "# Avaliação das superfícies semânticas",
     "",
-    `Model: \`${model}\`  `,
-    `Date: ${date}  `,
-    `Floor: ${floor}`,
+    "Relatório gerado por `scripts/semantic-eval.mjs`. As consultas e os itens são os casos de teste, em inglês.",
     "",
-    `Result: ${results.pass ? "PASS" : "FAIL"} (${results.cases.filter((c) => c.pass).length}/${results.cases.length} cases pass)`,
+    `Modelo: \`${model}\`  `,
+    `Data: ${date}  `,
+    `Piso: ${floor}`,
     "",
-    "| Case | Query | Kind | Target | Target cosine | Rank | Best distractor | Distractor cosine | Prompt section | Result |",
+    `Resultado: ${results.pass ? "PASSOU" : "FALHOU"} (${results.cases.filter((c) => c.pass).length}/${results.cases.length} casos passam)`,
+    "",
+    "| Caso | Consulta | Tipo | Alvo | Cosseno do alvo | Posição | Melhor distrator | Cosseno do distrator | Seção do prompt | Resultado |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...results.cases.map((c) =>
       [
         c.id,
         cell(c.query),
-        c.kind,
+        KIND[c.kind] ?? c.kind,
         c.target ?? "—",
         fmt(c.targetScore),
         c.rank ?? "—",
         c.distractor ?? "—",
         fmt(c.distractorScore),
         section(c.sectionItems),
-        c.pass ? "pass" : "FAIL",
+        c.pass ? "passou" : "FALHOU",
       ].join(" | "),
     ).map((row) => `| ${row} |`),
   ];
   if (results.extra.length) {
-    lines.push("", "## Informational rows", "", "| Row | Query | Against | Cosine |", "| --- | --- | --- | --- |");
+    lines.push("", "## Linhas informativas", "", "| Linha | Consulta | Comparada com | Cosseno |", "| --- | --- | --- | --- |");
     for (const x of results.extra) lines.push(`| ${x.id} | ${cell(x.query)} | ${cell(x.label)} | ${fmt(x.score)} |`);
   }
   return lines.join("\n") + "\n";

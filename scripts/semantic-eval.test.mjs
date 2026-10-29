@@ -148,8 +148,8 @@ describe("the cases file", () => {
     const md = renderMarkdown(r, { model: "@cf/baai/bge-m3", date: "2026-10-14T00:00:00.000Z", floor: FLOOR });
     for (const c of CASES.cases) assert.match(md, new RegExp(`^\\| ${c.id} \\|`, "m"));
     assert.match(md, /^\| XT-weather-umbrella \| weather tmrw \| umbrella reminder \| -?\d\.\d{3} \|$/m);
-    assert.match(md, /Model: `@cf\/baai\/bge-m3`/);
-    assert.match(md, /Floor: 0\.55/);
+    assert.match(md, /Modelo: `@cf\/baai\/bge-m3`/);
+    assert.match(md, /Piso: 0\.55/);
   });
 });
 
@@ -195,11 +195,11 @@ describe("prompt section", () => {
   it("CI-o: the report has a Prompt section column before Result", async () => {
     const { doc, table } = smallDoc(0.7, 0.3, 0.6);
     const md = renderMarkdown(await scoreCases(doc, fakeEmbed(table), FLOOR, 3), { model: "m", date: "d", floor: FLOOR });
-    assert.match(md, /\| Distractor cosine \| Prompt section \| Result \|/);
-    assert.match(md, /^\| EX-N \|.*\| 1 item \| FAIL \|$/m);
+    assert.match(md, /\| Cosseno do distrator \| Seção do prompt \| Resultado \|/);
+    assert.match(md, /^\| EX-N \|.*\| 1 item \| FALHOU \|$/m);
     const { doc: quiet, table: quietTable } = smallDoc(0.7, 0.3, 0.3);
     const quietMd = renderMarkdown(await scoreCases(quiet, fakeEmbed(quietTable), FLOOR, 3), { model: "m", date: "d", floor: FLOOR });
-    assert.match(quietMd, /^\| EX-N \|.*\| none \| pass \|$/m);
+    assert.match(quietMd, /^\| EX-N \|.*\| nenhum \| passou \|$/m);
   });
 
   it("CI-o: the cap reader reads MAX_RECALLED_ITEMS from the real source", () => {
@@ -237,14 +237,14 @@ describe("main", () => {
     const { table, casesPath, outPath } = setup(0.7, 0.3);
     const code = await main({ env, fetch: fakeFetch(table), casesPath, outPath, stdout: sink(), stderr: sink() });
     assert.equal(code, 0);
-    assert.match(readFileSync(outPath, "utf8"), /Result: PASS/);
+    assert.match(readFileSync(outPath, "utf8"), /Resultado: PASSOU/);
   });
 
   it("exits 1 and still writes the report when a gating case fails", async () => {
     const { table, casesPath, outPath } = setup(0.7, 0.6);
     const code = await main({ env, fetch: fakeFetch(table), casesPath, outPath, stdout: sink(), stderr: sink() });
     assert.equal(code, 1);
-    assert.match(readFileSync(outPath, "utf8"), /Result: FAIL/);
+    assert.match(readFileSync(outPath, "utf8"), /Resultado: FALHOU/);
   });
 
   it("sends at most 100 texts per request", async () => {

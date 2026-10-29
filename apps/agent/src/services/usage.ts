@@ -134,6 +134,16 @@ export class UsageService {
     };
   }
 
+  /** Today's estimated spend, in US$, on the paid providers (Anthropic, OpenAI). */
+  paidCostToday(): number {
+    const row = this.db.one<{ cost: number | null }>(
+      `SELECT sum(cost_usd_estimate) AS cost FROM tal_model_usage_daily
+       WHERE day = ? AND (model LIKE 'anthropic/%' OR model LIKE 'openai/%')`,
+      this.day(),
+    );
+    return row?.cost ?? 0;
+  }
+
   canUseAi(limits: Limits): boolean {
     return this.requestsToday() < limits.maxAiRequestsPerDay;
   }
