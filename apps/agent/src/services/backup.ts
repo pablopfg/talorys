@@ -22,7 +22,7 @@ import { clip } from "./text";
  * Settings a backup may never change: they control cost, model behaviour and how long a
  * session lasts, and a backup file is untrusted input. The owner changes them in Settings instead.
  */
-export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "memoryHistory", "session"] as const;
+export const IMPORT_IGNORED_SETTINGS = ["model", "limits", "demoMode", "autoMemory", "customInstructions", "memoryHistory", "session"] as const;
 
 /** Builds a portable backup. Sessions, login attempts and credentials are never exported. */
 export function exportData(s: Services): Backup {
