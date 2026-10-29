@@ -89,14 +89,21 @@ export class PushService {
     return this.keys;
   }
 
-  /** Called for every new notification. Returns at once; delivery continues in the background. */
-  notify(n: Notification): void {
+  /**
+   * Sends a notification to every device. Returns at once; delivery continues in the background,
+   * and `onDone` gets the outcome counts (all zero when the send itself threw).
+   */
+  notify(n: Pick<Notification, "id" | "title" | "body">, onDone?: (counts: Record<SendOutcome, number>) => void): void {
     if (!this.configured() || this.subscriptions.all().length === 0) return;
     const language = this.language();
     const localized = { ...n, title: localizeServerText(n.title, language), body: localizeServerText(n.body, language) };
     const work: Promise<void> = this.sendToAll(toPushMessage(localized))
-      .then(() => undefined)
-      .catch((error) => console.warn("Push delivery failed", error instanceof Error ? error.message : String(error)))
+      .catch((error) => {
+        console.warn("Push delivery failed", error instanceof Error ? error.message : String(error));
+        return { sent: 0, gone: 0, failed: 0 };
+      })
+      .then((counts) => onDone?.(counts))
+      .catch((error) => console.warn("Push delivery report failed", error instanceof Error ? error.message : String(error)))
       .finally(() => this.pending.delete(work));
     this.pending.add(work);
     this.background(work);

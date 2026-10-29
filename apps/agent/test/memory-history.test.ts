@@ -428,6 +428,10 @@ describe("migration from the previous schema", () => {
       db.run(`ALTER TABLE tal_sessions DROP COLUMN confirmed_at`);
       db.run(`ALTER TABLE tal_sessions DROP COLUMN last_presence_at`);
       db.run(`ALTER TABLE tal_usage_daily DROP COLUMN transcription_seconds`);
+      // Migration 19 (alert center).
+      db.run(`DROP INDEX tal_notifications_dedupe`);
+      for (const col of ["priority", "category", "dedupe_key"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run(`DROP TABLE tal_alert_deliveries`);
       db.run(`UPDATE tal_schema SET version = 3`);
       db.run(
         `INSERT INTO tal_memories (id, content, category, source, created_at, updated_at) VALUES ('legacy-1', 'Legacy memory about sailing', 'fact', 'manual', '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,

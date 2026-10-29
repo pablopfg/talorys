@@ -1,4 +1,6 @@
 import {
+  type AlertCategory,
+  type AlertPriority,
   type Automation,
   type AutomationKind,
   type AutomationRun,
@@ -127,42 +129,68 @@ export class AutomationRepository {
   }
 }
 
+/** Everything the API returns; dedupe_key stays internal. */
+const COLUMNS = "id, title, body, automation_id, priority, category, read_at, created_at";
+
 export class NotificationRepository {
-  /** `onCreate` sees every new notification (Web Push delivery hooks in here); it must not throw. */
-  constructor(
-    private readonly db: Database,
-    private readonly onCreate: (n: Notification) => void = () => {},
-  ) {}
+  constructor(private readonly db: Database) {}
 
   list(opts: { unreadOnly?: boolean; limit?: number } = {}): Notification[] {
     return this.db.all<Notification>(
-      `SELECT * FROM tal_notifications ${opts.unreadOnly ? "WHERE read_at IS NULL" : ""} ORDER BY created_at DESC LIMIT ?`,
+      `SELECT ${COLUMNS} FROM tal_notifications ${opts.unreadOnly ? "WHERE read_at IS NULL" : ""} ORDER BY created_at DESC LIMIT ?`,
       opts.limit ?? 100,
     );
+  }
+
+  get(id: string): Notification | null {
+    return this.db.one<Notification>(`SELECT ${COLUMNS} FROM tal_notifications WHERE id = ?`, id) ?? null;
   }
 
   unreadCount(): number {
     return this.db.one<{ n: number }>(`SELECT count(*) AS n FROM tal_notifications WHERE read_at IS NULL`)?.n ?? 0;
   }
 
-  create(input: { title: string; body: string; automation_id?: string | null }): Notification {
+  /**
+   * Stores a notification. Only the alert center (AlertService.raise) calls this, so that every
+   * notification also gets its priority, its channels and the anti-spam rules.
+   */
+  create(input: {
+    title: string;
+    body: string;
+    automation_id?: string | null;
+    priority?: AlertPriority;
+    category?: AlertCategory;
+    dedupe_key?: string | null;
+  }): Notification {
     const n: Notification = {
       id: newId(),
       title: input.title,
       body: input.body,
       automation_id: input.automation_id ?? null,
+      priority: input.priority ?? "normal",
+      category: input.category ?? "system",
       read_at: null,
       created_at: now(),
     };
     this.db.run(
-      `INSERT INTO tal_notifications (id, title, body, automation_id, read_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)`,
-      n.id, n.title, n.body, n.automation_id, n.created_at,
+      `INSERT INTO tal_notifications (id, title, body, automation_id, priority, category, dedupe_key, read_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      n.id, n.title, n.body, n.automation_id, n.priority, n.category, input.dedupe_key ?? null, n.created_at,
     );
     this.db.run(
       `DELETE FROM tal_notifications WHERE id NOT IN (SELECT id FROM tal_notifications ORDER BY created_at DESC LIMIT 500)`,
     );
-    this.onCreate(n);
     return n;
+  }
+
+  /** True when a notification with this key was created at or after `since` (ISO time). */
+  raisedSince(dedupeKey: string, since: string): boolean {
+    return !!this.db.one(`SELECT 1 AS x FROM tal_notifications WHERE dedupe_key = ? AND created_at >= ? LIMIT 1`, dedupeKey, since);
+  }
+
+  setPriority(id: string, priority: AlertPriority): Notification | null {
+    this.db.run(`UPDATE tal_notifications SET priority = ? WHERE id = ?`, priority, id);
+    return this.get(id);
   }
 
   markRead(id?: string): void {

@@ -126,6 +126,10 @@ describe("local model consumption", () => {
       db.run("ALTER TABLE tal_sessions DROP COLUMN confirmed_at");
       db.run("ALTER TABLE tal_sessions DROP COLUMN last_presence_at");
       db.run("ALTER TABLE tal_usage_daily DROP COLUMN transcription_seconds");
+      // Migration 19 (alert center).
+      db.run("DROP INDEX tal_notifications_dedupe");
+      for (const col of ["priority", "category", "dedupe_key"]) db.run(`ALTER TABLE tal_notifications DROP COLUMN ${col}`);
+      db.run("DROP TABLE tal_alert_deliveries");
       db.run("UPDATE tal_schema SET version = 6 WHERE id = 1");
       migrate(db);
       migrate(db);

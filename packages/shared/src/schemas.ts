@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BACKUP_FORMAT, LANGUAGES, LIMIT_CEILINGS, SESSION_TIMEOUT_RANGES, TASK_PRIORITIES, TRANSCRIPTION_LIMITS } from "./constants";
 import { isValidTimeZone, scheduleSpecSchema } from "./recurrence";
 import { type TaskPlanDraft, taskPlanDraftSchema } from "./plans";
+import type { AlertCategory, AlertPriority } from "./alerts";
 
 // ---------- Primitives ----------
 
@@ -204,6 +205,10 @@ export interface Notification {
   title: string;
   body: string;
   automation_id: string | null;
+  /** How loud the alert is; see ALERT_PRIORITIES. */
+  priority: AlertPriority;
+  /** What the alert is about; see ALERT_CATEGORIES. */
+  category: AlertCategory;
   read_at: string | null;
   created_at: string;
 }
