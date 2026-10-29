@@ -52,6 +52,33 @@ describe("Always Use HTTPS inside the Worker", () => {
     expect(JSON.stringify(await res.json())).toContain("HTTPS is required.");
   });
 
+  it("refuses a plain HTTP read that carries a credential, so the leak can't go unnoticed", async () => {
+    for (const headers of <Record<string, string>[]>[{ authorization: "Bearer tok_123" }, { cookie: "__Host-talorys_session=x" }]) {
+      const res = await call("http://talorys.example.com/api/remote/tasks", { headers });
+      expect(res.status).toBe(403);
+      expect(res.headers.get("location")).toBeNull();
+    }
+    // A page visit with an unrelated cookie of the parent domain is still moved to HTTPS.
+    const page = await call("http://talorys.example.com/", { headers: { cookie: "theme=dark" } }, { ASSETS: fakeAssets() });
+    expect(page.status).toBe(301);
+  });
+
+  it("sends the hardened header set on the Worker's own answers", async () => {
+    const hosts = { TALORYS_ALLOWED_HOSTS: "talorys.example.com" };
+    for (const res of [
+      await call("https://other.example.com/", {}, hosts),
+      await call("http://talorys.example.com/", {}, hosts),
+      await call("http://talorys.example.com/api/auth/login", { method: "POST" }, hosts),
+      await call(`${BASE}/api/health`, {}, { TALORYS_ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com" }),
+    ]) {
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(res.headers.get("x-frame-options")).toBe("DENY");
+      expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
+      expect(res.headers.get("strict-transport-security")).toBe(WEB_HEADERS["strict-transport-security"]);
+    }
+  });
+
   it("checks the host before redirecting, so another host learns nothing", async () => {
     const res = await call("http://talorys.other.workers.dev/", {}, { TALORYS_ALLOWED_HOSTS: "talorys.example.com", ASSETS: fakeAssets() });
     expect(res.status).toBe(404);
@@ -74,6 +101,9 @@ describe("web UI served by the Worker (one-Worker deploy)", () => {
     const script = await call(`${BASE}/assets/index-abc.js`, {}, { ASSETS: assets });
     expect(script.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(script.headers.get("strict-transport-security")).toBe(WEB_HEADERS["strict-transport-security"]);
+    // A missing bundle falls back to the HTML shell, which must not be cached for a year.
+    expect(webCacheControl("/assets/old-hash.js", "text/html; charset=utf-8")).toBe("no-cache");
+    expect(webCacheControl("/assets/old-hash.js", "text/javascript", false)).toBeNull();
   });
 
   it("answers 404 for the UI on a host outside TALORYS_ALLOWED_HOSTS", async () => {

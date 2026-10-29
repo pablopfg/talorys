@@ -168,18 +168,31 @@ jobs:
           case "$status" in 301|302|303|307|308) ;; *) echo "::error::http://$domain/ answered $status instead of a redirect to HTTPS."; exit 1 ;; esac
           case "$location" in https://*) ;; *) echo "::error::http://$domain/ does not redirect to an https:// address."; exit 1 ;; esac
 
-          sub="$(curl -sS --max-time 15 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result?.subdomain;process.stdout.write(/^[a-z0-9-]{1,63}$/.test(r??"")?r:"")}catch{}})')"
-          if [ -z "$sub" ]; then
-            echo "::warning::Could not read the account's workers.dev subdomain; check by hand that https://$worker.<account>.workers.dev does not answer."
-            exit 0
-          fi
+          # Ask Cloudflare itself: the Worker answers 404 on other hosts anyway, so a probe of the
+          # workers.dev address alone would pass even with workers.dev on. The token goes in on
+          # stdin, never on the command line.
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers"
+          auth() { printf 'Authorization: Bearer %s\n' "$CLOUDFLARE_API_TOKEN"; }
+          state="$(auth | curl -sS --max-time 15 -H @- "$api/scripts/$worker/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result??{};process.stdout.write(typeof r.enabled==="boolean"?`${r.enabled} ${r.previews_enabled===true}`:"")}catch{}})' || true)"
+          case "$state" in
+            "false false") echo "workers.dev and preview URLs: off" ;;
+            "") echo "::warning::Could not read the workers.dev setting of the Worker; check by hand that it is off (Worker → Settings → Domains & Routes)." ;;
+            *) echo "::error::workers.dev or preview URLs are on for this Worker ($state). They must be off when a custom domain is set."; exit 1 ;;
+          esac
+
+          # Second check, from outside: the workers.dev address must not serve anything.
+          sub="$(auth | curl -sS --max-time 15 -H @- "$api/subdomain" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result?.subdomain;process.stdout.write(/^[a-z0-9-]{1,63}$/.test(r??"")?r:"")}catch{}})' || true)"
+          [ -n "$sub" ] || exit 0
           echo "::add-mask::$sub"
           for path in / /api/health; do
             status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$worker.$sub.workers.dev$path" || true)"
             echo "workers.dev$path -> HTTP $status"
-            case "$status" in 2*|3*) echo "::error::The workers.dev address still answers $path. It must be off when a custom domain is set."; exit 1 ;; esac
+            case "$status" in
+              2*|3*) echo "::error::The workers.dev address still answers $path. It must be off when a custom domain is set."; exit 1 ;;
+              000) echo "::warning::Could not reach the workers.dev address to check $path." ;;
+            esac
           done
       - name: Summary
         env:

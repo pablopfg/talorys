@@ -90,7 +90,9 @@ O **Account ID** fica na página inicial da conta (Workers & Pages → lateral d
 
 O próprio Worker já garante HTTPS: ele roda antes de qualquer arquivo da
 interface, responde `301` para `https://` a toda página ou leitura pedida por
-HTTP, recusa (sem redirecionar) qualquer envio por HTTP, como um login, e manda
+HTTP, recusa (sem redirecionar) qualquer envio por HTTP, como um login, e
+qualquer chamada à API que leve credencial (um token Bearer do n8n, por
+exemplo), para que o vazamento apareça em vez de ser escondido. Também manda
 HSTS em todas as respostas. Mesmo assim, ligue as proteções da zona, que
 agem antes de a requisição chegar ao Worker. Na zona do domínio, em
 **SSL/TLS**:
@@ -143,8 +145,10 @@ Com `TALORYS_CUSTOM_DOMAIN` definida, ele não fica exposto. São três camadas:
    host de `TALORYS_ALLOWED_HOSTS` (o seu domínio) e devolve 404 a qualquer
    outro, na interface e na API.
 3. Depois de cada deploy, o workflow confere que `http://` redireciona para
-   `https://` e que o endereço `workers.dev` não responde. Se responder, o
-   deploy fica vermelho. O subdomínio da conta sai mascarado no log.
+   `https://`, pergunta à API da Cloudflare se o `workers.dev` e as URLs de
+   preview do Worker estão desligados e testa de fora que o endereço
+   `workers.dev` não responde. Se algo falhar, o deploy fica vermelho. O
+   subdomínio da conta sai mascarado no log.
 
 > **Não crie esses segredos no nível do repositório** (Settings → Secrets →
 > Actions → *Repository secrets*). No nível do repositório, qualquer workflow,
